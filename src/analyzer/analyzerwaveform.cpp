@@ -54,18 +54,18 @@ bool AnalyzerWaveform::initialize(const AnalyzerTrack& track,
 
     m_timer.start();
 
+    int stemCount = channelCount == mixxx::kAnalysisChannels
+            ? 0
+            : channelCount / mixxx::kAnalysisChannels;
+
     // Now actually initialize the AnalyzerWaveform:
     destroyFilters();
-    createFilters(sampleRate);
+    createFilters(sampleRate, stemCount);
 
     //TODO (vrince) Do we want to expose this as settings or whatever ?
     constexpr int mainWaveformSampleRate = 441;
     // two visual sample per pixel in full width overview in full hd
     constexpr int summaryWaveformSamples = 2 * 1920;
-
-    int stemCount = channelCount == mixxx::kAnalysisChannels
-            ? 0
-            : channelCount / mixxx::kAnalysisChannels;
     m_waveform = WaveformPointer(new Waveform(
             sampleRate, frameLength, mainWaveformSampleRate, -1, stemCount));
     m_waveformSummary = WaveformPointer(new Waveform(
@@ -156,6 +156,16 @@ bool AnalyzerWaveform::shouldAnalyze(TrackPointer pTrack) const {
     if (!missingWaveform && !waveformHasStemData && isStemTrack) {
         missingWaveform = true;
     }
+
+    // Same if the waveform has stem data but predates the RGB-stem patch and
+    // therefore lacks the per-stem low/mid/high band data.
+    const bool waveformHasStemBands = (!pTrackWaveform.isNull() &&
+                                              pTrackWaveform->hasStemBands()) ||
+            (!pLoadedTrackWaveform.isNull() &&
+                    pLoadedTrackWaveform->hasStemBands());
+    if (!missingWaveform && isStemTrack && !waveformHasStemBands) {
+        missingWaveform = true;
+    }
 #endif
 
     // If we don't need to calculate the waveform/wavesummary, skip.
@@ -172,7 +182,7 @@ bool AnalyzerWaveform::shouldAnalyze(TrackPointer pTrack) const {
     return true;
 }
 
-void AnalyzerWaveform::createFilters(mixxx::audio::SampleRate sampleRate) {
+void AnalyzerWaveform::createFilters(mixxx::audio::SampleRate sampleRate, int stemCount) {
     // m_filter[Low] = new EngineFilterButterworth8Low(sampleRate, kLowMidFreqHz);
     // m_filter[Mid] = new EngineFilterButterworth8Band(sampleRate, kLowMidFreqHz, kMidHighFreqHz);
     // m_filter[High] = new EngineFilterButterworth8High(sampleRate, kMidHighFreqHz);
@@ -185,10 +195,29 @@ void AnalyzerWaveform::createFilters(mixxx::audio::SampleRate sampleRate) {
     m_filters.low->assumeSettled();
     m_filters.mid->assumeSettled();
     m_filters.high->assumeSettled();
+
+    // Per-stem filter banks for RGB-colored stem waveforms
+    m_stemFilters.clear();
+    m_stemFilters.reserve(stemCount);
+    for (int stemIdx = 0; stemIdx < stemCount; stemIdx++) {
+        Filters& stemFilters = m_stemFilters.emplace_back();
+        stemFilters.low = std::make_unique<EngineFilterBessel4Low>(
+                sampleRate, kLowMidFreqHz);
+        stemFilters.mid = std::make_unique<EngineFilterBessel4Band>(
+                sampleRate, kLowMidFreqHz, kMidHighFreqHz);
+        stemFilters.high = std::make_unique<EngineFilterBessel4High>(
+                sampleRate, kMidHighFreqHz);
+        stemFilters.low->assumeSettled();
+        stemFilters.mid->assumeSettled();
+        stemFilters.high->assumeSettled();
+    }
+    m_stemBuffers.assign(stemCount, StemBuffers{});
 }
 
 void AnalyzerWaveform::destroyFilters() {
     m_filters = {};
+    m_stemFilters.clear();
+    m_stemBuffers.clear();
 }
 
 bool AnalyzerWaveform::processSamples(const CSAMPLE* pIn, SINT count) {
@@ -230,6 +259,34 @@ bool AnalyzerWaveform::processSamples(const CSAMPLE* pIn, SINT count) {
     m_filters.mid->process(pWaveformInput, &m_buffers.mid[0], count);
     m_filters.high->process(pWaveformInput, &m_buffers.high[0], count);
 
+    // Band-filter each stem separately for RGB-colored stem waveforms
+    const bool processStemBands = stemCount > 0 &&
+            static_cast<int>(m_stemFilters.size()) == stemCount;
+    if (processStemBands) {
+        for (int s = 0; s < stemCount; s++) {
+            StemBuffers& stemBuf = m_stemBuffers[s];
+            if (count > stemBuf.size) {
+                stemBuf.input.resize(count);
+                stemBuf.low.resize(count);
+                stemBuf.mid.resize(count);
+                stemBuf.high.resize(count);
+                stemBuf.size = count;
+            }
+            for (SINT i = 0; i < count; i += 2) {
+                stemBuf.input[i] =
+                        pIn[i * stemCount + s * mixxx::kAnalysisChannels];
+                stemBuf.input[i + 1] =
+                        pIn[i * stemCount + s * mixxx::kAnalysisChannels + 1];
+            }
+            m_stemFilters[s].low->process(
+                    &stemBuf.input[0], &stemBuf.low[0], count);
+            m_stemFilters[s].mid->process(
+                    &stemBuf.input[0], &stemBuf.mid[0], count);
+            m_stemFilters[s].high->process(
+                    &stemBuf.input[0], &stemBuf.high[0], count);
+        }
+    }
+
     m_waveform->setSaveState(Waveform::SaveState::NotSaved);
     m_waveformSummary->setSaveState(Waveform::SaveState::NotSaved);
 
@@ -268,6 +325,29 @@ bool AnalyzerWaveform::processSamples(const CSAMPLE* pIn, SINT count) {
                             1])};
             storeIfGreater(&m_stride.m_stemData[Left][s], cstem[Left]);
             storeIfGreater(&m_stride.m_stemData[Right][s], cstem[Right]);
+
+            if (!processStemBands) {
+                continue;
+            }
+            const StemBuffers& stemBuf = m_stemBuffers[s];
+            CSAMPLE cstemLow[2] = {
+                    fabs(stemBuf.low[i]), fabs(stemBuf.low[i + 1])};
+            CSAMPLE cstemMid[2] = {
+                    fabs(stemBuf.mid[i]), fabs(stemBuf.mid[i + 1])};
+            CSAMPLE cstemHigh[2] = {
+                    fabs(stemBuf.high[i]), fabs(stemBuf.high[i + 1])};
+            storeIfGreater(&m_stride.m_stemFilteredData[Left][s][Low],
+                    cstemLow[Left]);
+            storeIfGreater(&m_stride.m_stemFilteredData[Right][s][Low],
+                    cstemLow[Right]);
+            storeIfGreater(&m_stride.m_stemFilteredData[Left][s][Mid],
+                    cstemMid[Left]);
+            storeIfGreater(&m_stride.m_stemFilteredData[Right][s][Mid],
+                    cstemMid[Right]);
+            storeIfGreater(&m_stride.m_stemFilteredData[Left][s][High],
+                    cstemHigh[Left]);
+            storeIfGreater(&m_stride.m_stemFilteredData[Right][s][High],
+                    cstemHigh[Right]);
         }
 
         m_stride.m_position++;

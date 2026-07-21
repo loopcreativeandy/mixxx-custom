@@ -40,6 +40,8 @@ struct WaveformStride {
             SampleUtil::clear(m_filteredData[i], BandCount);
             SampleUtil::clear(m_averageFilteredData[i], BandCount);
             SampleUtil::clear(m_stemData[i], m_stemCount);
+            SampleUtil::clear(&m_stemFilteredData[i][0][0],
+                    mixxx::kMaxSupportedStems * BandCount);
         }
     }
 
@@ -55,8 +57,14 @@ struct WaveformStride {
             datum.filtered.high = static_cast<unsigned char>(std::min(255.0,
                     m_postScaleConversion * m_filteredData[i][High] + 0.5));
             for (int stemIdx = 0; stemIdx < m_stemCount; stemIdx++) {
-                datum.stems[stemIdx] = static_cast<unsigned char>(std::min(255.0,
+                datum.stems[stemIdx].all = static_cast<unsigned char>(std::min(255.0,
                         m_postScaleConversion * m_stemData[i][stemIdx] + 0.5));
+                datum.stems[stemIdx].low = static_cast<unsigned char>(std::min(255.0,
+                        m_postScaleConversion * m_stemFilteredData[i][stemIdx][Low] + 0.5));
+                datum.stems[stemIdx].mid = static_cast<unsigned char>(std::min(255.0,
+                        m_postScaleConversion * m_stemFilteredData[i][stemIdx][Mid] + 0.5));
+                datum.stems[stemIdx].high = static_cast<unsigned char>(std::min(255.0,
+                        m_postScaleConversion * m_stemFilteredData[i][stemIdx][High] + 0.5));
             }
         }
         m_averageDivisor++;
@@ -70,6 +78,9 @@ struct WaveformStride {
             }
             for (int stemIdx = 0; stemIdx < m_stemCount; ++stemIdx) {
                 m_stemData[i][stemIdx] = 0.0f;
+                for (int f = 0; f < BandCount; ++f) {
+                    m_stemFilteredData[i][stemIdx][f] = 0.0f;
+                }
             }
         }
     }
@@ -127,6 +138,8 @@ struct WaveformStride {
     float m_overallData[ChannelCount];
     float m_filteredData[ChannelCount][BandCount];
     float m_stemData[ChannelCount][mixxx::kMaxSupportedStems];
+    // Per-stem band-filtered maxima (only Low/Mid/High slots are used)
+    float m_stemFilteredData[ChannelCount][mixxx::kMaxSupportedStems][BandCount];
 
     float m_averageOverallData[ChannelCount];
     float m_averageFilteredData[ChannelCount][BandCount];
@@ -155,7 +168,7 @@ class AnalyzerWaveform : public Analyzer {
     void storeCurrentStridePower();
     void resetCurrentStride();
 
-    void createFilters(mixxx::audio::SampleRate sampleRate);
+    void createFilters(mixxx::audio::SampleRate sampleRate, int stemCount);
     void destroyFilters();
     void storeIfGreater(float* pDest, float source);
 
@@ -196,6 +209,20 @@ class AnalyzerWaveform : public Analyzer {
     };
 
     Buffers m_buffers;
+
+    // Per-stem band filters and scratch buffers for RGB stem waveforms
+    std::vector<Filters> m_stemFilters;
+
+    struct StemBuffers {
+        std::vector<float> input; // deinterleaved stereo samples of one stem
+        std::vector<float> low;
+        std::vector<float> mid;
+        std::vector<float> high;
+
+        SINT size = 0;
+    };
+
+    std::vector<StemBuffers> m_stemBuffers;
 
     PerformanceTimer m_timer;
 
