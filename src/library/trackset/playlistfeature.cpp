@@ -180,9 +180,20 @@ QList<BasePlaylistFeature::IdAndLabel> PlaylistFeature::createPlaylistLabels() {
                                   .arg(m_countsDurationTableName,
                                           QString::number(
                                                   PlaylistDAO::PLHT_NOT_HIDDEN));
-    queryString.append(
-            mixxx::DbConnection::collateLexicographically(
-                    " ORDER BY sort_name"));
+    // andy-custom: sort sidebar playlists by leading-underscore tier (more
+    // underscores = pinned higher, capped at 5), then creation date newest on
+    // top. substr() instead of LIKE because '_' is a LIKE wildcard.
+    queryString.append(QStringLiteral(
+            " ORDER BY "
+            " CASE"
+            "  WHEN substr(Playlists.name, 1, 5) = '_____' THEN 5"
+            "  WHEN substr(Playlists.name, 1, 4) = '____' THEN 4"
+            "  WHEN substr(Playlists.name, 1, 3) = '___' THEN 3"
+            "  WHEN substr(Playlists.name, 1, 2) = '__' THEN 2"
+            "  WHEN substr(Playlists.name, 1, 1) = '_' THEN 1"
+            "  ELSE 0"
+            " END DESC,"
+            " Playlists.date_created DESC"));
     QSqlQuery query(database);
     if (!query.exec(queryString)) {
         LOG_FAILED_QUERY(query);
