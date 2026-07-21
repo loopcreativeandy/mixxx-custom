@@ -30,4 +30,7 @@ message Waveform {
   optional Signal signal_all = 3;
   optional FilteredSignal signal_filtered = 4;
   repeated Signal signal_stems = 5;
+  // Per-stem band-filtered signals (same order as signal_stems). Optional
+  // extension used for RGB-colored stem waveforms; older builds ignore it.
+  repeated FilteredSignal signal_stems_filtered = 6;
 }

@@ -25,7 +25,9 @@ Waveform::Waveform(const QByteArray& data)
           m_visualSampleRate(0),
           m_audioVisualRatio(0),
           m_textureStride(computeTextureStride(0)),
-          m_completion(-1) {
+          m_completion(-1),
+          m_stemCount(0),
+          m_hasStemBands(false) {
     readByteArray(data);
 }
 
@@ -42,7 +44,8 @@ Waveform::Waveform(
           m_audioVisualRatio(0),
           m_textureStride(1024),
           m_completion(-1),
-          m_stemCount(stemCount) {
+          m_stemCount(stemCount),
+          m_hasStemBands(stemCount > 0) {
     int numberOfVisualSamples = 0;
     if (audioSampleRate > 0) {
         if (maxVisualSamples == -1) {
@@ -134,9 +137,37 @@ QByteArray Waveform::toByteArray() const {
         stem->set_channels(mixxx::kEngineChannelOutputCount);
         for (int i = 0; i < dataSize; ++i) {
             const WaveformData& datum = m_data.at(i);
-            stem->add_value(datum.stems[stemIdx]);
+            stem->add_value(datum.stems[stemIdx].all);
         }
         stemIdx++;
+    }
+
+    // Per-stem band-filtered signals for RGB-colored stem waveforms. Kept
+    // separate from signal_stems (field 5) so older builds still find the
+    // overall stem amplitude where they expect it.
+    if (m_hasStemBands) {
+        for (stemIdx = 0; stemIdx < m_stemCount; stemIdx++) {
+            io::Waveform::FilteredSignal* stemFiltered =
+                    waveform.add_signal_stems_filtered();
+            stemFiltered->set_low_cutoff_frequency(600);
+            stemFiltered->set_mid_low_cutoff_frequency(600);
+            stemFiltered->set_mid_high_cutoff_frequency(4000);
+            stemFiltered->set_high_cutoff_frequency(4000);
+
+            io::Waveform::Signal* stemLow = stemFiltered->mutable_low();
+            io::Waveform::Signal* stemMid = stemFiltered->mutable_mid();
+            io::Waveform::Signal* stemHigh = stemFiltered->mutable_high();
+            for (io::Waveform::Signal* signal : {stemLow, stemMid, stemHigh}) {
+                signal->set_units(io::Waveform::RMS);
+                signal->set_channels(mixxx::kEngineChannelOutputCount);
+            }
+            for (int i = 0; i < dataSize; ++i) {
+                const WaveformData& datum = m_data.at(i);
+                stemLow->add_value(datum.stems[stemIdx].low);
+                stemMid->add_value(datum.stems[stemIdx].mid);
+                stemHigh->add_value(datum.stems[stemIdx].high);
+            }
+        }
     }
 
     qDebug() << "Writing waveform from byte array:"
@@ -224,12 +255,48 @@ void Waveform::readByteArray(const QByteArray& data) {
         const io::Waveform::Signal& stem = waveform.signal_stems(stemIdx);
         if (stem.units() == io::Waveform::RMS && stem.value_size() > 0) {
             for (int i = 0; i < std::min(dataSize, stem.value_size()); ++i) {
-                m_data[i].stems[stemIdx] = static_cast<unsigned char>(stem.value(i));
+                m_data[i].stems[stemIdx].all = static_cast<unsigned char>(stem.value(i));
             }
         }
         if (stem.units() != io::Waveform::RMS || dataSize > stem.value_size()) {
             for (int i = stem.value_size(); i < dataSize; ++i) {
-                m_data[i].stems[stemIdx] = 0;
+                m_data[i].stems[stemIdx].all = 0;
+            }
+        }
+    }
+
+    // Per-stem band data (RGB stem waveforms). Older caches don't have it;
+    // fall back gracefully so the renderer can use flat stem colors instead.
+    m_hasStemBands = m_stemCount > 0 &&
+            waveform.signal_stems_filtered_size() == m_stemCount;
+    for (int stemIdx = 0; stemIdx < m_stemCount; ++stemIdx) {
+        const io::Waveform::FilteredSignal* stemFiltered = nullptr;
+        if (m_hasStemBands) {
+            stemFiltered = &waveform.signal_stems_filtered(stemIdx);
+            if (!stemFiltered->has_low() || !stemFiltered->has_mid() ||
+                    !stemFiltered->has_high()) {
+                m_hasStemBands = false;
+                stemFiltered = nullptr;
+            }
+        }
+        for (int i = 0; i < dataSize; ++i) {
+            if (stemFiltered) {
+                const io::Waveform::Signal& stemLow = stemFiltered->low();
+                const io::Waveform::Signal& stemMid = stemFiltered->mid();
+                const io::Waveform::Signal& stemHigh = stemFiltered->high();
+                m_data[i].stems[stemIdx].low = i < stemLow.value_size()
+                        ? static_cast<unsigned char>(stemLow.value(i))
+                        : 0;
+                m_data[i].stems[stemIdx].mid = i < stemMid.value_size()
+                        ? static_cast<unsigned char>(stemMid.value(i))
+                        : 0;
+                m_data[i].stems[stemIdx].high = i < stemHigh.value_size()
+                        ? static_cast<unsigned char>(stemHigh.value(i))
+                        : 0;
+            } else {
+                m_data[i].stems[stemIdx].low = 0;
+                m_data[i].stems[stemIdx].mid = 0;
+                m_data[i].stems[stemIdx].high = 0;
             }
         }
     }

@@ -28,7 +28,10 @@ struct WaveformFilteredData {
 
 struct WaveformData {
     WaveformFilteredData filtered;
-    unsigned char stems[mixxx::kMaxSupportedStems];
+    // Per-stem data: `.all` is the overall stem amplitude (previously the only
+    // per-stem byte), `.low`/`.mid`/`.high` are the band-filtered maxima used
+    // for RGB-colored stem waveforms.
+    WaveformFilteredData stems[mixxx::kMaxSupportedStems];
 };
 
 class Waveform {
@@ -137,6 +140,12 @@ class Waveform {
         return m_stemCount > 0;
     }
 
+    // True if the per-stem low/mid/high band data is available. Waveforms
+    // analyzed before the RGB-stem patch only carry the per-stem `.all` byte.
+    bool hasStemBands() const {
+        return m_hasStemBands;
+    }
+
     void dump() const;
 
   private:
@@ -184,6 +193,8 @@ class Waveform {
 
     // The number of stem contained in waveform samples. 0 if not a stem waveform
     int m_stemCount;
+    // Whether per-stem low/mid/high band data is present (see hasStemBands())
+    bool m_hasStemBands;
 
     mutable QMutex m_mutex;
 
