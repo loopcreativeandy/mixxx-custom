@@ -47,6 +47,12 @@ void WaveformRendererStem::onSetup(const QDomNode&) {
 }
 
 bool WaveformRendererStem::init() {
+    // Initialize the EQ/filter control proxies used by getGains(). Without
+    // this, m_pEQEnabled stays null and the getGains() call in
+    // preprocessInner() crashes.
+    if (!::WaveformRendererSignalBase::init()) {
+        return false;
+    }
     for (int stemIdx = 0; stemIdx < mixxx::kMaxSupportedStems; stemIdx++) {
         QString stemGroup = EngineDeck::getGroupForStem(m_waveformRenderer->getGroup(), stemIdx);
         m_pStemGain.emplace_back(
@@ -154,8 +160,13 @@ bool WaveformRendererStem::preprocessInner() {
             (lastVisualFrame - firstVisualFrame) / static_cast<double>(stripLength);
 
     // Per-band gain from the EQ knobs.
-    float allGain(1.0);
-    getGains(&allGain, nullptr, nullptr, nullptr);
+    float allGain(1.0), lowGain(1.0), midGain(1.0), highGain(1.0);
+    getGains(&allGain, &lowGain, &midGain, &highGain);
+
+    // Whether the waveform carries per-stem low/mid/high band data (older
+    // caches only have the overall per-stem amplitude and fall back to the
+    // flat stem colors).
+    const bool hasStemBands = waveform->hasStemBands();
 
     const float breadth = static_cast<float>(m_waveformRenderer->getBreadth());
     const float stemBreadth = m_splitStemTracks ? breadth / 4.0f : 0;
@@ -208,12 +219,45 @@ bool WaveformRendererStem::preprocessInner() {
                 // Find the max values for current eq in the waveform data.
                 // - Max of left and right
                 uchar u8max{};
+                uchar u8maxLow{}, u8maxMid{}, u8maxHigh{};
                 for (int chn = 0; chn < 2; chn++) {
                     // data is interleaved left / right
                     for (int i = visualIndexStart + chn; i < visualIndexStop + chn; i += 2) {
                         const WaveformData& waveformData = data[i];
 
-                        u8max = math_max(u8max, waveformData.stems[stemIdx]);
+                        u8max = math_max(u8max, waveformData.stems[stemIdx].all);
+                        if (hasStemBands) {
+                            u8maxLow = math_max(u8maxLow,
+                                    waveformData.stems[stemIdx].low);
+                            u8maxMid = math_max(u8maxMid,
+                                    waveformData.stems[stemIdx].mid);
+                            u8maxHigh = math_max(u8maxHigh,
+                                    waveformData.stems[stemIdx].high);
+                        }
+                    }
+                }
+
+                // On the fill layer, color the strip by its low/mid/high band
+                // content (RGB waveform style); the outline layer keeps the
+                // flat stem color so stems stay identifiable.
+                if (layerIdx && hasStemBands) {
+                    const float maxLow = static_cast<float>(u8maxLow) * lowGain;
+                    const float maxMid = static_cast<float>(u8maxMid) * midGain;
+                    const float maxHigh = static_cast<float>(u8maxHigh) * highGain;
+                    const float red = maxLow * m_rgbLowColor_r +
+                            maxMid * m_rgbMidColor_r +
+                            maxHigh * m_rgbHighColor_r;
+                    const float green = maxLow * m_rgbLowColor_g +
+                            maxMid * m_rgbMidColor_g +
+                            maxHigh * m_rgbHighColor_g;
+                    const float blue = maxLow * m_rgbLowColor_b +
+                            maxMid * m_rgbMidColor_b +
+                            maxHigh * m_rgbHighColor_b;
+                    const float maxComponent = math_max3(red, green, blue);
+                    if (maxComponent > 0.f) {
+                        color_r = red / maxComponent;
+                        color_g = green / maxComponent;
+                        color_b = blue / maxComponent;
                     }
                 }
 
