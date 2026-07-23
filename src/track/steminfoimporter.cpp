@@ -27,11 +27,12 @@ const QStringList kStemPreferredFileExtensions = {".stem.mp4", ".stem.m4a"};
 // Fixed stem palette (andy-custom): the colors declared in the stem manifest
 // are deliberately ignored so stems look identical across the whole library.
 // Hues follow the RGB-waveform convention (low band = red): bass red, drums
-// amber (low + high content), other green, vocals blue.
+// amber (low + high content), vocals pink, other cyan (the one hue family
+// that stays distinct from the three warm colors at matching vividness).
 const QColor kFixedStemColorDrums(0xFF, 0xA6, 0x30);  // amber
 const QColor kFixedStemColorBass(0xFF, 0x45, 0x45);   // red
-const QColor kFixedStemColorOther(0x35, 0xD0, 0x7A);  // green
-const QColor kFixedStemColorVocals(0x45, 0xAA, 0xFF); // blue
+const QColor kFixedStemColorOther(0x45, 0xC8, 0xE8);  // cyan
+const QColor kFixedStemColorVocals(0xFF, 0x5C, 0xA8); // pink
 
 QColor fixedStemColor(const QString& name, int stemIdx) {
     const QString n = name.toLower();
