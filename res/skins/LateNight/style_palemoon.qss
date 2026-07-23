@@ -2527,6 +2527,13 @@ WPushButton#PlayDeck[value="0"] {
     image: url(skins:LateNight/palemoon/buttons/btn__settings_on.svg) no-repeat left top;
   }
 
+#AndyCustomBuild {
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #ffa630;
+  qproperty-alignment: 'AlignVCenter | AlignLeft';
+}
 #ToolbarLogo {
   image: url(skins:LateNight/palemoon/style/mixxx_logo_small.svg) no-repeat center center;
 }

@@ -787,7 +787,8 @@ QDialog::DialogCode MixxxMainWindow::noOutputDlg(bool* continueClicked) {
 }
 
 void MixxxMainWindow::slotUpdateWindowTitle(TrackPointer pTrack) {
-    QString appTitle = VersionStore::applicationName();
+    QString appTitle = VersionStore::applicationName() +
+            QStringLiteral(" — Andy's custom build");
     QString filePath;
 
     // If we have a track, use getInfo() to format a summary string and prepend
