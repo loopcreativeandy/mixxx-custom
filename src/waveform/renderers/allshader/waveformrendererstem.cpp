@@ -180,8 +180,13 @@ bool WaveformRendererStem::preprocessInner() {
 
     const int numVerticesPerLine = 6; // 2 triangles
 
+    // Two layers per drawn stem per strip, plus the background rectangle.
+    // Tracks may declare fewer stems than kMaxSupportedStems; only those get
+    // drawn (see the stemIdx bound check below).
+    const int numDrawnStems =
+            std::min<int>(static_cast<int>(stemInfo.size()), mixxx::kMaxSupportedStems);
     const int reserved = numVerticesPerLine *
-            (mixxx::audio::ChannelCount::stem() * stripLength + 1);
+            (2 * numDrawnStems * stripLength + 1);
 
     geometry().setDrawingMode(Geometry::DrawingMode::Triangles);
     geometry().allocate(reserved);
@@ -199,6 +204,12 @@ bool WaveformRendererStem::preprocessInner() {
     for (int visualIdx = 0; visualIdx < stripLength; visualIdx++) {
         int stemLayer = 0;
         for (int stemIdx : std::as_const(m_stackOrder)) {
+            // m_stackOrder always spans kMaxSupportedStems entries; a track
+            // whose manifest declares fewer stems must not index past its
+            // StemInfo list.
+            if (stemIdx >= stemInfo.size()) {
+                continue;
+            }
             // Stem is drawn twice with different opacity level, this allow to
             // see the maximum signal by transparency
             for (int layerIdx = 0; layerIdx < 2; layerIdx++) {

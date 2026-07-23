@@ -250,7 +250,9 @@ void Waveform::readByteArray(const QByteArray& data) {
         m_data[i].filtered.mid = use_mid ? static_cast<unsigned char>(mid.value(i)) : 0;
         m_data[i].filtered.high = use_high ? static_cast<unsigned char>(high.value(i)) : 0;
     }
-    m_stemCount = waveform.signal_stems_size();
+    // Clamp to the stems[] array size — a corrupt or foreign analysis blob
+    // must not drive out-of-bounds writes below.
+    m_stemCount = std::min<int>(waveform.signal_stems_size(), mixxx::kMaxSupportedStems);
     for (int stemIdx = 0; stemIdx < m_stemCount; ++stemIdx) {
         const io::Waveform::Signal& stem = waveform.signal_stems(stemIdx);
         if (stem.units() == io::Waveform::RMS && stem.value_size() > 0) {
