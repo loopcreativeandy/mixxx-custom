@@ -3,6 +3,20 @@
 name: Build
 
 on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish/deploy to downloads.mixxx.org (leave OFF for a normal build + artifacts)"
+        type: boolean
+        default: false
+      branch:
+        description: "Branch label (used only for the build cache key)"
+        type: string
+        default: andy-custom
+      ref:
+        description: "Git ref (used only for release/publish gating; ignored for normal builds)"
+        type: string
+        default: refs/heads/andy-custom
   workflow_call:
     inputs:
       publish:
