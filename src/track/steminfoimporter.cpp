@@ -24,12 +24,52 @@ const QStringList kStemMimes = {"audio/mp4", "audio/m4a", "audio/x-m4a", "video/
 // fails, we fallback to match the filename extension with "preferred" file
 // extensions
 const QStringList kStemPreferredFileExtensions = {".stem.mp4", ".stem.m4a"};
-const QColor kStemDefaultColor[] = {
-        QColor(0x00, 0x9E, 0x73),
-        QColor(0xD5, 0x5E, 0x00),
-        QColor(0xCC, 0x79, 0xA7),
-        QColor(0x56, 0xB4, 0xE9),
-};
+// Fixed stem palette (andy-custom): the colors declared in the stem manifest
+// are deliberately ignored so stems look identical across the whole library.
+// Hues follow the RGB-waveform convention (low band = red): bass red, drums
+// amber (low + high content), other green, vocals blue.
+const QColor kFixedStemColorDrums(0xFF, 0xA6, 0x30);  // amber
+const QColor kFixedStemColorBass(0xFF, 0x45, 0x45);   // red
+const QColor kFixedStemColorOther(0x35, 0xD0, 0x7A);  // green
+const QColor kFixedStemColorVocals(0x45, 0xAA, 0xFF); // blue
+
+QColor fixedStemColor(const QString& name, int stemIdx) {
+    const QString n = name.toLower();
+    if (n.contains(QLatin1String("voc")) || n.contains(QLatin1String("vox")) ||
+            n.contains(QLatin1String("voice")) ||
+            n.contains(QLatin1String("acapella"))) {
+        return kFixedStemColorVocals;
+    }
+    if (n.contains(QLatin1String("drum")) || n.contains(QLatin1String("beat")) ||
+            n.contains(QLatin1String("perc")) ||
+            n.contains(QLatin1String("kick"))) {
+        return kFixedStemColorDrums;
+    }
+    if (n.contains(QLatin1String("bass"))) {
+        return kFixedStemColorBass;
+    }
+    if (n.contains(QLatin1String("melod")) ||
+            n.contains(QLatin1String("synth")) ||
+            n.contains(QLatin1String("instr")) ||
+            n.contains(QLatin1String("harmon")) ||
+            n.contains(QLatin1String("guitar")) ||
+            n.contains(QLatin1String("piano")) ||
+            n.contains(QLatin1String("other"))) {
+        return kFixedStemColorOther;
+    }
+    // Unrecognized name: fall back to the most common stem file order
+    // (drums, bass, other, vocals).
+    switch (stemIdx % 4) {
+    case 0:
+        return kFixedStemColorDrums;
+    case 1:
+        return kFixedStemColorBass;
+    case 2:
+        return kFixedStemColorOther;
+    default:
+        return kFixedStemColorVocals;
+    }
+}
 
 struct MP4BoxHeader {
     quint32 size;
@@ -188,17 +228,13 @@ QList<StemInfo> StemInfoImporter::importStemInfos(
             return {};
         }
         auto stem = stemRef.toObject();
-        auto color = QColor(stem.value("color").toString());
         auto name = stem.value("name").toString();
-        if (!color.isValid()) {
-            kLogger.debug() << "Unexpected or missing stem color in STEM manifest. Using default";
-            color = kStemDefaultColor[stemIdx];
-        }
         if (name.isEmpty()) {
             kLogger.debug() << "Unexpected or missing stem name in STEM manifest. Using default";
             name = QObject::tr("Stem #%1").arg(QString::number(stemIdx + 1));
         }
-        stemsList.emplace_back(name, color);
+        // Manifest "color" is intentionally not read — fixed palette only.
+        stemsList.emplace_back(name, fixedStemColor(name, stemIdx));
         stemIdx++;
     }
 
