@@ -77,6 +77,6 @@ void FontUtils::initializeFonts(const QString& resourcePath) {
             continue;
         }
 
-        addFont(path);
+        addFont(fontsDir.absoluteFilePath(path));
     }
 }
