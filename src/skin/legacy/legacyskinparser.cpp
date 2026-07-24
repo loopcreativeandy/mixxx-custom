@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QGridLayout>
+#include <QRegularExpression>
 #include <QLabel>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -2663,8 +2664,20 @@ QString LegacySkinParser::stylesheetAbsIconPaths(QString& style) {
     // Now this also replaces the 'skins:' alias which allows skin mods in the
     // user skins directory to use image urls referencing files in the system
     // skins directory for the launch image style.
-    style.replace("url(skins:", "url(" + m_pConfig->getResourcePath() + "skins/");
-    return style.replace("url(skin:", "url(" + m_pContext->getSkinBasePath());
+    // The substituted absolute paths are wrapped in double quotes: an
+    // unquoted CSS url token must not contain quote characters, so an
+    // installation path with an apostrophe (e.g. "C:/Program Files/
+    // Andy's Mixxx") would otherwise make the whole stylesheet unparsable.
+    static const QRegularExpression skinsUrl(
+            QStringLiteral("url\\(skins:([^)\"]*)\\)"));
+    static const QRegularExpression skinUrl(
+            QStringLiteral("url\\(skin:([^)\"]*)\\)"));
+    style.replace(skinsUrl,
+            QStringLiteral("url(\"") + m_pConfig->getResourcePath() +
+                    QStringLiteral("skins/\\1\")"));
+    return style.replace(skinUrl,
+            QStringLiteral("url(\"") + m_pContext->getSkinBasePath() +
+                    QStringLiteral("\\1\")"));
 }
 
 bool LegacySkinParser::requiresStem(const QDomElement& node) {
