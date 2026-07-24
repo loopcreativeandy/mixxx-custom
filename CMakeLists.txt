@@ -5053,7 +5053,11 @@ set(
   CPACK_PACKAGE_DESCRIPTION_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/packaging/CPackPackageDescription.txt"
 )
-set(CPACK_PACKAGE_INSTALL_DIRECTORY "Andy's Mixxx")
+# No apostrophe in the install path: it ends up spliced into contexts with
+# their own quoting rules (e.g. CSS url() in skin stylesheets). Display
+# strings (package name, shortcut label) keep the apostrophe — they are
+# labels, never paths.
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "Andys Mixxx")
 set(CPACK_PACKAGE_EXECUTABLES "mixxx;Andy's Mixxx")
 set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/res/images/mixxx_install_logo.bmp")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://www.mixxx.org/")
