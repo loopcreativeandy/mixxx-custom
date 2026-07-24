@@ -3,6 +3,9 @@
 name: Build
 
 on:
+  push:
+    branches:
+      - andy-custom
   workflow_dispatch:
     inputs:
       publish:
@@ -299,9 +302,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ matrix.compiler_cache_path }}
-          key: ${{ matrix.os }}-${{ matrix.compiler_cache_id }}-${{ inputs.branch }}-${{ github.run_number }}
+          key: ${{ matrix.os }}-${{ matrix.compiler_cache_id }}-${{ inputs.branch || 'andy-custom' }}-${{ github.run_number }}
           restore-keys: |
-            ${{ matrix.os }}-${{ matrix.compiler_cache_id }}-${{ inputs.branch }}
+            ${{ matrix.os }}-${{ matrix.compiler_cache_id }}-${{ inputs.branch || 'andy-custom' }}
             ${{ matrix.os }}-${{ matrix.compiler_cache_id }}
 
       - name: "[Ubuntu/macOS] Set up ccache"
