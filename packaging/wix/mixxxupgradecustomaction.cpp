@@ -19,7 +19,10 @@ namespace {
 constexpr DWORD kMsiGuidBufferSize = 39;
 
 // Mixxx Upgrade GUID — same as CPACK_WIX_UPGRADE_GUID
-constexpr wchar_t kMixxxUpgradeCode[] = L"{921DC99C-4DCF-478D-B950-50685CB9E6BE}";
+// Custom "Andy's Mixxx" build: distinct UpgradeCode so it installs alongside
+// the official Mixxx instead of removing it. Only ever removes OTHER copies of
+// this custom build, never the upstream one.
+constexpr wchar_t kMixxxUpgradeCode[] = L"{895F2517-9556-4A29-827E-5CCE24E28A14}";
 } // namespace
 
 extern "C"
