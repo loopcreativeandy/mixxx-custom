@@ -2062,15 +2062,8 @@ WPushButton#BpmLockToggle[value="1"] {
     image: url(skins:LateNight/classic/buttons/btn__settings_on.svg) no-repeat left top;
   }
 
-#AndyCustomBuild {
-  font-size: 11px;
-  font-weight: bold;
-  letter-spacing: 1px;
-  color: #ffa630;
-  qproperty-alignment: 'AlignVCenter | AlignLeft';
-}
 #ToolbarLogo {
-  image: url(skins:LateNight/classic/style/mixxx_logo_small.svg) no-repeat center center;
+  image: url(skins:LateNight/classic/style/andys_mixxx_logo_small.svg) no-repeat center center;
 }
 #ToolbarSeparator {
   image: url(skins:LateNight/classic/style/toolbar_separator.svg) no-repeat center center;
