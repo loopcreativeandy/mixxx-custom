@@ -1,0 +1,102 @@
+<!--
+  Andy Video — "now playing" band for one deck.
+  Variables: Group (e.g. [Channel1]), ChanNum (e.g. 1), Align (left|right).
+
+  Row 1  track title, large
+  Row 2  artist  +  key / BPM chips
+  Row 3  Andy's tag tokens: grouping (energy) + comment (machine block).
+         Both are plain Track Q_PROPERTYs, so this needs no C++ at all.
+-->
+<Template>
+  <WidgetGroup>
+    <ObjectName>NowPlayingDeck</ObjectName>
+    <Layout>vertical</Layout>
+    <SizePolicy>me,max</SizePolicy>
+    <MinimumSize>200,96</MinimumSize>
+    <Children>
+
+      <TrackProperty>
+        <ObjectName>NowPlayingTitle</ObjectName>
+        <TooltipId>track_title</TooltipId>
+        <Property>title</Property>
+        <Size>100me,38f</Size>
+        <Alignment><Variable name="Align"/></Alignment>
+        <Elide>right</Elide>
+        <Channel><Variable name="ChanNum"/></Channel>
+      </TrackProperty>
+
+      <WidgetGroup><!-- artist + key + bpm -->
+        <Layout>horizontal</Layout>
+        <Size>100me,28f</Size>
+        <Children>
+
+          <TrackProperty>
+            <ObjectName>NowPlayingArtist</ObjectName>
+            <TooltipId>track_artist</TooltipId>
+            <Property>artist</Property>
+            <Size>60me,26f</Size>
+            <Alignment><Variable name="Align"/></Alignment>
+            <Elide>right</Elide>
+            <Channel><Variable name="ChanNum"/></Channel>
+          </TrackProperty>
+
+          <WidgetGroup><Size>4me,1f</Size></WidgetGroup>
+
+          <Key>
+            <ObjectName>NowPlayingKey</ObjectName>
+            <TooltipId>track_key</TooltipId>
+            <Group><Variable name="Group"/></Group>
+            <Size>62f,26f</Size>
+            <Alignment>center</Alignment>
+            <Elide>right</Elide>
+            <Connection>
+              <ConfigKey><Variable name="Group"/>,visual_key</ConfigKey>
+            </Connection>
+          </Key>
+
+          <Number>
+            <ObjectName>NowPlayingBpm</ObjectName>
+            <TooltipId>visual_bpm</TooltipId>
+            <Size>72f,26f</Size>
+            <Alignment>center</Alignment>
+            <NumberOfDigits>1</NumberOfDigits>
+            <Connection>
+              <ConfigKey><Variable name="Group"/>,visual_bpm</ConfigKey>
+            </Connection>
+          </Number>
+
+        </Children>
+      </WidgetGroup>
+
+      <WidgetGroup><!-- Andy's tag tokens -->
+        <Layout>horizontal</Layout>
+        <Size>100me,24f</Size>
+        <Children>
+
+          <TrackProperty>
+            <ObjectName>NowPlayingEnergy</ObjectName>
+            <Property>grouping</Property>
+            <Size>110f,22f</Size>
+            <Alignment>center</Alignment>
+            <Elide>right</Elide>
+            <Channel><Variable name="ChanNum"/></Channel>
+          </TrackProperty>
+
+          <WidgetGroup><Size>4f,1f</Size></WidgetGroup>
+
+          <TrackProperty>
+            <ObjectName>NowPlayingTags</ObjectName>
+            <TooltipId>track_comment</TooltipId>
+            <Property>comment</Property>
+            <Size>100me,22f</Size>
+            <Alignment>left</Alignment>
+            <Elide>right</Elide>
+            <Channel><Variable name="ChanNum"/></Channel>
+          </TrackProperty>
+
+        </Children>
+      </WidgetGroup>
+
+    </Children>
+  </WidgetGroup>
+</Template>
