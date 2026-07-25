@@ -39,7 +39,8 @@
     <!-- Set skin defaults -->
       <attribute config_key="[App],num_decks">4</attribute>
       <attribute config_key="[App],num_samplers">16</attribute>
-      <attribute persist="true" config_key="[Skin],show_waveforms">1</attribute>
+      <!-- Andy Video: the waveforms ARE the video. Forced on every load. -->
+      <attribute persist="false" config_key="[Skin],show_waveforms">1</attribute>
       <attribute persist="true" config_key="[Skin],timing_shift_buttons">0</attribute>
 
     <!-- Decks -->
@@ -80,23 +81,29 @@
       <attribute persist="true" config_key="[Skin],show_xfader">1</attribute>
       <attribute persist="true" config_key="[LateNight],show_vumeters_compact">1</attribute>
     <!-- Effects -->
-      <!-- Andy Video: FX rack off by default — on camera it is a row of tiny
-           unreadable controls. Toggle it back on from the skin settings menu. -->
-      <attribute persist="true" config_key="[Skin],show_effectrack">0</attribute>
-      <attribute persist="true" config_key="[Skin],show_4effectunits">0</attribute>
-      <attribute persist="true" config_key="[Skin],show_superknobs">0</attribute>
+      <!-- Andy Video: FX / sampler / mic rows are OFF and stay off.
+           persist="false" is load-bearing here: LegacySkinParser only writes a
+           persist="true" default when the config key is still empty, so once
+           Mixxx has saved a value the skin default is ignored. persist="false"
+           is applied on every skin load instead, which is what a video skin
+           wants — those rows are unreadable on camera and they push the
+           presenter column off the bottom of the frame. Still toggleable from
+           the skin settings menu for the current session. -->
+      <attribute persist="false" config_key="[Skin],show_effectrack">0</attribute>
+      <attribute persist="false" config_key="[Skin],show_4effectunits">0</attribute>
+      <attribute persist="false" config_key="[Skin],show_superknobs">0</attribute>
     <!-- Samplers -->
-      <attribute persist="true" config_key="[Skin],show_samplers">0</attribute>
+      <attribute persist="false" config_key="[Skin],show_samplers">0</attribute>
       <attribute persist="true" config_key="[LateNight],sampler_rows">1</attribute>
       <attribute persist="true" config_key="[LateNight],expand_samplers_1-4">0</attribute>
       <attribute persist="true" config_key="[LateNight],expand_samplers_1-8">0</attribute>
       <attribute persist="true" config_key="[LateNight],expand_samplers_9-16">0</attribute>
     <!-- Mic / Aux -->
-      <attribute persist="true" config_key="[Skin],show_microphones">0</attribute>
+      <attribute persist="false" config_key="[Skin],show_microphones">0</attribute>
     <!-- Library -->
       <attribute config_key="[Skin],show_maximized_library">0</attribute>
       <attribute persist="true" config_key="[LateNight],max_lib_show_decks">1</attribute>
-      <attribute persist="true" config_key="[Skin],show_preview_decks">0</attribute>
+      <attribute persist="false" config_key="[Skin],show_preview_decks">0</attribute>
       <attribute persist="true" config_key="[Skin],show_library_coverart">1</attribute>
 
     <!-- Disable hidden effect routing Buttons -->
@@ -439,82 +446,6 @@
 
         <Template src="skins:LateNight/toolbar.xml"/>
 
-        <!-- ANDY VIDEO: now-playing band.
-             Large track info for the two main decks, plus Andy's own tag
-             tokens (grouping = energy, comment = the machine block). This is
-             the thing viewers actually want to read off the screen. -->
-        <WidgetGroup>
-          <ObjectName>NowPlayingBand</ObjectName>
-          <Layout>horizontal</Layout>
-          <SizePolicy>me,max</SizePolicy>
-          <MinimumSize>200,100</MinimumSize>
-          <Style>
-            #NowPlayingBand {
-              background-color: #131316;
-              border-top: 1px solid #000000;
-              border-bottom: 2px solid #26262c;
-            }
-            #NowPlayingDeck {
-              padding: 7px 16px 7px 16px;
-            }
-            #NowPlayingDivider {
-              background-color: #26262c;
-            }
-            WTrackProperty#NowPlayingTitle {
-              color: #ffffff;
-              font-size: 25px;
-              font-weight: bold;
-            }
-            WTrackProperty#NowPlayingArtist {
-              color: #9aa0a6;
-              font-size: 16px;
-            }
-            WKey#NowPlayingKey {
-              color: #45c8e8;
-              font-size: 16px;
-              font-weight: bold;
-              background-color: #10222a;
-              border-radius: 4px;
-            }
-            WNumber#NowPlayingBpm {
-              color: #ffa630;
-              font-size: 16px;
-              font-weight: bold;
-              background-color: #241c10;
-              border-radius: 4px;
-            }
-            WTrackProperty#NowPlayingEnergy {
-              color: #ff5ca8;
-              font-size: 12px;
-              font-weight: bold;
-              background-color: #24121c;
-              border-radius: 3px;
-            }
-            WTrackProperty#NowPlayingTags {
-              color: #8a5cff;
-              font-size: 12px;
-            }
-          </Style>
-          <Children>
-            <Template src="skins:AndyVideo/nowplaying.xml">
-              <SetVariable name="Group">[Channel1]</SetVariable>
-              <SetVariable name="ChanNum">1</SetVariable>
-              <SetVariable name="Align">left</SetVariable>
-            </Template>
-
-            <WidgetGroup>
-              <ObjectName>NowPlayingDivider</ObjectName>
-              <Size>2f,80me</Size>
-            </WidgetGroup>
-
-            <Template src="skins:AndyVideo/nowplaying.xml">
-              <SetVariable name="Group">[Channel2]</SetVariable>
-              <SetVariable name="ChanNum">2</SetVariable>
-              <SetVariable name="Align">left</SetVariable>
-            </Template>
-          </Children>
-        </WidgetGroup><!-- NowPlayingBand -->
-
         <!-- regular/maximized library  |  skin settings menu -->
         <WidgetGroup>
           <Layout>horizontal</Layout>
@@ -533,9 +464,11 @@
                   <Orientation>vertical</Orientation>
                   <SizePolicy>me,min</SizePolicy>
                   <!-- Andy Video: waveforms get the lion's share. On a phone
-                       screen the waveform is the only thing that reads. -->
-                  <SplitSizes>420,300</SplitSizes>
-                  <SplitSizesConfigKey>[AndyVideo],stackedWaveforms_splitSize</SplitSizesConfigKey>
+                       screen the waveform is the only thing that reads.
+                       NOTE: the config key wins once Mixxx has saved it, so
+                       bump the key name (…_v2, _v3) when changing the ratio. -->
+                  <SplitSizes>470,560</SplitSizes>
+                  <SplitSizesConfigKey>[AndyVideo],stackedWaveforms_splitSize_v4</SplitSizesConfigKey>
                   <Collapsible>0,0</Collapsible>
                   <Children>
 
@@ -551,67 +484,145 @@
                       </Connection>
                     </WidgetGroup>
 
+                    <!-- ANDY VIDEO: everything below the waveforms is one
+                         horizontal row — controls on the left, an empty
+                         presenter column on the very right. That right column
+                         is where the green-screen overlay of Andy stands, so
+                         nothing important ever sits under his body. It is a
+                         touch lighter than the rest of the skin so a dark
+                         silhouette still separates from it. -->
                     <WidgetGroup>
                       <ObjectName>DecksMixerContainer</ObjectName>
-                      <Layout>vertical</Layout>
+                      <Layout>horizontal</Layout>
                       <SizePolicy>me,me</SizePolicy>
+                      <Style>
+                        #NowPlayingLine {
+                          background-color: #131316;
+                          padding: 1px 8px 1px 8px;
+                        }
+                        WTrackProperty#NowPlayingTitle {
+                          color: #ffffff;
+                          font-size: 15px;
+                          font-weight: bold;
+                        }
+                        WTrackProperty#NowPlayingArtist {
+                          color: #9aa0a6;
+                          font-size: 13px;
+                        }
+                        WKey#NowPlayingKey {
+                          color: #45c8e8;
+                          font-size: 13px;
+                          font-weight: bold;
+                          background-color: #10222a;
+                          border-radius: 3px;
+                        }
+                        WNumber#NowPlayingBpm {
+                          color: #ffa630;
+                          font-size: 13px;
+                          font-weight: bold;
+                          background-color: #241c10;
+                          border-radius: 3px;
+                        }
+                        WTrackProperty#NowPlayingEnergy {
+                          color: #ff5ca8;
+                          font-size: 12px;
+                          font-weight: bold;
+                          background-color: #24121c;
+                          border-radius: 3px;
+                        }
+                        WTrackProperty#NowPlayingTags {
+                          color: #8a5cff;
+                          font-size: 12px;
+                        }
+                      </Style>
                       <Children>
-                        <WidgetGroup><!-- Top spacer when waveforms are hidden -->
-                          <ObjectName>ToolbarDeckSpacer</ObjectName>
-                          <Connection>
-                            <ConfigKey persist="true">[Skin],show_waveforms</ConfigKey>
-                            <Transform><Not/></Transform>
-                            <BindProperty>visible</BindProperty>
-                          </Connection>
-                        </WidgetGroup><!-- ToolbarDeckSpacer -->
 
-                        <WidgetGroup>
-                          <Layout>horizontal</Layout>
-                          <SizePolicy>me,max</SizePolicy>
-                          <Children>
-                            <Template src="skins:LateNight/decks/decks_left.xml"/>
-                            <Template src="skins:LateNight/mixer.xml"/>
-                            <Template src="skins:LateNight/decks/decks_right.xml"/>
-                          </Children>
-                        </WidgetGroup>
-
-                        <Template src="skins:LateNight/fx_rack.xml"/>
-                        <Template src="skins:LateNight/samplers_rack.xml"/>
-                        <Template src="skins:LateNight/mic_aux_rack.xml"/>
-
-                        <!-- ANDY VIDEO: library + presenter zone.
-                             The right-hand panel is deliberately empty: it is
-                             where the green-screen overlay of Andy stands, so
-                             nothing important ever sits under his body. It is
-                             also a touch lighter than the rest of the skin so
-                             a dark silhouette still separates from it. -->
-                        <WidgetGroup>
-                          <ObjectName>LibraryPresenterRow</ObjectName>
-                          <Layout>horizontal</Layout>
+                        <WidgetGroup><!-- LEFT: all the controls + library -->
+                          <ObjectName>ControlColumn</ObjectName>
+                          <Layout>vertical</Layout>
                           <SizePolicy>me,me</SizePolicy>
-                          <Style>
-                            #PresenterZone {
-                              background-color: #1c1c22;
-                              border-left: 2px solid #2c2c34;
-                            }
-                          </Style>
                           <Children>
+                            <WidgetGroup><!-- Top spacer when waveforms are hidden -->
+                              <ObjectName>ToolbarDeckSpacer</ObjectName>
+                              <Connection>
+                                <ConfigKey persist="true">[Skin],show_waveforms</ConfigKey>
+                                <Transform><Not/></Transform>
+                                <BindProperty>visible</BindProperty>
+                              </Connection>
+                            </WidgetGroup><!-- ToolbarDeckSpacer -->
+
+                            <!-- Decks STACKED, mixer beside them.
+                                 LateNight puts deck 1 | mixer | deck 2 side by
+                                 side, which alone demands the entire 1920 and
+                                 leaves nothing for the presenter column. Since
+                                 decks_left is deck 1 and decks_right is deck 2,
+                                 stacking them vertically roughly halves the
+                                 width the controls need — and it mirrors the
+                                 stacked waveforms above. Bonus: the mixer
+                                 stretches to double height, so the faders and
+                                 EQ knobs read much better on camera.
+
+                                 Each deck gets its own slim info line above it:
+                                 title / artist / key / BPM plus Andy's tokens
+                                 (grouping = energy, comment = machine block). -->
                             <WidgetGroup>
-                              <Layout>vertical</Layout>
-                              <Size>62me,10me</Size>
+                              <ObjectName>DeckMixerRow</ObjectName>
+                              <Layout>horizontal</Layout>
+                              <SizePolicy>me,max</SizePolicy>
                               <Children>
-                                <SingletonContainer>
-                                  <ObjectName>LibrarySingleton</ObjectName>
-                                </SingletonContainer>
+
+                                <WidgetGroup>
+                                  <Layout>vertical</Layout>
+                                  <SizePolicy>me,max</SizePolicy>
+                                  <Children>
+                                    <Template src="skins:AndyVideo/nowplaying.xml">
+                                      <SetVariable name="Group">[Channel1]</SetVariable>
+                                      <SetVariable name="ChanNum">1</SetVariable>
+                                    </Template>
+                                    <Template src="skins:LateNight/decks/decks_left.xml"/>
+
+                                    <Template src="skins:AndyVideo/nowplaying.xml">
+                                      <SetVariable name="Group">[Channel2]</SetVariable>
+                                      <SetVariable name="ChanNum">2</SetVariable>
+                                    </Template>
+                                    <Template src="skins:LateNight/decks/decks_right.xml"/>
+                                  </Children>
+                                </WidgetGroup>
+
+                                <Template src="skins:LateNight/mixer.xml"/>
+
                               </Children>
                             </WidgetGroup>
 
-                            <WidgetGroup>
-                              <ObjectName>PresenterZone</ObjectName>
-                              <Size>38me,10me</Size>
-                            </WidgetGroup>
+                            <Template src="skins:LateNight/fx_rack.xml"/>
+                            <Template src="skins:LateNight/samplers_rack.xml"/>
+                            <Template src="skins:LateNight/mic_aux_rack.xml"/>
+
+                            <SingletonContainer>
+                              <ObjectName>LibrarySingleton</ObjectName>
+                            </SingletonContainer>
                           </Children>
+                        </WidgetGroup><!-- ControlColumn -->
+
+                        <!-- ⚠️ FIXED width on purpose. Mixxx <Size> numbers are
+                             PIXELS with a policy suffix, not percentages — an
+                             expanding zone loses every time to the deck row's
+                             minimum width and collapses to a sliver. 520f is a
+                             guaranteed block (~27% of a 1920 frame) for Andy
+                             to stand in. -->
+                        <WidgetGroup>
+                          <ObjectName>PresenterZone</ObjectName>
+                          <Size>520f,10me</Size>
+                          <Style>
+                            /* Lifted off black on purpose: a dark silhouette
+                               against a near-black skin disappears on camera. */
+                            WWidgetGroup#PresenterZone {
+                              background-color: #23232b;
+                              border-left: 2px solid #3a3a46;
+                            }
+                          </Style>
                         </WidgetGroup>
+
                       </Children>
                     </WidgetGroup>
 
