@@ -1632,6 +1632,7 @@ add_library(
   src/util/stat.cpp
   src/util/statmodel.cpp
   src/util/statsmanager.cpp
+  src/util/stemcolorconfig.cpp
   src/util/tapfilter.cpp
   src/util/task.cpp
   src/util/taskmonitor.cpp

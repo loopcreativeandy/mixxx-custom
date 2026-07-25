@@ -34,6 +34,7 @@
 #include "util/datetime.h"
 #include "util/db/sqlite.h"
 #include "util/logger.h"
+#include "util/stemcolorconfig.h"
 #include "widget/wlibrary.h"
 #include "widget/wtracktableview.h"
 
@@ -45,12 +46,6 @@ constexpr double kRelativeHeightOfCoverartToolTip =
         0.165; // Height of the image for the cover art tooltip (Relative to the available screen size)
 
 constexpr int kReplayGainPrecision = 2;
-
-// Subtle background tint that marks STEM files in every track list
-// (andy-custom). Semi-transparent so it composes with alternating row
-// colors and the selection highlight on any skin. An explicit track
-// color still takes precedence.
-const QColor kStemRowTintColor(0x8A, 0x5C, 0xFF, 0x21);
 
 // Cheap suffix check mirroring StemInfoImporter's preferred stem file
 // extensions; data() is called on every repaint, so no MIME probing here.
@@ -429,7 +424,12 @@ QVariant BaseTrackTableModel::data(
                     index,
                     ColumnCache::COLUMN_TRACKLOCATIONSTABLE_LOCATION);
             if (isStemFileLocation(locationRaw.toString())) {
-                return QBrush(kStemRowTintColor);
+                // Subtle background tint marking STEM files in every track
+                // list (andy-custom); user-tunable via andys_stem_colors.ini,
+                // semi-transparent so it composes with alternating row colors
+                // and the selection highlight. An explicit track color takes
+                // precedence.
+                return QBrush(mixxx::StemColorConfig::current().rowTint);
             }
             return QVariant();
         }

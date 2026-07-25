@@ -11,6 +11,7 @@
 #include <QtGlobal>
 
 #include "util/logger.h"
+#include "util/stemcolorconfig.h"
 
 namespace mixxx {
 
@@ -26,28 +27,25 @@ const QStringList kStemMimes = {"audio/mp4", "audio/m4a", "audio/x-m4a", "video/
 const QStringList kStemPreferredFileExtensions = {".stem.mp4", ".stem.m4a"};
 // Fixed stem palette (andy-custom): the colors declared in the stem manifest
 // are deliberately ignored so stems look identical across the whole library.
-// Hues follow the RGB-waveform convention (low band = red): bass red, drums
-// amber (low + high content), vocals pink, other cyan (the one hue family
-// that stays distinct from the three warm colors at matching vividness).
-const QColor kFixedStemColorDrums(0xFF, 0xA6, 0x30);  // amber
-const QColor kFixedStemColorBass(0xFF, 0x45, 0x45);   // red
-const QColor kFixedStemColorOther(0x45, 0xC8, 0xE8);  // cyan
-const QColor kFixedStemColorVocals(0xFF, 0x5C, 0xA8); // pink
+// The palette itself is user-editable via <settingsPath>/andys_stem_colors.ini
+// (see StemColorConfig); defaults follow the RGB-waveform convention
+// (low band = red): bass red, drums amber, vocals pink, other cyan.
 
 QColor fixedStemColor(const QString& name, int stemIdx) {
+    const StemColorConfig palette = StemColorConfig::current();
     const QString n = name.toLower();
     if (n.contains(QLatin1String("voc")) || n.contains(QLatin1String("vox")) ||
             n.contains(QLatin1String("voice")) ||
             n.contains(QLatin1String("acapella"))) {
-        return kFixedStemColorVocals;
+        return palette.vocals;
     }
     if (n.contains(QLatin1String("drum")) || n.contains(QLatin1String("beat")) ||
             n.contains(QLatin1String("perc")) ||
             n.contains(QLatin1String("kick"))) {
-        return kFixedStemColorDrums;
+        return palette.drums;
     }
     if (n.contains(QLatin1String("bass"))) {
-        return kFixedStemColorBass;
+        return palette.bass;
     }
     if (n.contains(QLatin1String("melod")) ||
             n.contains(QLatin1String("synth")) ||
@@ -56,19 +54,19 @@ QColor fixedStemColor(const QString& name, int stemIdx) {
             n.contains(QLatin1String("guitar")) ||
             n.contains(QLatin1String("piano")) ||
             n.contains(QLatin1String("other"))) {
-        return kFixedStemColorOther;
+        return palette.other;
     }
     // Unrecognized name: fall back to the most common stem file order
     // (drums, bass, other, vocals).
     switch (stemIdx % 4) {
     case 0:
-        return kFixedStemColorDrums;
+        return palette.drums;
     case 1:
-        return kFixedStemColorBass;
+        return palette.bass;
     case 2:
-        return kFixedStemColorOther;
+        return palette.other;
     default:
-        return kFixedStemColorVocals;
+        return palette.vocals;
     }
 }
 
