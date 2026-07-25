@@ -46,6 +46,19 @@ constexpr double kRelativeHeightOfCoverartToolTip =
 
 constexpr int kReplayGainPrecision = 2;
 
+// Subtle background tint that marks STEM files in every track list
+// (andy-custom). Semi-transparent so it composes with alternating row
+// colors and the selection highlight on any skin. An explicit track
+// color still takes precedence.
+const QColor kStemRowTintColor(0x8A, 0x5C, 0xFF, 0x21);
+
+// Cheap suffix check mirroring StemInfoImporter's preferred stem file
+// extensions; data() is called on every repaint, so no MIME probing here.
+bool isStemFileLocation(const QString& location) {
+    return location.endsWith(QStringLiteral(".stem.mp4"), Qt::CaseInsensitive) ||
+            location.endsWith(QStringLiteral(".stem.m4a"), Qt::CaseInsensitive);
+}
+
 inline QSqlDatabase cloneDatabase(
         const QSqlDatabase& prototype) {
     const auto connectionName =
@@ -412,6 +425,12 @@ QVariant BaseTrackTableModel::data(
                 ColumnCache::COLUMN_LIBRARYTABLE_COLOR);
         const auto rgbColor = mixxx::RgbColor::fromQVariant(rgbColorValue);
         if (!rgbColor) {
+            const QVariant locationRaw = rawSiblingValue(
+                    index,
+                    ColumnCache::COLUMN_TRACKLOCATIONSTABLE_LOCATION);
+            if (isStemFileLocation(locationRaw.toString())) {
+                return QBrush(kStemRowTintColor);
+            }
             return QVariant();
         }
         auto bgColor = mixxx::RgbColor::toQColor(rgbColor);
