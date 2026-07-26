@@ -57,6 +57,8 @@
 #include "widget/wknob.h"
 #include "widget/wknobcomposed.h"
 #include "widget/wlabel.h"
+#include "util/math.h"
+#include "widget/wandysplaylistpane.h"
 #include "widget/wlibrary.h"
 #include "widget/wlibrarysidebar.h"
 #include "widget/wnumber.h"
@@ -634,6 +636,8 @@ QList<QWidget*> LegacySkinParser::parseNode(const QDomElement& node) {
         result = wrapWidget(parseLibrarySidebar(node));
     } else if (nodeName == "Library") {
         result = wrapWidget(parseLibrary(node));
+    } else if (nodeName == "AndysPlaylistPane") {
+        result = wrapWidget(parseAndysPlaylistPane(node));
     } else if (nodeName == "Key") {
         result = wrapWidget(parseEngineKey(node));
     } else if (nodeName == "Battery") {
@@ -1676,6 +1680,22 @@ QWidget* LegacySkinParser::parseLibrary(const QDomElement& node) {
     commonWidgetSetup(node, pLibraryWidget, false);
 
     return pLibraryWidget;
+}
+
+QWidget* LegacySkinParser::parseAndysPlaylistPane(const QDomElement& node) {
+    const double backgroundColorOpacity = math_clamp(
+            m_pContext->selectDouble(node,
+                    "TrackTableBackgroundColorOpacity",
+                    WLibrary::kDefaultTrackTableBackgroundColorOpacity),
+            WLibrary::kMinTrackTableBackgroundColorOpacity,
+            WLibrary::kMaxTrackTableBackgroundColorOpacity);
+    WAndysPlaylistPane* pPane = new WAndysPlaylistPane(m_pParent,
+            m_pConfig,
+            m_pLibrary,
+            m_pKeyboard,
+            backgroundColorOpacity);
+    commonWidgetSetup(node, pPane, false);
+    return pPane;
 }
 
 QWidget* LegacySkinParser::parseLibrarySidebar(const QDomElement& node) {
