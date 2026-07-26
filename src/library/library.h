@@ -26,6 +26,7 @@ class KeyboardEventFilter;
 class MixxxLibraryFeature;
 class PlayerManager;
 class PlaylistFeature;
+class AutoDJFeature;
 class RecordingManager;
 class SidebarModel;
 class TrackCollectionManager;
@@ -61,6 +62,10 @@ class Library: public QObject {
     }
 
     TrackCollectionManager* trackCollectionManager() const;
+
+    AutoDJFeature* autoDJFeature() const {
+        return m_pAutoDJFeature;
+    }
 
     TrackAnalysisScheduler::Pointer createTrackAnalysisScheduler(
             int numWorkerThreads,
@@ -188,6 +193,7 @@ class Library: public QObject {
     WLibrary* m_pLibraryWidget;
     MixxxLibraryFeature* m_pMixxxLibraryFeature;
     PlaylistFeature* m_pPlaylistFeature;
+    AutoDJFeature* m_pAutoDJFeature;
     CrateFeature* m_pCrateFeature;
     AnalysisFeature* m_pAnalysisFeature;
     BrowseFeature* m_pBrowseFeature;

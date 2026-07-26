@@ -23,6 +23,15 @@ class DlgAutoDJ : public QWidget, public Ui::DlgAutoDJ, public LibraryView {
             Library* pLibrary,
             AutoDJProcessor* pProcessor,
             KeyboardEventFilter* pKeyboard);
+    // Standalone variant for embedding a full Auto DJ view outside of the
+    // WLibrary page switcher (Andy's side pane).
+    DlgAutoDJ(QWidget* pParent,
+            double trackTableBackgroundColorOpacity,
+            bool showButtonText,
+            UserSettingsPointer pConfig,
+            Library* pLibrary,
+            AutoDJProcessor* pProcessor,
+            KeyboardEventFilter* pKeyboard);
     ~DlgAutoDJ() override;
 
     void onShow() override;

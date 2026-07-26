@@ -58,6 +58,7 @@
 #include "widget/wknobcomposed.h"
 #include "widget/wlabel.h"
 #include "util/math.h"
+#include "widget/wandysautodjpane.h"
 #include "widget/wandysplaylistpane.h"
 #include "widget/wlibrary.h"
 #include "widget/wlibrarysidebar.h"
@@ -638,6 +639,8 @@ QList<QWidget*> LegacySkinParser::parseNode(const QDomElement& node) {
         result = wrapWidget(parseLibrary(node));
     } else if (nodeName == "AndysPlaylistPane") {
         result = wrapWidget(parseAndysPlaylistPane(node));
+    } else if (nodeName == "AndysAutoDJPane") {
+        result = wrapWidget(parseAndysAutoDJPane(node));
     } else if (nodeName == "Key") {
         result = wrapWidget(parseEngineKey(node));
     } else if (nodeName == "Battery") {
@@ -1694,6 +1697,24 @@ QWidget* LegacySkinParser::parseAndysPlaylistPane(const QDomElement& node) {
             m_pLibrary,
             m_pKeyboard,
             backgroundColorOpacity);
+    commonWidgetSetup(node, pPane, false);
+    return pPane;
+}
+
+QWidget* LegacySkinParser::parseAndysAutoDJPane(const QDomElement& node) {
+    const double backgroundColorOpacity = math_clamp(
+            m_pContext->selectDouble(node,
+                    "TrackTableBackgroundColorOpacity",
+                    WLibrary::kDefaultTrackTableBackgroundColorOpacity),
+            WLibrary::kMinTrackTableBackgroundColorOpacity,
+            WLibrary::kMaxTrackTableBackgroundColorOpacity);
+    const bool showButtonText = m_pContext->selectBool(node, "ShowButtonText", true);
+    WAndysAutoDJPane* pPane = new WAndysAutoDJPane(m_pParent,
+            m_pConfig,
+            m_pLibrary,
+            m_pKeyboard,
+            backgroundColorOpacity,
+            showButtonText);
     commonWidgetSetup(node, pPane, false);
     return pPane;
 }

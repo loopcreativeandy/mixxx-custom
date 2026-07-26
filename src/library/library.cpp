@@ -98,7 +98,8 @@ Library::Library(
             Qt::DirectConnection /* signal-to-signal */);
 #endif
 
-    addFeature(new AutoDJFeature(this, m_pConfig, pPlayerManager));
+    m_pAutoDJFeature = new AutoDJFeature(this, m_pConfig, pPlayerManager);
+    addFeature(m_pAutoDJFeature);
 
     m_pPlaylistFeature = new PlaylistFeature(this, UserSettingsPointer(m_pConfig));
     addFeature(m_pPlaylistFeature);

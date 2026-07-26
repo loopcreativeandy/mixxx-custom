@@ -185,6 +185,25 @@ void AutoDJFeature::bindLibraryWidget(
     m_pDisableAutoDJAction->setShortcut(toggleAutoDJShortcut);
 }
 
+void AutoDJFeature::bindAndysPaneView(DlgAutoDJ* pView) {
+    connect(pView,
+            &DlgAutoDJ::loadTrack,
+            this,
+            &AutoDJFeature::loadTrack);
+    connect(pView,
+            &DlgAutoDJ::loadTrackToPlayer,
+            this,
+            &LibraryFeature::loadTrackToPlayer);
+    connect(pView,
+            &DlgAutoDJ::trackSelected,
+            this,
+            &AutoDJFeature::trackSelected);
+    connect(pView,
+            &DlgAutoDJ::addRandomTrackButton,
+            this,
+            &AutoDJFeature::slotAddRandomTrack);
+}
+
 void AutoDJFeature::bindSidebarWidget(WLibrarySidebar* pSidebarWidget) {
     // store the sidebar widget pointer for later use in onRightClickChild
     m_pSidebarWidget = pSidebarWidget;

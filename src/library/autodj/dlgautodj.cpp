@@ -24,15 +24,31 @@ DlgAutoDJ::DlgAutoDJ(WLibrary* parent,
         Library* pLibrary,
         AutoDJProcessor* pProcessor,
         KeyboardEventFilter* pKeyboard)
-        : QWidget(parent),
+        : DlgAutoDJ(static_cast<QWidget*>(parent),
+                  parent->getTrackTableBackgroundColorOpacity(),
+                  parent->getShowButtonText(),
+                  pConfig,
+                  pLibrary,
+                  pProcessor,
+                  pKeyboard) {
+}
+
+DlgAutoDJ::DlgAutoDJ(QWidget* pParent,
+        double trackTableBackgroundColorOpacity,
+        bool showButtonText,
+        UserSettingsPointer pConfig,
+        Library* pLibrary,
+        AutoDJProcessor* pProcessor,
+        KeyboardEventFilter* pKeyboard)
+        : QWidget(pParent),
           Ui::DlgAutoDJ(),
           m_pConfig(pConfig),
           m_pAutoDJProcessor(pProcessor),
           m_pTrackTableView(new WTrackTableView(this,
                   m_pConfig,
                   pLibrary,
-                  parent->getTrackTableBackgroundColorOpacity())),
-          m_bShowButtonText(parent->getShowButtonText()),
+                  trackTableBackgroundColorOpacity)),
+          m_bShowButtonText(showButtonText),
           m_pAutoDJTableModel(nullptr) {
     setupUi(this);
 

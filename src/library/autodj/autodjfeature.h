@@ -49,6 +49,13 @@ class AutoDJFeature : public LibraryFeature {
         return true;
     }
 
+    AutoDJProcessor* processor() const {
+        return m_pAutoDJProcessor;
+    }
+    // Wire a second, standalone DlgAutoDJ (Andy's side pane) to this
+    // feature's load/random-track plumbing, same as the main view.
+    void bindAndysPaneView(DlgAutoDJ* pView);
+
   public slots:
     void activate() override;
 

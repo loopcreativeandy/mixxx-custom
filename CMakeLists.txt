@@ -1723,6 +1723,7 @@ add_library(
   src/widget/wkey.cpp
   src/widget/wknob.cpp
   src/widget/wknobcomposed.cpp
+  src/widget/wandysautodjpane.cpp
   src/widget/wandysplaylistpane.cpp
   src/widget/wlabel.cpp
   src/widget/wlibrary.cpp

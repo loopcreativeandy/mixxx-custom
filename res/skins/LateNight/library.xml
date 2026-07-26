@@ -20,9 +20,9 @@
           <Splitter>
             <ObjectName>LibrarySplitter</ObjectName>
             <SizePolicy>me,me</SizePolicy>
-            <SplitSizes>2,14,5</SplitSizes>
-            <SplitSizesConfigKey>[Skin],librarySidebar_splitsize_3pane</SplitSizesConfigKey>
-            <Collapsible>1,0,1</Collapsible>
+            <SplitSizes>2,10,4,4</SplitSizes>
+            <SplitSizesConfigKey>[Skin],librarySidebar_splitsize_4pane</SplitSizesConfigKey>
+            <Collapsible>1,0,1,1</Collapsible>
             <Children>
 
               <WidgetGroup>
@@ -122,6 +122,13 @@
               <AndysPlaylistPane>
                 <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
               </AndysPlaylistPane>
+
+              <!-- Andy's Auto DJ pane: full Auto DJ view (queue + buttons)
+                   so Auto DJ and a playlist can be open side by side. Drag
+                   the splitter handle fully right to collapse it. -->
+              <AndysAutoDJPane>
+                <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
+              </AndysAutoDJPane>
 
             </Children>
           </Splitter><!-- LibrarySplitter -->
