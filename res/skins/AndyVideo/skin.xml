@@ -495,46 +495,6 @@
                       <ObjectName>DecksMixerContainer</ObjectName>
                       <Layout>horizontal</Layout>
                       <SizePolicy>me,me</SizePolicy>
-                      <Style>
-                        #NowPlayingLine {
-                          background-color: #131316;
-                          padding: 1px 8px 1px 8px;
-                        }
-                        WTrackProperty#NowPlayingTitle {
-                          color: #ffffff;
-                          font-size: 15px;
-                          font-weight: bold;
-                        }
-                        WTrackProperty#NowPlayingArtist {
-                          color: #9aa0a6;
-                          font-size: 13px;
-                        }
-                        WKey#NowPlayingKey {
-                          color: #45c8e8;
-                          font-size: 13px;
-                          font-weight: bold;
-                          background-color: #10222a;
-                          border-radius: 3px;
-                        }
-                        WNumber#NowPlayingBpm {
-                          color: #ffa630;
-                          font-size: 13px;
-                          font-weight: bold;
-                          background-color: #241c10;
-                          border-radius: 3px;
-                        }
-                        WTrackProperty#NowPlayingEnergy {
-                          color: #ff5ca8;
-                          font-size: 12px;
-                          font-weight: bold;
-                          background-color: #24121c;
-                          border-radius: 3px;
-                        }
-                        WTrackProperty#NowPlayingTags {
-                          color: #8a5cff;
-                          font-size: 12px;
-                        }
-                      </Style>
                       <Children>
 
                         <WidgetGroup><!-- LEFT: all the controls + library -->
@@ -562,9 +522,9 @@
                                  stretches to double height, so the faders and
                                  EQ knobs read much better on camera.
 
-                                 Each deck gets its own slim info line above it:
-                                 title / artist / key / BPM plus Andy's tokens
-                                 (grouping = energy, comment = machine block). -->
+                                 No per-deck info lines: key/BPM and Andy's tag
+                                 tokens are private DJ metadata, not for the
+                                 published videos (Andy, 2026-07-27). -->
                             <WidgetGroup>
                               <ObjectName>DeckMixerRow</ObjectName>
                               <Layout>horizontal</Layout>
@@ -575,21 +535,35 @@
                                   <Layout>vertical</Layout>
                                   <SizePolicy>me,max</SizePolicy>
                                   <Children>
-                                    <Template src="skins:AndyVideo/nowplaying.xml">
-                                      <SetVariable name="Group">[Channel1]</SetVariable>
-                                      <SetVariable name="ChanNum">1</SetVariable>
-                                    </Template>
                                     <Template src="skins:LateNight/decks/decks_left.xml"/>
-
-                                    <Template src="skins:AndyVideo/nowplaying.xml">
-                                      <SetVariable name="Group">[Channel2]</SetVariable>
-                                      <SetVariable name="ChanNum">2</SetVariable>
-                                    </Template>
                                     <Template src="skins:LateNight/decks/decks_right.xml"/>
                                   </Children>
                                 </WidgetGroup>
 
-                                <Template src="skins:LateNight/mixer.xml"/>
+                                <!-- Mixer capped at its natural height
+                                     (top-aligned — a mid-air crossfader looks
+                                     odd on camera); the leftover space below
+                                     becomes a retro spectrum analyzer fed
+                                     from the main output. -->
+                                <WidgetGroup>
+                                  <ObjectName>MixerSpectrumColumn</ObjectName>
+                                  <Layout>vertical</Layout>
+                                  <SizePolicy>max,me</SizePolicy>
+                                  <Children>
+                                    <WidgetGroup>
+                                      <Layout>vertical</Layout>
+                                      <SizePolicy>me,max</SizePolicy>
+                                      <Children>
+                                        <Template src="skins:LateNight/mixer.xml"/>
+                                      </Children>
+                                    </WidgetGroup>
+                                    <SpectrumMeter>
+                                      <ObjectName>AndySpectrum</ObjectName>
+                                      <SizePolicy>me,me</SizePolicy>
+                                      <MinimumSize>150,60</MinimumSize>
+                                    </SpectrumMeter>
+                                  </Children>
+                                </WidgetGroup>
 
                               </Children>
                             </WidgetGroup>
