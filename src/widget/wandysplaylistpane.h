@@ -6,6 +6,7 @@
 #include "widget/wbasewidget.h"
 
 class QLabel;
+class QToolButton;
 class Library;
 class KeyboardEventFilter;
 class WTrackTableView;
@@ -30,6 +31,7 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
 
   private slots:
     void slotPlaylistsChanged();
+    void slotUnloadPlaylist();
 
   private:
     void openPlaylist(int playlistId);
@@ -37,7 +39,9 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
 
     UserSettingsPointer m_pConfig;
     Library* m_pLibrary;
+    QWidget* m_pHeaderRow;
     QLabel* m_pHeader;
+    QToolButton* m_pEjectButton;
     WTrackTableView* m_pTrackTableView;
     PlaylistTableModel* m_pModel;
     int m_currentPlaylistId;

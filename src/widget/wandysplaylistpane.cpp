@@ -1,6 +1,8 @@
 #include "widget/wandysplaylistpane.h"
 
+#include <QHBoxLayout>
 #include <QLabel>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include "controllers/keyboard/keyboardeventfilter.h"
@@ -15,7 +17,6 @@
 
 namespace {
 const ConfigKey kLastPlaylistConfigKey("[AndysPlaylistPane]", "playlist_id");
-const QString kNoPlaylistLabel = QStringLiteral("no playlist — right-click one in the sidebar");
 } // anonymous namespace
 
 WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
@@ -27,7 +28,9 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
           WBaseWidget(this),
           m_pConfig(pConfig),
           m_pLibrary(pLibrary),
-          m_pHeader(new QLabel(this)),
+          m_pHeaderRow(new QWidget(this)),
+          m_pHeader(new QLabel(m_pHeaderRow)),
+          m_pEjectButton(new QToolButton(m_pHeaderRow)),
           m_pTrackTableView(new WTrackTableView(this,
                   pConfig,
                   pLibrary,
@@ -44,12 +47,35 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
             "QLabel#AndysPaneHeader {"
             " background-color: #1e1e26; color: #ddba71;"
             " font-weight: bold; padding: 3px 6px; }"));
+
+    // Eject: clears the pane so it's pure dead space again (Andy stands in
+    // front of it on video). The whole header row hides with it.
+    m_pEjectButton->setObjectName(QStringLiteral("AndysPaneEject"));
+    m_pEjectButton->setText(QStringLiteral("✕"));
+    m_pEjectButton->setToolTip(tr("Unload playlist from this pane"));
+    m_pEjectButton->setAutoRaise(true);
+    m_pEjectButton->setCursor(Qt::PointingHandCursor);
+    m_pEjectButton->setStyleSheet(QStringLiteral(
+            "QToolButton#AndysPaneEject {"
+            " background-color: #1e1e26; color: #ddba71;"
+            " border: none; font-weight: bold; padding: 3px 8px; }"
+            "QToolButton#AndysPaneEject:hover { color: #ffffff; }"));
+    connect(m_pEjectButton,
+            &QToolButton::clicked,
+            this,
+            &WAndysPlaylistPane::slotUnloadPlaylist);
+
+    QHBoxLayout* pHeaderLayout = new QHBoxLayout(m_pHeaderRow);
+    pHeaderLayout->setContentsMargins(0, 0, 0, 0);
+    pHeaderLayout->setSpacing(0);
+    pHeaderLayout->addWidget(m_pHeader, 1);
+    pHeaderLayout->addWidget(m_pEjectButton);
     updateHeader();
 
     QVBoxLayout* pLayout = new QVBoxLayout(this);
     pLayout->setContentsMargins(0, 0, 0, 0);
     pLayout->setSpacing(2);
-    pLayout->addWidget(m_pHeader);
+    pLayout->addWidget(m_pHeaderRow);
     pLayout->addWidget(m_pTrackTableView, 1);
 
     m_pTrackTableView->installEventFilter(pKeyboard);
@@ -126,8 +152,10 @@ void WAndysPlaylistPane::slotPlaylistsChanged() {
     PlaylistDAO& playlistDao =
             m_pLibrary->trackCollectionManager()->internalCollection()->getPlaylistDAO();
     if (playlistDao.getPlaylistName(m_currentPlaylistId).isEmpty()) {
-        // Current playlist was deleted.
-        m_currentPlaylistId = -1;
+        // Current playlist was deleted: clear the table too, not just the
+        // header, so no stale rows linger.
+        slotUnloadPlaylist();
+        return;
     }
     updateHeader();
 }
@@ -144,11 +172,30 @@ void WAndysPlaylistPane::openPlaylist(int playlistId) {
     updateHeader();
 }
 
-void WAndysPlaylistPane::updateHeader() {
+void WAndysPlaylistPane::slotUnloadPlaylist() {
     if (m_currentPlaylistId < 0) {
-        m_pHeader->setText(kNoPlaylistLabel);
         return;
     }
+    // Not kInvalidPlaylistId (-1): the model names its temp view
+    // "playlist_<id>" and later uses that unquoted in SQL, so a negative id
+    // breaks the query. Id 0 never exists (SQLite ids start at 1) and yields
+    // a clean empty view.
+    m_pModel->selectPlaylist(0);
+    m_pModel->select();
+    m_currentPlaylistId = -1;
+    m_pConfig->setValue(kLastPlaylistConfigKey, -1);
+    updateHeader();
+}
+
+void WAndysPlaylistPane::updateHeader() {
+    if (m_currentPlaylistId < 0) {
+        // Nothing loaded: no text, no bar — clean dead space (Andy's
+        // green-screen face sits here on video).
+        m_pHeader->setText(QString());
+        m_pHeaderRow->setVisible(false);
+        return;
+    }
+    m_pHeaderRow->setVisible(true);
     const QString name = m_pLibrary->trackCollectionManager()
                                  ->internalCollection()
                                  ->getPlaylistDAO()
