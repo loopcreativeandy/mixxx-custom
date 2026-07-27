@@ -476,7 +476,7 @@
                       <Layout>vertical</Layout>
                       <SizePolicy>me,me</SizePolicy>
                       <Children>
-                        <Template src="skins:LateNight/waveforms_container.xml"/>
+                        <Template src="skins:AndyVideo/waveforms_container.xml"/>
                       </Children>
                       <Connection>
                         <ConfigKey persist="true">[Skin],show_waveforms</ConfigKey>
@@ -531,12 +531,39 @@
                               <SizePolicy>me,max</SizePolicy>
                               <Children>
 
+                                <!-- CP11 T1: decks stacked in natural order
+                                     1,2,3,4. LateNight's decks_left/right
+                                     templates pair 1+3 and 2+4 (side-by-side
+                                     heritage), which stacked reads 1,3,2,4 —
+                                     confusing. Place the deck singletons
+                                     directly instead; 3+4 only in 4-deck
+                                     mode, 2-deck unchanged. -->
                                 <WidgetGroup>
                                   <Layout>vertical</Layout>
                                   <SizePolicy>me,max</SizePolicy>
                                   <Children>
-                                    <Template src="skins:LateNight/decks/decks_left.xml"/>
-                                    <Template src="skins:LateNight/decks/decks_right.xml"/>
+                                    <SingletonContainer>
+                                      <ObjectName>Deck1_Src</ObjectName>
+                                    </SingletonContainer>
+                                    <SingletonContainer>
+                                      <ObjectName>Deck2_Src</ObjectName>
+                                    </SingletonContainer>
+                                    <WidgetGroup>
+                                      <Layout>vertical</Layout>
+                                      <SizePolicy>me,min</SizePolicy>
+                                      <Children>
+                                        <SingletonContainer>
+                                          <ObjectName>Deck3_Src</ObjectName>
+                                        </SingletonContainer>
+                                        <SingletonContainer>
+                                          <ObjectName>Deck4_Src</ObjectName>
+                                        </SingletonContainer>
+                                      </Children>
+                                      <Connection>
+                                        <ConfigKey>[Skin],show_4decks</ConfigKey>
+                                        <BindProperty>visible</BindProperty>
+                                      </Connection>
+                                    </WidgetGroup>
                                   </Children>
                                 </WidgetGroup>
 
