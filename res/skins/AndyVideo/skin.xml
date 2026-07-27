@@ -491,10 +491,18 @@
                          nothing important ever sits under his body. It is a
                          touch lighter than the rest of the skin so a dark
                          silhouette still separates from it. -->
-                    <WidgetGroup>
-                      <ObjectName>DecksMixerContainer</ObjectName>
-                      <Layout>horizontal</Layout>
+                    <!-- CP11 T3: splitter instead of a plain group so Andy can
+                         drag how much width the presenter column takes. The
+                         old fixed 520f existed because two expanding siblings
+                         fight (deck row min-width wins) — a splitter sidesteps
+                         that and persists the choice. -->
+                    <Splitter>
+                      <ObjectName>DecksMixerSplitter</ObjectName>
+                      <Orientation>horizontal</Orientation>
                       <SizePolicy>me,me</SizePolicy>
+                      <SplitSizes>1400,520</SplitSizes>
+                      <SplitSizesConfigKey>[AndyVideo],presenterZone_splitSize_v1</SplitSizesConfigKey>
+                      <Collapsible>0,0</Collapsible>
                       <Children>
 
                         <WidgetGroup><!-- LEFT: all the controls + library -->
@@ -605,15 +613,10 @@
                           </Children>
                         </WidgetGroup><!-- ControlColumn -->
 
-                        <!-- ⚠️ FIXED width on purpose. Mixxx <Size> numbers are
-                             PIXELS with a policy suffix, not percentages — an
-                             expanding zone loses every time to the deck row's
-                             minimum width and collapses to a sliver. 520f is a
-                             guaranteed block (~27% of a 1920 frame) for Andy
-                             to stand in. -->
                         <WidgetGroup>
                           <ObjectName>PresenterZone</ObjectName>
-                          <Size>520f,10me</Size>
+                          <SizePolicy>me,me</SizePolicy>
+                          <MinimumSize>200,</MinimumSize>
                           <Layout>vertical</Layout>
                           <Style>
                             /* Lifted off black on purpose: a dark silhouette
@@ -634,7 +637,7 @@
                         </WidgetGroup>
 
                       </Children>
-                    </WidgetGroup>
+                    </Splitter><!-- DecksMixerSplitter -->
 
                   </Children>
                 </Splitter>
