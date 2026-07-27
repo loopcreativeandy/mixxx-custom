@@ -1630,6 +1630,7 @@ add_library(
   src/util/screensaver.cpp
   src/util/screensavermanager.cpp
   src/util/semanticversion.cpp
+  src/util/spectrumconfig.cpp
   src/util/stat.cpp
   src/util/statmodel.cpp
   src/util/statsmanager.cpp

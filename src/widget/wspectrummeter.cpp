@@ -6,6 +6,7 @@
 #include "control/controlproxy.h"
 #include "moc_wspectrummeter.cpp"
 #include "skin/legacy/skincontext.h"
+#include "util/spectrumconfig.h"
 
 namespace {
 
@@ -14,16 +15,8 @@ constexpr int kSegmentHeight = 5; // px per LED segment
 constexpr int kBarGap = 3;       // px between bars
 constexpr int kPadding = 6;      // px inset from the widget edge
 
-constexpr qint64 kPeakHoldMs = 700;
-constexpr double kPeakDecayPerSec = 0.9; // fraction of full scale per second
-
-// CP11 T6: bars drop in accelerating free fall (Andy: "as if it's falling"),
-// not at the old fixed exponential rate. With g = 8 full-scale/s² a bar falls
-// the whole meter in ~0.5 s, small drops correspondingly quicker.
-constexpr double kFallGravityPerSec2 = 8.0;
-// Repaint cadence while anything is still falling and the 30 Hz control
-// updates may have stopped (audio paused).
-constexpr int kFallFrameMs = 25;
+// Below this fraction the partially lit top LED isn't worth drawing.
+constexpr double kMinVisibleSegmentFraction = 0.04;
 
 // Classic device palette, tied into Andy's stem accent colors.
 const QColor kColorLow(0x45, 0xdb, 0x6b);   // green up to 60 %
@@ -40,6 +33,16 @@ QColor segmentColor(double fraction) {
         return kColorMid;
     }
     return kColorHigh;
+}
+
+/// Mix a lit segment color towards the unlit color, used to fade the topmost
+/// LED by its fractional level so the bars glide instead of stepping.
+QColor dimmedSegment(const QColor& lit, double fraction) {
+    const double f = qBound(0.0, fraction, 1.0);
+    return QColor(
+            qRound(kColorOff.red() + (lit.red() - kColorOff.red()) * f),
+            qRound(kColorOff.green() + (lit.green() - kColorOff.green()) * f),
+            qRound(kColorOff.blue() + (lit.blue() - kColorOff.blue()) * f));
 }
 
 } // namespace
@@ -79,6 +82,7 @@ void WSpectrumMeter::paintEvent(QPaintEvent* e) {
     QPainter p(this);
     p.fillRect(rect(), QColor(0x0f, 0x0f, 0x12));
 
+    const mixxx::SpectrumConfig config = mixxx::SpectrumConfig::current();
     const qint64 nowMs = m_clock.elapsed();
     double dt = (nowMs - m_lastFrameMs) / 1000.0;
     m_lastFrameMs = nowMs;
@@ -106,13 +110,21 @@ void WSpectrumMeter::paintEvent(QPaintEvent* e) {
         const double value = m_bands[i]->get();
         m_values[i] = value;
 
-        // Free-fall ballistics: jump up instantly, fall with accelerating
-        // velocity until the bar catches up with the signal again.
+        // Rise fast, then drop at a speed that is already high when the fall
+        // starts (fallInitialSpeed) and only accelerates on top of it
+        // (fallGravity). A fall that starts from zero speed eases in, which
+        // is what read as "exponential and too slow".
         if (value >= m_displayed[i]) {
-            m_displayed[i] = value;
+            m_displayed[i] += (value - m_displayed[i]) * config.attack;
             m_fallVelocity[i] = 0;
+            if (m_displayed[i] < value - 0.001) {
+                anyMotionPending = true;
+            }
         } else {
-            m_fallVelocity[i] += kFallGravityPerSec2 * dt;
+            if (m_fallVelocity[i] <= 0) {
+                m_fallVelocity[i] = config.fallInitialSpeed;
+            }
+            m_fallVelocity[i] += config.fallGravity * dt;
             m_displayed[i] -= m_fallVelocity[i] * dt;
             if (m_displayed[i] <= value) {
                 m_displayed[i] = value;
@@ -129,10 +141,13 @@ void WSpectrumMeter::paintEvent(QPaintEvent* e) {
             m_peakSetMs[i] = nowMs;
         } else {
             const qint64 sincePeak = nowMs - m_peakSetMs[i];
-            if (sincePeak > kPeakHoldMs) {
-                m_peaks[i] -= kPeakDecayPerSec *
-                        (sincePeak - kPeakHoldMs) / 1000.0 / numSegments;
-                m_peakSetMs[i] = nowMs - kPeakHoldMs;
+            if (sincePeak > config.peakHoldMs) {
+                // Speed is in full scales per second - the old code also
+                // divided by the segment count, which left the markers
+                // hanging near the top for half a minute.
+                m_peaks[i] -= config.peakFallSpeed *
+                        (sincePeak - config.peakHoldMs) / 1000.0;
+                m_peakSetMs[i] = nowMs - static_cast<qint64>(config.peakHoldMs);
                 if (m_peaks[i] < displayed) {
                     m_peaks[i] = displayed;
                 }
@@ -144,15 +159,20 @@ void WSpectrumMeter::paintEvent(QPaintEvent* e) {
 
         const int x = kPadding + qRound(i * (barWidthF + kBarGap));
         const int barWidth = qMax(1, qRound(barWidthF));
-        const int litSegments = qRound(displayed * numSegments);
+        const double litExact = qBound(0.0, displayed, 1.0) * numSegments;
+        const int litSegments = static_cast<int>(litExact);
+        const double topFraction = litExact - litSegments;
         for (int s = 0; s < numSegments; ++s) {
             const int y = bottom - (s + 1) * segmentPitch + kSegmentGap;
             const double fraction = static_cast<double>(s) / numSegments;
-            p.fillRect(x,
-                    y,
-                    barWidth,
-                    kSegmentHeight,
-                    s < litSegments ? segmentColor(fraction) : kColorOff);
+            QColor color = kColorOff;
+            if (s < litSegments) {
+                color = segmentColor(fraction);
+            } else if (s == litSegments && config.smoothTopSegment &&
+                    topFraction > kMinVisibleSegmentFraction) {
+                color = dimmedSegment(segmentColor(fraction), topFraction);
+            }
+            p.fillRect(x, y, barWidth, kSegmentHeight, color);
         }
 
         const int peakSegment = qRound(m_peaks[i] * numSegments);
@@ -167,7 +187,7 @@ void WSpectrumMeter::paintEvent(QPaintEvent* e) {
     // stopped.
     if (anyMotionPending && !m_pendingDecayUpdate) {
         m_pendingDecayUpdate = true;
-        QTimer::singleShot(kFallFrameMs, this, [this]() {
+        QTimer::singleShot(config.frameIntervalMs, this, [this]() {
             m_pendingDecayUpdate = false;
             update();
         });
