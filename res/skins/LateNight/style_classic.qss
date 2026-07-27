@@ -2516,6 +2516,33 @@ WSearchLineEdit {
   #LibrarySplitter::handle:pressed {
     image: url(skins:LateNight/classic/style/splitter_handle_vertical_pressed.png);
   }
+
+/* CP11 T4: CP9/CP11 splitters were unstyled -> default white Qt handles.
+  LibraryVSplitter (vertical): library block / Auto DJ strip.
+  DecksMixerSplitter (horizontal, AndyVideo): controls / presenter zone. */
+#LibraryVSplitter {
+  padding: 0px;
+  margin: 0px;
+  }
+  #LibraryVSplitter::handle {
+    image: url(skins:LateNight/classic/style/splitter_handle_horizontal.png);
+    background-color: #1e1e1e;
+    }
+    #LibraryVSplitter::handle:pressed {
+      image: url(skins:LateNight/classic/style/splitter_handle_horizontal_pressed.png);
+    }
+    #LibraryVSplitter::handle:vertical {
+      height: 9px;
+    }
+#DecksMixerSplitter::handle {
+  /* 'height' works although it's actually the width of the handle */
+  height: 6px;
+  image: url(skins:LateNight/classic/style/splitter_handle_vertical.png);
+  background-color: #1e1e1e;
+  }
+  #DecksMixerSplitter::handle:pressed {
+    image: url(skins:LateNight/classic/style/splitter_handle_vertical_pressed.png);
+  }
 /************ splitters ***********************/
 
 

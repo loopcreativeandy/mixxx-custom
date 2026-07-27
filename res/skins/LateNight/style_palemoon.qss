@@ -2995,6 +2995,34 @@ WSearchLineEdit {
   #LibrarySplitter::handle:pressed {
     image: url(skins:LateNight/palemoon/style/splitter_handle_vertical_pressed.svg);
   }
+
+/* CP11 T4: CP9/CP11 splitters were unstyled -> default white Qt handles.
+  LibraryVSplitter (vertical): library block / Auto DJ strip.
+  DecksMixerSplitter (horizontal, AndyVideo): controls / presenter zone. */
+#LibraryVSplitter,
+#DecksMixerSplitter {
+  padding: 0px;
+  margin: 0px;
+  }
+  #LibraryVSplitter::handle {
+    image: url(skins:LateNight/palemoon/style/splitter_handle_horizontal.svg);
+    background-color: #151517;
+    height: 9px;
+    }
+    #LibraryVSplitter::handle:pressed {
+      image: url(skins:LateNight/palemoon/style/splitter_handle_horizontal_pressed.svg);
+    }
+  #DecksMixerSplitter::handle {
+    image: url(skins:LateNight/palemoon/style/splitter_handle_vertical.svg);
+    background-color: #151517;
+    padding: 0px;
+    margin: 0px;
+    /* 'height' works although it's actually the width of the handle */
+    height: 6px;
+    }
+    #DecksMixerSplitter::handle:pressed {
+      image: url(skins:LateNight/palemoon/style/splitter_handle_vertical_pressed.svg);
+    }
 /************ splitters ***********************/
 
 #LibraryFeatureControls QRadioButton {
