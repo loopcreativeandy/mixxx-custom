@@ -5,15 +5,17 @@
 #include "preferences/usersettings.h"
 #include "widget/wbasewidget.h"
 
-class QComboBox;
+class QLabel;
 class Library;
 class KeyboardEventFilter;
 class WTrackTableView;
 class PlaylistTableModel;
 
 /// Andy's second playlist pane: a standalone track table bound to one
-/// playlist, selectable via a dropdown, living next to the main library so
-/// two playlists can be open at once and tracks can be dragged between them.
+/// playlist, living next to the main library so two playlists can be open at
+/// once and tracks can be dragged between them. Filled via the sidebar
+/// right-click action "Open in side pane"; a plain header shows which
+/// playlist is loaded.
 class WAndysPlaylistPane : public QWidget, public WBaseWidget {
     Q_OBJECT
   public:
@@ -23,17 +25,20 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
             KeyboardEventFilter* pKeyboard,
             double backgroundColorOpacity);
 
+  public slots:
+    void slotOpenPlaylist(int playlistId);
+
   private slots:
-    void slotComboActivated(int comboIndex);
     void slotPlaylistsChanged();
 
   private:
-    void populatePlaylists();
     void openPlaylist(int playlistId);
+    void updateHeader();
 
     UserSettingsPointer m_pConfig;
     Library* m_pLibrary;
-    QComboBox* m_pPlaylistCombo;
+    QLabel* m_pHeader;
     WTrackTableView* m_pTrackTableView;
     PlaylistTableModel* m_pModel;
+    int m_currentPlaylistId;
 };

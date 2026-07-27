@@ -1,8 +1,6 @@
 #include "widget/wandysplaylistpane.h"
 
-#include <QComboBox>
-#include <QSqlError>
-#include <QSqlQuery>
+#include <QLabel>
 #include <QVBoxLayout>
 
 #include "controllers/keyboard/keyboardeventfilter.h"
@@ -17,7 +15,7 @@
 
 namespace {
 const ConfigKey kLastPlaylistConfigKey("[AndysPlaylistPane]", "playlist_id");
-const QString kNoPlaylistLabel = QStringLiteral("— playlist —");
+const QString kNoPlaylistLabel = QStringLiteral("no playlist — right-click one in the sidebar");
 } // anonymous namespace
 
 WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
@@ -29,22 +27,29 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
           WBaseWidget(this),
           m_pConfig(pConfig),
           m_pLibrary(pLibrary),
-          m_pPlaylistCombo(new QComboBox(this)),
+          m_pHeader(new QLabel(this)),
           m_pTrackTableView(new WTrackTableView(this,
                   pConfig,
                   pLibrary,
                   backgroundColorOpacity)),
           m_pModel(new PlaylistTableModel(this,
                   pLibrary->trackCollectionManager(),
-                  "mixxx.db.model.andys_pane")) {
+                  "mixxx.db.model.andys_pane")),
+          m_currentPlaylistId(-1) {
     setObjectName(QStringLiteral("AndysPlaylistPane"));
-    m_pPlaylistCombo->setObjectName(QStringLiteral("AndysPlaylistSelector"));
-    m_pPlaylistCombo->setMaxVisibleItems(30);
+    m_pHeader->setObjectName(QStringLiteral("AndysPaneHeader"));
+    // Inline fallback style so the header never renders as a white system
+    // widget; skins can still override via the ObjectName.
+    m_pHeader->setStyleSheet(QStringLiteral(
+            "QLabel#AndysPaneHeader {"
+            " background-color: #1e1e26; color: #ddba71;"
+            " font-weight: bold; padding: 3px 6px; }"));
+    updateHeader();
 
     QVBoxLayout* pLayout = new QVBoxLayout(this);
     pLayout->setContentsMargins(0, 0, 0, 0);
     pLayout->setSpacing(2);
-    pLayout->addWidget(m_pPlaylistCombo);
+    pLayout->addWidget(m_pHeader);
     pLayout->addWidget(m_pTrackTableView, 1);
 
     m_pTrackTableView->installEventFilter(pKeyboard);
@@ -87,83 +92,44 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
             ConfigKey("[Library]", "RowHeight"), Library::kDefaultRowHeightPx);
     m_pTrackTableView->setTrackTableRowHeight(rowHeight);
 
+    // Sidebar right-click "Open in side pane" lands here.
+    connect(m_pLibrary,
+            &Library::openPlaylistInSidePane,
+            this,
+            &WAndysPlaylistPane::slotOpenPlaylist);
+
     PlaylistDAO& playlistDao =
             m_pLibrary->trackCollectionManager()->internalCollection()->getPlaylistDAO();
-    connect(&playlistDao, &PlaylistDAO::added, this, &WAndysPlaylistPane::slotPlaylistsChanged);
     connect(&playlistDao, &PlaylistDAO::deleted, this, &WAndysPlaylistPane::slotPlaylistsChanged);
     connect(&playlistDao, &PlaylistDAO::renamed, this, &WAndysPlaylistPane::slotPlaylistsChanged);
 
-    connect(m_pPlaylistCombo,
-            QOverload<int>::of(&QComboBox::activated),
-            this,
-            &WAndysPlaylistPane::slotComboActivated);
-
-    populatePlaylists();
-
     // Restore the playlist that was open last time.
     const int lastPlaylistId = m_pConfig->getValue(kLastPlaylistConfigKey, -1);
-    if (lastPlaylistId >= 0) {
-        const int comboIndex = m_pPlaylistCombo->findData(lastPlaylistId);
-        if (comboIndex >= 0) {
-            m_pPlaylistCombo->setCurrentIndex(comboIndex);
-            openPlaylist(lastPlaylistId);
-        }
+    if (lastPlaylistId >= 0 &&
+            !playlistDao.getPlaylistName(lastPlaylistId).isEmpty()) {
+        openPlaylist(lastPlaylistId);
     }
 }
 
-void WAndysPlaylistPane::populatePlaylists() {
-    const int selectedId =
-            m_pPlaylistCombo->currentData().isValid()
-            ? m_pPlaylistCombo->currentData().toInt()
-            : -1;
-    m_pPlaylistCombo->blockSignals(true);
-    m_pPlaylistCombo->clear();
-    m_pPlaylistCombo->addItem(kNoPlaylistLabel, -1);
-
-    // Same tier ordering as the sidebar patch: leading '_' count (capped at
-    // 5) pins playlists on top, newest first within a tier. substr() instead
-    // of LIKE because '_' is a LIKE wildcard.
-    QSqlQuery query(m_pLibrary->trackCollectionManager()
-                            ->internalCollection()
-                            ->database());
-    query.prepare(QStringLiteral(
-            "SELECT id, name FROM Playlists WHERE hidden = 0"
-            " ORDER BY "
-            " CASE"
-            "  WHEN substr(name, 1, 5) = '_____' THEN 5"
-            "  WHEN substr(name, 1, 4) = '____' THEN 4"
-            "  WHEN substr(name, 1, 3) = '___' THEN 3"
-            "  WHEN substr(name, 1, 2) = '__' THEN 2"
-            "  WHEN substr(name, 1, 1) = '_' THEN 1"
-            "  ELSE 0"
-            " END DESC,"
-            " date_created DESC"));
-    if (query.exec()) {
-        while (query.next()) {
-            m_pPlaylistCombo->addItem(
-                    query.value(1).toString(), query.value(0).toInt());
-        }
-    } else {
-        qWarning() << "WAndysPlaylistPane: playlist query failed"
-                   << query.lastError();
-    }
-
-    const int comboIndex = m_pPlaylistCombo->findData(selectedId);
-    m_pPlaylistCombo->setCurrentIndex(comboIndex >= 0 ? comboIndex : 0);
-    m_pPlaylistCombo->blockSignals(false);
-}
-
-void WAndysPlaylistPane::slotPlaylistsChanged() {
-    populatePlaylists();
-}
-
-void WAndysPlaylistPane::slotComboActivated(int comboIndex) {
-    const int playlistId = m_pPlaylistCombo->itemData(comboIndex).toInt();
+void WAndysPlaylistPane::slotOpenPlaylist(int playlistId) {
     if (playlistId < 0) {
         return;
     }
     openPlaylist(playlistId);
     m_pConfig->setValue(kLastPlaylistConfigKey, playlistId);
+}
+
+void WAndysPlaylistPane::slotPlaylistsChanged() {
+    if (m_currentPlaylistId < 0) {
+        return;
+    }
+    PlaylistDAO& playlistDao =
+            m_pLibrary->trackCollectionManager()->internalCollection()->getPlaylistDAO();
+    if (playlistDao.getPlaylistName(m_currentPlaylistId).isEmpty()) {
+        // Current playlist was deleted.
+        m_currentPlaylistId = -1;
+    }
+    updateHeader();
 }
 
 void WAndysPlaylistPane::openPlaylist(int playlistId) {
@@ -174,4 +140,18 @@ void WAndysPlaylistPane::openPlaylist(int playlistId) {
             Qt::AscendingOrder);
     m_pModel->select();
     m_pTrackTableView->loadTrackModel(m_pModel);
+    m_currentPlaylistId = playlistId;
+    updateHeader();
+}
+
+void WAndysPlaylistPane::updateHeader() {
+    if (m_currentPlaylistId < 0) {
+        m_pHeader->setText(kNoPlaylistLabel);
+        return;
+    }
+    const QString name = m_pLibrary->trackCollectionManager()
+                                 ->internalCollection()
+                                 ->getPlaylistDAO()
+                                 .getPlaylistName(m_currentPlaylistId);
+    m_pHeader->setText(name);
 }

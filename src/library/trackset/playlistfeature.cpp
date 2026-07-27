@@ -34,6 +34,12 @@ PlaylistFeature::PlaylistFeature(Library* pLibrary, UserSettingsPointer pConfig)
     m_pSidebarModel->setRootItem(std::move(pRootItem));
     constructChildModel(kInvalidPlaylistId);
 
+    m_pOpenInSidePaneAction = make_parented<QAction>(tr("Open in side pane"), this);
+    connect(m_pOpenInSidePaneAction,
+            &QAction::triggered,
+            this,
+            &PlaylistFeature::slotOpenInSidePane);
+
     m_pShufflePlaylistAction = make_parented<QAction>(tr("Shuffle Playlist"), this);
     connect(m_pShufflePlaylistAction,
             &QAction::triggered,
@@ -53,6 +59,16 @@ PlaylistFeature::PlaylistFeature(Library* pLibrary, UserSettingsPointer pConfig)
             &QAction::triggered,
             this,
             &PlaylistFeature::slotDeleteAllUnlockedPlaylists);
+}
+
+void PlaylistFeature::slotOpenInSidePane() {
+    if (!m_lastRightClickedIndex.isValid()) {
+        return;
+    }
+    const int playlistId = playlistIdFromIndex(m_lastRightClickedIndex);
+    if (playlistId >= 0) {
+        m_pLibrary->requestOpenPlaylistInSidePane(playlistId);
+    }
 }
 
 QVariant PlaylistFeature::title() {
@@ -90,6 +106,8 @@ void PlaylistFeature::onRightClickChild(
     m_pLockPlaylistAction->setText(locked ? tr("Unlock") : tr("Lock"));
 
     QMenu menu(m_pSidebarWidget);
+    menu.addAction(m_pOpenInSidePaneAction);
+    menu.addSeparator();
     menu.addAction(m_pCreatePlaylistAction);
     menu.addSeparator();
     // TODO If playlist is selected and has more than one track selected

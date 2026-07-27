@@ -115,6 +115,11 @@ class Library: public QObject {
     std::unique_ptr<mixxx::LibraryExporter> makeLibraryExporter(QWidget* parent);
 #endif
 
+    /// Andy's side pane: ask the pane (if the skin has one) to show a playlist.
+    void requestOpenPlaylistInSidePane(int playlistId) {
+        emit openPlaylistInSidePane(playlistId);
+    }
+
   public slots:
     void slotShowTrackModel(QAbstractItemModel* model);
     void slotSwitchToView(const QString& view);
@@ -136,6 +141,8 @@ class Library: public QObject {
     void slotRestoreCurrentViewState() const;
 
   signals:
+    /// Andy's side pane: emitted via requestOpenPlaylistInSidePane().
+    void openPlaylistInSidePane(int playlistId);
     void showTrackModel(QAbstractItemModel* model, bool restoreState = true);
     void switchToView(const QString& view);
     void loadTrack(TrackPointer pTrack);
