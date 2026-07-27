@@ -13,9 +13,11 @@ namespace {
 // Same cadence as the VU meters: fits the display frame rate.
 constexpr unsigned int kUpdateRate = 30; // Hz
 
-// VU-style ballistics: instant attack, smoothed decay.
+// Instant attack AND instant decay: the falling motion is animated in
+// WSpectrumMeter with gravity ballistics (CP11 T6); a smoothed decay here
+// would keep the signal floor artificially high under the falling bars.
 constexpr CSAMPLE kAttackSmoothing = 1.0f;
-constexpr CSAMPLE kDecaySmoothing = 0.2f;
+constexpr CSAMPLE kDecaySmoothing = 1.0f;
 
 // Filter sharpness. The 16 bands are spaced ~2/3 octave apart
 // ((16000/40)^(1/15) ≈ 1.49x per step); Q 2.5 keeps neighbors from

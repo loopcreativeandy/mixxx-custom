@@ -33,8 +33,13 @@ class WSpectrumMeter : public WWidget {
 
     std::array<std::unique_ptr<ControlProxy>, kBands> m_bands;
     std::array<double, kBands> m_values;
+    // Displayed bar heights fall under gravity instead of tracking the
+    // control value directly (CP11 T6).
+    std::array<double, kBands> m_displayed;
+    std::array<double, kBands> m_fallVelocity;
     std::array<double, kBands> m_peaks;
     std::array<qint64, kBands> m_peakSetMs;
     QElapsedTimer m_clock;
+    qint64 m_lastFrameMs;
     bool m_pendingDecayUpdate;
 };
