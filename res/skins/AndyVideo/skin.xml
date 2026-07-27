@@ -629,10 +629,24 @@
                           <Children>
                             <!-- CP9: Andy's playlist pane fills the free
                                  column; sidebar right-click "Open in side
-                                 pane" loads a playlist into it. -->
-                            <AndysPlaylistPane>
-                              <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
-                            </AndysPlaylistPane>
+                                 pane" loads a playlist into it.
+                                 CP11 T5: wrapped in a group NAMED
+                                 LibraryContainer so LateNight's scrollbar
+                                 qss (scoped '#LibraryContainer QScrollBar')
+                                 reaches it — outside that scope Qt painted
+                                 default white scrollbars. The only other
+                                 #LibraryContainer rules are empty/corner,
+                                 so no visual side effects. -->
+                            <WidgetGroup>
+                              <ObjectName>LibraryContainer</ObjectName>
+                              <Layout>vertical</Layout>
+                              <SizePolicy>me,me</SizePolicy>
+                              <Children>
+                                <AndysPlaylistPane>
+                                  <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
+                                </AndysPlaylistPane>
+                              </Children>
+                            </WidgetGroup>
                           </Children>
                         </WidgetGroup>
 
