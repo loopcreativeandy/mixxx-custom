@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <QFileDialog>
 #include <QOpenGLContext>
+#include <QTimer>
 #include <QUrl>
 
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
@@ -461,6 +462,17 @@ void MixxxMainWindow::initialize() {
     if (CmdlineArgs::Instance().getStartAutoDJ()) {
         qDebug("Enabling Auto DJ from CLI flag.");
         ControlObject::set(ConfigKey("[AutoDJ]", "enabled"), 1.0);
+    }
+
+    // Dev/screenshot hook: MIXXX_AUTOPLAY=1 starts decks 1+2 shortly after
+    // startup (delay lets tracks passed on the command line finish loading).
+    // Headless UI automation can't inject input under Wayland/libei.
+    if (qEnvironmentVariableIsSet("MIXXX_AUTOPLAY")) {
+        qDebug("MIXXX_AUTOPLAY set - starting decks 1+2 in 10 s.");
+        QTimer::singleShot(std::chrono::seconds(10), this, [] {
+            ControlObject::set(ConfigKey("[Channel1]", "play"), 1.0);
+            ControlObject::set(ConfigKey("[Channel2]", "play"), 1.0);
+        });
     }
 }
 
