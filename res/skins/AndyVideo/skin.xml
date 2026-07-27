@@ -613,6 +613,7 @@
                         <WidgetGroup>
                           <ObjectName>PresenterZone</ObjectName>
                           <Size>520f,10me</Size>
+                          <Layout>vertical</Layout>
                           <Style>
                             /* Lifted off black on purpose: a dark silhouette
                                against a near-black skin disappears on camera. */
@@ -621,6 +622,14 @@
                               border-left: 2px solid #3a3a46;
                             }
                           </Style>
+                          <Children>
+                            <!-- CP9: Andy's playlist pane fills the free
+                                 column; sidebar right-click "Open in side
+                                 pane" loads a playlist into it. -->
+                            <AndysPlaylistPane>
+                              <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
+                            </AndysPlaylistPane>
+                          </Children>
                         </WidgetGroup>
 
                       </Children>
