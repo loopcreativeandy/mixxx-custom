@@ -17,12 +17,23 @@
         <SizePolicy>me,me</SizePolicy>
         <Children>
 
+          <!-- CP9: vertical stack = [sidebar | library | playlist pane] over the
+               full-width Auto DJ strip. Both extra panes fully collapsible. -->
+          <Splitter>
+            <ObjectName>LibraryVSplitter</ObjectName>
+            <SizePolicy>me,me</SizePolicy>
+            <Orientation>vertical</Orientation>
+            <SplitSizes>10,4</SplitSizes>
+            <SplitSizesConfigKey>[Skin],library_splitsize_cp9v</SplitSizesConfigKey>
+            <Collapsible>0,1</Collapsible>
+            <Children>
+
           <Splitter>
             <ObjectName>LibrarySplitter</ObjectName>
             <SizePolicy>me,me</SizePolicy>
-            <SplitSizes>2,10,4,4</SplitSizes>
-            <SplitSizesConfigKey>[Skin],librarySidebar_splitsize_4pane</SplitSizesConfigKey>
-            <Collapsible>1,0,1,1</Collapsible>
+            <SplitSizes>4,12,5</SplitSizes>
+            <SplitSizesConfigKey>[Skin],library_splitsize_cp9h</SplitSizesConfigKey>
+            <Collapsible>0,0,1</Collapsible>
             <Children>
 
               <WidgetGroup>
@@ -116,22 +127,26 @@
                 <SignalColor><Variable name="SignalColor_12"/></SignalColor>
               </Library>
 
-              <!-- Andy's second playlist pane: dropdown + its own track table,
-                   drag tracks between it and the main library. Drag the
+              <!-- Andy's second playlist pane: header + its own track table,
+                   filled via sidebar right-click "Open in side pane". Drag the
                    splitter handle fully right to collapse it. -->
               <AndysPlaylistPane>
                 <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
               </AndysPlaylistPane>
 
-              <!-- Andy's Auto DJ pane: full Auto DJ view (queue + buttons)
-                   so Auto DJ and a playlist can be open side by side. Drag
-                   the splitter handle fully right to collapse it. -->
+            </Children>
+          </Splitter><!-- LibrarySplitter -->
+
+              <!-- Andy's Auto DJ pane: full-width strip below the library so
+                   Auto DJ and a playlist can be open at once. Drag the
+                   splitter handle fully down to collapse it. -->
               <AndysAutoDJPane>
+                <ShowButtonText>false</ShowButtonText>
                 <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
               </AndysAutoDJPane>
 
             </Children>
-          </Splitter><!-- LibrarySplitter -->
+          </Splitter><!-- LibraryVSplitter -->
 
         </Children>
       </WidgetGroup><!-- LibraryContainer -->
