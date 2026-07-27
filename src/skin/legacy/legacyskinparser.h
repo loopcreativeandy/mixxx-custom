@@ -128,6 +128,7 @@ class LegacySkinParser : public QObject, public SkinParser {
     QWidget* parseLibrary(const QDomElement& node);
     QWidget* parseAndysPlaylistPane(const QDomElement& node);
     QWidget* parseAndysAutoDJPane(const QDomElement& node);
+    QWidget* parseSpectrumMeter(const QDomElement& node);
     QWidget* parseLibrarySidebar(const QDomElement& node);
     QWidget* parseBattery(const QDomElement& node);
     QWidget* parseRecordingDuration(const QDomElement& node);

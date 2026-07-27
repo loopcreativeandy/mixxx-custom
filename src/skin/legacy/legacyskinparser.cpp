@@ -60,6 +60,7 @@
 #include "util/math.h"
 #include "widget/wandysautodjpane.h"
 #include "widget/wandysplaylistpane.h"
+#include "widget/wspectrummeter.h"
 #include "widget/wlibrary.h"
 #include "widget/wlibrarysidebar.h"
 #include "widget/wnumber.h"
@@ -641,6 +642,8 @@ QList<QWidget*> LegacySkinParser::parseNode(const QDomElement& node) {
         result = wrapWidget(parseAndysPlaylistPane(node));
     } else if (nodeName == "AndysAutoDJPane") {
         result = wrapWidget(parseAndysAutoDJPane(node));
+    } else if (nodeName == "SpectrumMeter") {
+        result = wrapWidget(parseSpectrumMeter(node));
     } else if (nodeName == "Key") {
         result = wrapWidget(parseEngineKey(node));
     } else if (nodeName == "Battery") {
@@ -1699,6 +1702,18 @@ QWidget* LegacySkinParser::parseAndysPlaylistPane(const QDomElement& node) {
             backgroundColorOpacity);
     commonWidgetSetup(node, pPane, false);
     return pPane;
+}
+
+QWidget* LegacySkinParser::parseSpectrumMeter(const QDomElement& node) {
+    WSpectrumMeter* pMeter = new WSpectrumMeter(m_pParent);
+    setupBaseWidget(node, pMeter);
+    setupWidget(node, pMeter);
+    pMeter->setup(node, *m_pContext);
+    setupConnections(node, pMeter);
+    pMeter->installEventFilter(m_pKeyboard);
+    pMeter->installEventFilter(
+            m_pControllerManager->getControllerLearningEventFilter());
+    return pMeter;
 }
 
 QWidget* LegacySkinParser::parseAndysAutoDJPane(const QDomElement& node) {

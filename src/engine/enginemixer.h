@@ -23,6 +23,7 @@
 
 class EngineWorkerScheduler;
 class EngineVuMeter;
+class EngineSpectrum;
 class ControlPotmeter;
 class ControlPushButton;
 class EngineSideChain;
@@ -313,6 +314,7 @@ class EngineMixer : public QObject, public AudioSource {
     std::unique_ptr<EngineDelay> m_pLatencyCompensationDelay;
 
     std::unique_ptr<EngineVuMeter> m_pVumeter;
+    std::unique_ptr<EngineSpectrum> m_pSpectrum;
     std::unique_ptr<EngineSideChain> m_pEngineSideChain;
 
     std::unique_ptr<ControlPotmeter> m_pCrossfader;
