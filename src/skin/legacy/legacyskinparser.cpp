@@ -1708,7 +1708,7 @@ QWidget* LegacySkinParser::parseAndysAutoDJPane(const QDomElement& node) {
                     WLibrary::kDefaultTrackTableBackgroundColorOpacity),
             WLibrary::kMinTrackTableBackgroundColorOpacity,
             WLibrary::kMaxTrackTableBackgroundColorOpacity);
-    const bool showButtonText = m_pContext->selectBool(node, "ShowButtonText", true);
+    const bool showButtonText = m_pContext->selectBool(node, "ShowButtonText", false);
     WAndysAutoDJPane* pPane = new WAndysAutoDJPane(m_pParent,
             m_pConfig,
             m_pLibrary,
