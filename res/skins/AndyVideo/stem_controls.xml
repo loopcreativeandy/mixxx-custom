@@ -1,0 +1,57 @@
+<Template>
+  <!-- andy-custom CP15 (Andy voice msg 6601): the stem strip, moved out of the
+       waveform row and parked next to its own deck so the waveform keeps the
+       full window width. One column of 4 rows (drums / bass / other / vocals),
+       each label + mute + volume; the QuickEffect widgets inside
+       stem_channel.xml only appear when the FX rack is on.
+
+       Visible only when the loaded track actually has stems AND the
+       show_stem_controls toggle (still on the left of the waveforms) is on -
+       same two conditions LateNight used, so nothing changes for non-stem
+       tracks except that the space is simply not reserved. -->
+  <SetVariable name="Group">[Channel<Variable name="ChanNum"/>]</SetVariable>
+  <SetVariable name="BtnType">embedded</SetVariable>
+  <SetVariable name="BtnSize">library</SetVariable>
+  <SetVariable name="KnobBg">regular</SetVariable>
+  <SetVariable name="KnobIndicator">regular</SetVariable>
+  <SetVariable name="ArcRadius"><Variable name="ArcRadiusBig"/></SetVariable>
+  <SetVariable name="ArcThickness"><Variable name="ArcThicknessBig"/></SetVariable>
+
+  <WidgetGroup>
+    <RequiresStem>true</RequiresStem>
+    <ObjectName>StemControls</ObjectName>
+    <Layout>vertical</Layout>
+    <SizePolicy>min,max</SizePolicy>
+    <Children>
+
+      <WidgetGroup>
+        <ObjectName>DeckStemStrip</ObjectName>
+        <Layout>vertical</Layout>
+        <SizePolicy>min,max</SizePolicy>
+        <Children>
+          <Template src="skins:AndyVideo/stem_channel.xml">
+            <SetVariable name="StemNum">1</SetVariable>
+          </Template>
+          <Template src="skins:AndyVideo/stem_channel.xml">
+            <SetVariable name="StemNum">2</SetVariable>
+          </Template>
+          <Template src="skins:AndyVideo/stem_channel.xml">
+            <SetVariable name="StemNum">3</SetVariable>
+          </Template>
+          <Template src="skins:AndyVideo/stem_channel.xml">
+            <SetVariable name="StemNum">4</SetVariable>
+          </Template>
+        </Children>
+        <Connection>
+          <ConfigKey persist="true">[Channel<Variable name="ChanNum"/>],stem_count</ConfigKey>
+          <BindProperty>visible</BindProperty>
+        </Connection>
+      </WidgetGroup>
+
+    </Children>
+    <Connection>
+      <ConfigKey persist="true">[Skin],show_stem_controls</ConfigKey>
+      <BindProperty>visible</BindProperty>
+    </Connection>
+  </WidgetGroup>
+</Template>

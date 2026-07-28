@@ -556,26 +556,66 @@
                                      confusing. Place the deck singletons
                                      directly instead; 3+4 only in 4-deck
                                      mode, 2-deck unchanged. -->
+                                <!-- CP15: each deck carries its own stem strip
+                                     on its right, between the deck controls and
+                                     the mixer, instead of the 240px block that
+                                     used to eat into the waveform row. -->
                                 <WidgetGroup>
                                   <Layout>vertical</Layout>
                                   <SizePolicy>me,max</SizePolicy>
                                   <Children>
-                                    <SingletonContainer>
-                                      <ObjectName>Deck1_Src</ObjectName>
-                                    </SingletonContainer>
-                                    <SingletonContainer>
-                                      <ObjectName>Deck2_Src</ObjectName>
-                                    </SingletonContainer>
+                                    <WidgetGroup>
+                                      <Layout>horizontal</Layout>
+                                      <SizePolicy>me,max</SizePolicy>
+                                      <Children>
+                                        <SingletonContainer>
+                                          <ObjectName>Deck1_Src</ObjectName>
+                                        </SingletonContainer>
+                                        <Template src="skins:AndyVideo/stem_controls.xml">
+                                          <SetVariable name="ChanNum">1</SetVariable>
+                                        </Template>
+                                      </Children>
+                                    </WidgetGroup>
+                                    <WidgetGroup>
+                                      <Layout>horizontal</Layout>
+                                      <SizePolicy>me,max</SizePolicy>
+                                      <Children>
+                                        <SingletonContainer>
+                                          <ObjectName>Deck2_Src</ObjectName>
+                                        </SingletonContainer>
+                                        <Template src="skins:AndyVideo/stem_controls.xml">
+                                          <SetVariable name="ChanNum">2</SetVariable>
+                                        </Template>
+                                      </Children>
+                                    </WidgetGroup>
                                     <WidgetGroup>
                                       <Layout>vertical</Layout>
                                       <SizePolicy>me,min</SizePolicy>
                                       <Children>
+                                    <WidgetGroup>
+                                      <Layout>horizontal</Layout>
+                                      <SizePolicy>me,max</SizePolicy>
+                                      <Children>
                                         <SingletonContainer>
                                           <ObjectName>Deck3_Src</ObjectName>
                                         </SingletonContainer>
+                                        <Template src="skins:AndyVideo/stem_controls.xml">
+                                          <SetVariable name="ChanNum">3</SetVariable>
+                                        </Template>
+                                      </Children>
+                                    </WidgetGroup>
+                                    <WidgetGroup>
+                                      <Layout>horizontal</Layout>
+                                      <SizePolicy>me,max</SizePolicy>
+                                      <Children>
                                         <SingletonContainer>
                                           <ObjectName>Deck4_Src</ObjectName>
                                         </SingletonContainer>
+                                        <Template src="skins:AndyVideo/stem_controls.xml">
+                                          <SetVariable name="ChanNum">4</SetVariable>
+                                        </Template>
+                                      </Children>
+                                    </WidgetGroup>
                                       </Children>
                                       <Connection>
                                         <ConfigKey>[Skin],show_4decks</ConfigKey>
