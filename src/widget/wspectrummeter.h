@@ -38,6 +38,7 @@ class WSpectrumMeter : public WWidget {
     std::array<double, kBands> m_displayed;
     std::array<double, kBands> m_fallVelocity;
     std::array<double, kBands> m_peaks;
+    std::array<double, kBands> m_peakVelocity;
     std::array<qint64, kBands> m_peakSetMs;
     QElapsedTimer m_clock;
     qint64 m_lastFrameMs;

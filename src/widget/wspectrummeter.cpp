@@ -55,6 +55,7 @@ WSpectrumMeter::WSpectrumMeter(QWidget* pParent)
     m_displayed.fill(0);
     m_fallVelocity.fill(0);
     m_peaks.fill(0);
+    m_peakVelocity.fill(0);
     m_peakSetMs.fill(0);
     m_clock.start();
     for (int i = 0; i < kBands; ++i) {
@@ -135,22 +136,23 @@ void WSpectrumMeter::paintEvent(QPaintEvent* e) {
         }
         const double displayed = m_displayed[i];
 
-        // Peak hold: latch upward instantly, hold, then slide down.
+        // Peak hold: latch upward instantly, hold, then fall ballistically -
+        // same shape as the bars (CP13): start at peakFallSpeed and
+        // accelerate under peakFallGravity, which is 0 for the old linear
+        // slide. Speeds are in full scales per second.
         if (displayed >= m_peaks[i]) {
             m_peaks[i] = displayed;
             m_peakSetMs[i] = nowMs;
-        } else {
-            const qint64 sincePeak = nowMs - m_peakSetMs[i];
-            if (sincePeak > config.peakHoldMs) {
-                // Speed is in full scales per second - the old code also
-                // divided by the segment count, which left the markers
-                // hanging near the top for half a minute.
-                m_peaks[i] -= config.peakFallSpeed *
-                        (sincePeak - config.peakHoldMs) / 1000.0;
-                m_peakSetMs[i] = nowMs - static_cast<qint64>(config.peakHoldMs);
-                if (m_peaks[i] < displayed) {
-                    m_peaks[i] = displayed;
-                }
+            m_peakVelocity[i] = 0;
+        } else if (nowMs - m_peakSetMs[i] > config.peakHoldMs) {
+            if (m_peakVelocity[i] <= 0) {
+                m_peakVelocity[i] = config.peakFallSpeed;
+            }
+            m_peakVelocity[i] += config.peakFallGravity * dt;
+            m_peaks[i] -= m_peakVelocity[i] * dt;
+            if (m_peaks[i] < displayed) {
+                m_peaks[i] = displayed;
+                m_peakVelocity[i] = 0;
             }
         }
         if (m_peaks[i] > displayed + 0.001) {

@@ -33,6 +33,7 @@ SpectrumConfig defaultConfig() {
     // CP13: Andy's tested values.
     config.peakHoldMs = 200;
     config.peakFallSpeed = 1.0;
+    config.peakFallGravity = 6.0;
     // CP13: Andy prefers hard LED steps — the faded top LED read as a
     // rendering glitch ("half colors"), not as smoothing.
     config.smoothTopSegment = false;
@@ -76,10 +77,16 @@ void writeTemplateFile(const QString& filePath) {
         << "# 0.5 = close half the gap per frame (calmer, less jittery).\n"
         << "attack=" << config.attack << "\n"
         << "#\n"
-        << "# White peak markers: how long they hang before sliding down (ms)\n"
-        << "# and how fast they slide (full meters per second).\n"
+        << "# White peak markers: how long they hang before sliding down (ms),\n"
+        << "# how fast they start sliding (full meters per second) and how "
+           "hard\n"
+        << "# they accelerate on the way down. Same ballistics as the bars:\n"
+        << "# peak_fall_gravity=0 is a linear slide, higher values drop like "
+           "a\n"
+        << "# stone the longer they fall.\n"
         << "peak_hold_ms=" << config.peakHoldMs << "\n"
         << "peak_fall_speed=" << config.peakFallSpeed << "\n"
+        << "peak_fall_gravity=" << config.peakFallGravity << "\n"
         << "#\n"
         << "# smooth_top_segment=1 fades the topmost LED by its fractional "
            "level\n"
@@ -126,6 +133,8 @@ SpectrumConfig parseConfigFile(const QString& filePath) {
             config.peakHoldMs = qBound(0.0, number, 60000.0);
         } else if (key == QLatin1String("peak_fall_speed")) {
             config.peakFallSpeed = qBound(0.0, number, 100.0);
+        } else if (key == QLatin1String("peak_fall_gravity")) {
+            config.peakFallGravity = qBound(0.0, number, 1000.0);
         } else if (key == QLatin1String("smooth_top_segment")) {
             config.smoothTopSegment = number != 0;
         } else if (key == QLatin1String("frame_interval_ms")) {

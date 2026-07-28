@@ -18,8 +18,11 @@ struct SpectrumConfig {
     double attack;
     /// How long a peak marker sits still before it starts to slide, in ms.
     double peakHoldMs;
-    /// Peak marker fall speed, in full scales per second.
+    /// Speed a peak marker starts sliding with, in full scales per second.
     double peakFallSpeed;
+    /// Acceleration added while a peak marker slides, in full scales per
+    /// second squared. 0 = the linear slide the markers had before CP13.
+    double peakFallGravity;
     /// Fade the topmost LED by its fractional level instead of snapping it
     /// on/off - makes the motion look continuous rather than stepped.
     bool smoothTopSegment;
