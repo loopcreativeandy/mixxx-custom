@@ -30,8 +30,9 @@ SpectrumConfig defaultConfig() {
     config.fallInitialSpeed = 2.2;
     config.fallGravity = 6.0;
     config.attack = 1.0;
-    config.peakHoldMs = 600;
-    config.peakFallSpeed = 1.2;
+    // CP13: Andy's tested values.
+    config.peakHoldMs = 200;
+    config.peakFallSpeed = 1.0;
     // CP13: Andy prefers hard LED steps — the faded top LED read as a
     // rendering glitch ("half colors"), not as smoothing.
     config.smoothTopSegment = false;

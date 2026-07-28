@@ -26,6 +26,11 @@ const QString kMinHeightPrefix = QStringLiteral("min_height.");
 
 LayoutConfig defaultConfig() {
     LayoutConfig config;
+    // CP13: the values Andy settled on after testing the AndyVideo presenter
+    // column on his machine. Defaults rather than template comments, so a
+    // fresh install already drags the way he wants.
+    config.minWidth.insert(QStringLiteral("ControlColumn"), 860);
+    config.minWidth.insert(QStringLiteral("PresenterZone"), 0);
     config.rowHeightMinFactor = 1.0;
     return config;
 }
@@ -44,6 +49,7 @@ void writeTemplateFile(const QString& filePath) {
         kLogger.warning() << "Cannot create" << filePath;
         return;
     }
+    const LayoutConfig config = defaultConfig();
     QTextStream out(&file);
     out << "# Andy's Mixxx layout overrides - no recompile needed, but you "
            "must\n"
@@ -82,8 +88,13 @@ void writeTemplateFile(const QString& filePath) {
            "it\n"
         << "#                   can get. Skin default is 200.\n"
         << "#\n"
-        << "#min_width.ControlColumn=1000\n"
-        << "#min_width.PresenterZone=200\n"
+        << "# The values below are Andy's tested defaults (CP13): they are "
+           "what\n"
+        << "# the build uses even if you delete these lines.\n"
+        << "min_width.ControlColumn="
+        << config.minWidth.value(QStringLiteral("ControlColumn"), 860) << "\n"
+        << "min_width.PresenterZone="
+        << config.minWidth.value(QStringLiteral("PresenterZone"), 0) << "\n"
         << "#\n"
         << "# Track table rows can never be shorter than the library font's "
            "pixel\n"
