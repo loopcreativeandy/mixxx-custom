@@ -2232,16 +2232,22 @@ void LegacySkinParser::setupSize(const QDomNode& node, QWidget* pWidget) {
     // being dragged further, so this is the knob for "the presenter column
     // won't get any wider" - without a rebuild. Applied after the skin's own
     // <MinimumSize> so the file wins.
+    //
+    // Note the clamp to >= 1: Qt's qSmartMinSize() only lets an explicit
+    // minimum override the widget's minimumSizeHint() when that minimum is
+    // greater than 0 - setMinimumWidth(0) silently falls back to the hint
+    // (e.g. ControlColumn's 1134 px, which comes from its children). 1 px is
+    // as close to "no minimum" as a container can get.
     const QString minSizeObjectName = pWidget->objectName();
     if (!minSizeObjectName.isEmpty()) {
         const mixxx::LayoutConfig layout = mixxx::LayoutConfig::current();
         const auto widthIt = layout.minWidth.constFind(minSizeObjectName);
         if (widthIt != layout.minWidth.constEnd()) {
-            pWidget->setMinimumWidth(*widthIt);
+            pWidget->setMinimumWidth(math_max(1, *widthIt));
         }
         const auto heightIt = layout.minHeight.constFind(minSizeObjectName);
         if (heightIt != layout.minHeight.constEnd()) {
-            pWidget->setMinimumHeight(*heightIt);
+            pWidget->setMinimumHeight(math_max(1, *heightIt));
         }
     }
 
