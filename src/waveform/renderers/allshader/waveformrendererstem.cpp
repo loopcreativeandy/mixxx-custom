@@ -210,7 +210,6 @@ bool WaveformRendererStem::preprocessInner() {
     const double maxSamplingRange = visualIncrementPerPixel / 2.0;
 
     for (int visualIdx = 0; visualIdx < stripLength; visualIdx++) {
-        int stemLayer = 0;
         for (int stemIdx : std::as_const(m_stackOrder)) {
             // m_stackOrder always spans kMaxSupportedStems entries; a track
             // whose manifest declares fewer stems must not index past its
@@ -299,20 +298,28 @@ bool WaveformRendererStem::preprocessInner() {
                     }
                 }
 
+                // andy-custom CP19: in split mode each stem owns a FIXED lane
+                // (its manifest index, i.e. the same top-to-bottom order as the
+                // stem knobs in the skin). Using the stack order here made the
+                // lanes swap places whenever a stem was touched, which is
+                // unreadable. The stack order still governs the drawing order,
+                // so the "last touched stem draws on top" behaviour is kept for
+                // the overlapping (non-split) mode.
+                const float laneOffset = stemIdx * stemBreadth;
+
                 // Lines are thin rectangles
                 // shadow
                 vertexUpdater.addRectangle(
                         {fVisualIdx - halfStripSize,
-                                stemLayer * stemBreadth + halfBreadth -
+                                laneOffset + halfBreadth -
                                         heightFactor * max},
                         {fVisualIdx + halfStripSize,
                                 m_isSlipRenderer
-                                        ? stemLayer * stemBreadth + halfBreadth
-                                        : stemLayer * stemBreadth + halfBreadth +
+                                        ? laneOffset + halfBreadth
+                                        : laneOffset + halfBreadth +
                                                 heightFactor * max},
                         {color_r, color_g, color_b, color_a});
             }
-            stemLayer++;
         }
 
         xVisualFrame += visualIncrementPerPixel;
