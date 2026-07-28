@@ -62,9 +62,15 @@
         <MinAngle><Variable name="PotiMinAngle"/></MinAngle>
         <MaxAngle><Variable name="PotiMaxAngle"/></MaxAngle>
         <ArcUnipolar>true</ArcUnipolar>
-        <ArcRadius><Variable name="ArcRadiusSmall"/></ArcRadius>
+        <!-- andy-custom CP19: ArcRadius is absolute pixels (NOT scaled to the
+             widget, see WKnobComposed::resizeEvent) and the arc is clipped by
+             the widget rect. LateNight's ArcRadiusSmall (12) + thickness needs
+             a >=26px box; in this compact 22px box the orange ring was cut off
+             square on all sides. 9.6 + 1.6/2 = 10.4 < 11 shows the full circle
+             with a little air, at roughly LateNight's arc/knob proportions. -->
+        <ArcRadius>9.6</ArcRadius>
         <ArcColor><Variable name="ArcColorGain"/></ArcColor>
-        <ArcThickness><Variable name="ArcThickness"/></ArcThickness>
+        <ArcThickness>1.6</ArcThickness>
         <ArcRoundCaps><Variable name="ArcRoundCaps"/></ArcRoundCaps>
         <!-- <KnobCenterYOffset>1.998</KnobCenterYOffset> -->
         <Connection>
