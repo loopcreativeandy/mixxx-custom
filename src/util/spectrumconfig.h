@@ -28,6 +28,15 @@ struct SpectrumConfig {
     bool smoothTopSegment;
     /// Repaint interval while bars are still moving, in ms (16 ~= 60 fps).
     int frameIntervalMs;
+    /// Number of frequency bars, spread logarithmically over 40 Hz - 16 kHz.
+    /// Unlike the motion knobs this one is read once at startup (the engine
+    /// allocates its filter bank and the skin builds the widget from it), so
+    /// changing it needs a Mixxx restart.
+    int bands;
+
+    /// Hard limits for `bands`, shared by the engine and the widget.
+    static constexpr int kMinBands = 4;
+    static constexpr int kMaxBands = 64;
 
     /// Thread-safe cached snapshot; re-parses the file when its modification
     /// time changes, throttled so paint-path callers stay cheap.

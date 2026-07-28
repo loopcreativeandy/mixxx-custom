@@ -38,6 +38,10 @@ SpectrumConfig defaultConfig() {
     // rendering glitch ("half colors"), not as smoothing.
     config.smoothTopSegment = false;
     config.frameIntervalMs = 16;
+    // CP18: 32 bars ~= 1/3.5 octave over 40 Hz-16 kHz, i.e. the classic
+    // 1/3-octave RTA layout every hardware analyzer uses. 16 was only ever a
+    // bar-width compromise for the narrow presenter column.
+    config.bands = 32;
     return config;
 }
 
@@ -95,7 +99,20 @@ void writeTemplateFile(const QString& filePath) {
         << "smooth_top_segment=" << (config.smoothTopSegment ? 1 : 0) << "\n"
         << "#\n"
         << "# Animation frame interval in ms (16 = 60 fps).\n"
-        << "frame_interval_ms=" << config.frameIntervalMs << "\n";
+        << "frame_interval_ms=" << config.frameIntervalMs << "\n"
+        << "#\n"
+        << "# Number of bars, spread logarithmically over 40 Hz - 16 kHz "
+           "(range "
+        << SpectrumConfig::kMinBands << ".." << SpectrumConfig::kMaxBands
+        << ").\n"
+        << "# The filter width follows automatically, so the bands always "
+           "cover the\n"
+        << "# spectrum without gaps or overlap. 32 = the classic 1/3-octave "
+           "RTA look,\n"
+        << "# 16 = wider bars for a narrow column, 10 = one bar per octave.\n"
+        << "# NOTE: unlike the settings above this one only applies after a "
+           "RESTART.\n"
+        << "bands=" << config.bands << "\n";
 }
 
 SpectrumConfig parseConfigFile(const QString& filePath) {
@@ -140,6 +157,11 @@ SpectrumConfig parseConfigFile(const QString& filePath) {
         } else if (key == QLatin1String("frame_interval_ms")) {
             config.frameIntervalMs =
                     static_cast<int>(qBound(8.0, number, 200.0));
+        } else if (key == QLatin1String("bands")) {
+            config.bands = static_cast<int>(
+                    qBound(static_cast<double>(SpectrumConfig::kMinBands),
+                            number,
+                            static_cast<double>(SpectrumConfig::kMaxBands)));
         } else {
             kLogger.warning() << "Unknown key" << key;
         }

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <array>
 #include <memory>
+#include <vector>
 
 #include "control/controlobject.h"
 #include "control/pollingcontrolproxy.h"
@@ -13,11 +13,13 @@ class EngineFilterBiquad1Band;
 // Andy's retro spectrum analyzer: a bank of constant-Q band-pass filters over
 // the main output, published as [Spectrum],band_0..band_N controls (0..1) in
 // the same scaling/ballistics as the VU meters so skin meters read alike.
-// Deliberately no FFT — 16 biquads on the main bus cost less than one EQ.
+// Deliberately no FFT — even 32 biquads on the main bus cost less than one EQ.
+// The band count comes from andys_spectrum.ini and is fixed for the lifetime
+// of the engine (the controls are created once); the widget reads the same
+// value, so both sides agree without talking to each other.
 class EngineSpectrum : public EngineObject {
     Q_OBJECT
   public:
-    static constexpr int kBands = 16;
     static constexpr double kMinFreq = 40.0;
     static constexpr double kMaxFreq = 16000.0;
 
@@ -32,10 +34,12 @@ class EngineSpectrum : public EngineObject {
     void configureFilters(mixxx::audio::SampleRate sampleRate);
     static void doSmooth(CSAMPLE& currentValue, CSAMPLE newValue);
 
-    std::array<std::unique_ptr<ControlObject>, kBands> m_bandControls;
-    std::array<std::unique_ptr<EngineFilterBiquad1Band>, kBands> m_filters;
-    std::array<CSAMPLE, kBands> m_bandSums;
-    std::array<CSAMPLE, kBands> m_bandValues;
+    const int m_bands;
+    const double m_bandQ;
+    std::vector<std::unique_ptr<ControlObject>> m_bandControls;
+    std::vector<std::unique_ptr<EngineFilterBiquad1Band>> m_filters;
+    std::vector<CSAMPLE> m_bandSums;
+    std::vector<CSAMPLE> m_bandValues;
     unsigned int m_samplesCalculated;
     mixxx::audio::SampleRate m_configuredSampleRate;
     mixxx::SampleBuffer m_scratch;

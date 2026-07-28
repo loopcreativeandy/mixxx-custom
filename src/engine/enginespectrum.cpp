@@ -7,6 +7,7 @@
 #include "engine/filters/enginefilterbiquad1.h"
 #include "moc_enginespectrum.cpp"
 #include "util/sample.h"
+#include "util/spectrumconfig.h"
 
 namespace {
 
@@ -19,33 +20,42 @@ constexpr unsigned int kUpdateRate = 30; // Hz
 constexpr CSAMPLE kAttackSmoothing = 1.0f;
 constexpr CSAMPLE kDecaySmoothing = 1.0f;
 
-// Filter sharpness. The 16 bands are spaced ~2/3 octave apart
-// ((16000/40)^(1/15) ≈ 1.49x per step); Q 2.5 keeps neighbors from
-// bleeding into each other without ringing.
-constexpr double kBandQ = 2.5;
-
 constexpr std::size_t kInitialScratchSize = 16384;
 
-double bandCenterFreq(int band) {
+double bandCenterFreq(int band, int numBands) {
     const double ratio = EngineSpectrum::kMaxFreq / EngineSpectrum::kMinFreq;
     return EngineSpectrum::kMinFreq *
-            std::pow(ratio,
-                    static_cast<double>(band) /
-                            (EngineSpectrum::kBands - 1));
+            std::pow(ratio, static_cast<double>(band) / (numBands - 1));
+}
+
+// Filter sharpness follows the band spacing: a band-pass whose -3 dB width
+// equals one band step tiles the spectrum without holes or heavy overlap.
+// With BW octaves between neighbors, Q = 1 / (2^(BW/2) - 2^(-BW/2)).
+// 16 bands over 40 Hz..16 kHz (8.64 octaves) => BW 0.576 oct => Q 2.5, the
+// value that was hard-coded before; 32 bands halve BW and double Q.
+double bandQ(int numBands) {
+    const double octaves = std::log2(EngineSpectrum::kMaxFreq /
+            EngineSpectrum::kMinFreq);
+    const double bandwidth = octaves / (numBands - 1);
+    return 1.0 / (std::pow(2.0, bandwidth / 2) - std::pow(2.0, -bandwidth / 2));
 }
 
 } // namespace
 
 EngineSpectrum::EngineSpectrum(const QString& group)
-        : m_samplesCalculated(0),
+        : m_bands(mixxx::SpectrumConfig::current().bands),
+          m_bandQ(bandQ(m_bands)),
+          m_samplesCalculated(0),
           m_configuredSampleRate(mixxx::audio::SampleRate()),
           m_scratch(kInitialScratchSize),
           m_sampleRate(QStringLiteral("[App]"), QStringLiteral("samplerate")) {
-    for (int i = 0; i < kBands; ++i) {
-        m_bandControls[i] = std::make_unique<ControlObject>(
-                ConfigKey(group, QStringLiteral("band_%1").arg(i)));
-        m_bandSums[i] = 0;
-        m_bandValues[i] = 0;
+    m_filters.resize(m_bands);
+    m_bandSums.assign(m_bands, 0);
+    m_bandValues.assign(m_bands, 0);
+    m_bandControls.reserve(m_bands);
+    for (int i = 0; i < m_bands; ++i) {
+        m_bandControls.push_back(std::make_unique<ControlObject>(
+                ConfigKey(group, QStringLiteral("band_%1").arg(i))));
     }
     reset();
 }
@@ -53,13 +63,13 @@ EngineSpectrum::EngineSpectrum(const QString& group)
 EngineSpectrum::~EngineSpectrum() = default;
 
 void EngineSpectrum::configureFilters(mixxx::audio::SampleRate sampleRate) {
-    for (int i = 0; i < kBands; ++i) {
-        const double freq = bandCenterFreq(i);
+    for (int i = 0; i < m_bands; ++i) {
+        const double freq = bandCenterFreq(i, m_bands);
         if (!m_filters[i]) {
             m_filters[i] = std::make_unique<EngineFilterBiquad1Band>(
-                    sampleRate, freq, kBandQ);
+                    sampleRate, freq, m_bandQ);
         } else {
-            m_filters[i]->setFrequencyCorners(sampleRate, freq, kBandQ);
+            m_filters[i]->setFrequencyCorners(sampleRate, freq, m_bandQ);
         }
     }
     m_configuredSampleRate = sampleRate;
@@ -77,7 +87,7 @@ void EngineSpectrum::process(CSAMPLE* pInOut, const std::size_t bufferSize) {
         m_scratch = mixxx::SampleBuffer(bufferSize);
     }
 
-    for (int i = 0; i < kBands; ++i) {
+    for (int i = 0; i < m_bands; ++i) {
         m_filters[i]->process(pInOut, m_scratch.data(), bufferSize);
         CSAMPLE sumL, sumR;
         SampleUtil::sumAbsPerChannel(&sumL, &sumR, m_scratch.data(), bufferSize);
@@ -88,7 +98,7 @@ void EngineSpectrum::process(CSAMPLE* pInOut, const std::size_t bufferSize) {
 
     if (m_samplesCalculated > (sampleRate / kUpdateRate)) {
         const double epsilon = .0001;
-        for (int i = 0; i < kBands; ++i) {
+        for (int i = 0; i < m_bands; ++i) {
             // Same log scaling as EngineVuMeter so the meters read alike.
             doSmooth(m_bandValues[i],
                     std::log10(SHRT_MAX * m_bandSums[i] /
@@ -118,7 +128,7 @@ void EngineSpectrum::doSmooth(CSAMPLE& currentValue, CSAMPLE newValue) {
 }
 
 void EngineSpectrum::reset() {
-    for (int i = 0; i < kBands; ++i) {
+    for (int i = 0; i < m_bands; ++i) {
         m_bandControls[i]->set(0);
         m_bandSums[i] = 0;
         m_bandValues[i] = 0;

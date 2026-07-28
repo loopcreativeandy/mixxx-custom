@@ -13,6 +13,7 @@ namespace {
 constexpr int kSegmentGap = 2;   // px between LED segments
 constexpr int kSegmentHeight = 5; // px per LED segment
 constexpr int kBarGap = 3;       // px between bars
+constexpr double kMinBarWidth = 4.0; // px below which the gap is given up
 constexpr int kPadding = 6;      // px inset from the widget edge
 
 // Below this fraction the partially lit top LED isn't worth drawing.
@@ -49,22 +50,34 @@ QColor dimmedSegment(const QColor& lit, double fraction) {
 
 WSpectrumMeter::WSpectrumMeter(QWidget* pParent)
         : WWidget(pParent),
+          m_numBands(0),
           m_lastFrameMs(0),
           m_pendingDecayUpdate(false) {
-    m_values.fill(0);
-    m_displayed.fill(0);
-    m_fallVelocity.fill(0);
-    m_peaks.fill(0);
-    m_peakVelocity.fill(0);
-    m_peakSetMs.fill(0);
     m_clock.start();
-    for (int i = 0; i < kBands; ++i) {
-        m_bands[i] = std::make_unique<ControlProxy>(
+    const int configuredBands = mixxx::SpectrumConfig::current().bands;
+    for (int i = 0; i < configuredBands; ++i) {
+        // AllowMissingOrInvalid: a shrunk band count in the ini leaves the
+        // upper controls unregistered, which must not trip the debug assert.
+        auto pBand = std::make_unique<ControlProxy>(
                 QStringLiteral("[Spectrum]"),
                 QStringLiteral("band_%1").arg(i),
-                this);
-        m_bands[i]->connectValueChanged(this, &WSpectrumMeter::bandChanged);
+                this,
+                ControlFlag::AllowMissingOrInvalid);
+        if (!pBand->valid()) {
+            // The engine was built with fewer bands (ini changed since
+            // startup): stop here rather than drawing bars that never move.
+            break;
+        }
+        pBand->connectValueChanged(this, &WSpectrumMeter::bandChanged);
+        m_bands.push_back(std::move(pBand));
     }
+    m_numBands = static_cast<int>(m_bands.size());
+    m_values.assign(m_numBands, 0);
+    m_displayed.assign(m_numBands, 0);
+    m_fallVelocity.assign(m_numBands, 0);
+    m_peaks.assign(m_numBands, 0);
+    m_peakVelocity.assign(m_numBands, 0);
+    m_peakSetMs.assign(m_numBands, 0);
 }
 
 void WSpectrumMeter::setup(const QDomNode& node, const SkinContext& context) {
@@ -93,21 +106,30 @@ void WSpectrumMeter::paintEvent(QPaintEvent* e) {
     }
     const int w = width() - 2 * kPadding;
     const int h = height() - 2 * kPadding;
-    if (w <= 0 || h <= 0) {
+    if (w <= 0 || h <= 0 || m_numBands <= 0) {
         return;
     }
 
     const int segmentPitch = kSegmentHeight + kSegmentGap;
     const int numSegments = qMax(1, h / segmentPitch);
-    const double barWidthF =
-            (w - (kBands - 1) * kBarGap) / static_cast<double>(kBands);
+    // With many bands the fixed gap eats the bars, so give it up before the
+    // bars get unreadably thin.
+    int barGap = kBarGap;
+    double barWidthF = 0;
+    while (true) {
+        barWidthF = (w - (m_numBands - 1) * barGap) / static_cast<double>(m_numBands);
+        if (barWidthF >= kMinBarWidth || barGap == 0) {
+            break;
+        }
+        --barGap;
+    }
     if (barWidthF < 1) {
         return;
     }
     const int bottom = kPadding + h;
 
     bool anyMotionPending = false;
-    for (int i = 0; i < kBands; ++i) {
+    for (int i = 0; i < m_numBands; ++i) {
         const double value = m_bands[i]->get();
         m_values[i] = value;
 
@@ -159,7 +181,7 @@ void WSpectrumMeter::paintEvent(QPaintEvent* e) {
             anyMotionPending = true;
         }
 
-        const int x = kPadding + qRound(i * (barWidthF + kBarGap));
+        const int x = kPadding + qRound(i * (barWidthF + barGap));
         const int barWidth = qMax(1, qRound(barWidthF));
         const double litExact = qBound(0.0, displayed, 1.0) * numSegments;
         const int litSegments = static_cast<int>(litExact);

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <array>
 #include <memory>
+#include <vector>
 
 #include <QElapsedTimer>
 
@@ -29,17 +29,21 @@ class WSpectrumMeter : public WWidget {
     void bandChanged(double value);
 
   private:
-    static constexpr int kBands = 16; // must match EngineSpectrum::kBands
+    // Bar count from andys_spectrum.ini, matching EngineSpectrum: both read
+    // the same key once at startup. Any bar whose [Spectrum],band_N control
+    // is missing (ini edited between engine and skin creation) is dropped, so
+    // the widget can never draw dead bars.
+    int m_numBands;
 
-    std::array<std::unique_ptr<ControlProxy>, kBands> m_bands;
-    std::array<double, kBands> m_values;
+    std::vector<std::unique_ptr<ControlProxy>> m_bands;
+    std::vector<double> m_values;
     // Displayed bar heights fall under gravity instead of tracking the
     // control value directly (CP11 T6).
-    std::array<double, kBands> m_displayed;
-    std::array<double, kBands> m_fallVelocity;
-    std::array<double, kBands> m_peaks;
-    std::array<double, kBands> m_peakVelocity;
-    std::array<qint64, kBands> m_peakSetMs;
+    std::vector<double> m_displayed;
+    std::vector<double> m_fallVelocity;
+    std::vector<double> m_peaks;
+    std::vector<double> m_peakVelocity;
+    std::vector<qint64> m_peakSetMs;
     QElapsedTimer m_clock;
     qint64 m_lastFrameMs;
     bool m_pendingDecayUpdate;
