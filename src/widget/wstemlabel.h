@@ -26,4 +26,8 @@ class WStemLabel : public WLabel {
     StemInfo m_stemInfo;
     QString m_group;
     int m_stemNo;
+    /// andy-custom CP16: render only the first letter of the stem name
+    /// (Bass -> B, Drums -> D, ...) so the strip stays compact. Off by
+    /// default, the full name still shows as the tooltip.
+    bool m_shortLabel;
 };

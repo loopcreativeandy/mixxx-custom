@@ -7,21 +7,25 @@
     <SizePolicy>min,min</SizePolicy>
     <Children>
 
+      <!-- andy-custom CP16: single-letter stem labels (Bass -> B, Drums -> D,
+           Other -> O, Vocals -> V). The stems are colour-coded, so the letter
+           plus the colour identifies them; the full name is the tooltip.
+           50f -> 16f is most of what makes the strip compact again. -->
       <StemLabel>
         <TooltipId>StemLabel</TooltipId>
         <ObjectName>StemLabel</ObjectName>
         <Group><Variable name="Group"/></Group>
         <StemNum><Variable name="StemNum"/></StemNum>
-        <Alignment>left</Alignment>
-        <Elide>right</Elide>
-        <Size>50f,26f</Size>
+        <ShortLabel>true</ShortLabel>
+        <Alignment>center</Alignment>
+        <Size>16f,22f</Size>
         <Text></Text>
       </StemLabel>
 
       <PushButton>
         <TooltipId>StemMuteButton</TooltipId>
         <ObjectName>StemMuteButton</ObjectName>
-        <Size>18f,18f</Size>
+        <Size>16f,16f</Size>
         <NumberStates>2</NumberStates>
         <State>
           <Number>0</Number>
@@ -52,7 +56,7 @@
 
       <KnobComposed>
         <TooltipId>StemVolumeKnob</TooltipId>
-        <Size>26f,26f</Size>
+        <Size>22f,22f</Size>
         <Knob>skins:LateNight/<Variable name="KnobScheme"/>/knobs/knob_indicator_<Variable name="KnobIndicator"/>_orange.svg</Knob>
         <BackPath>skins:LateNight/<Variable name="KnobScheme"/>/knobs/knob_bg_fx.svg</BackPath>
         <MinAngle><Variable name="PotiMinAngle"/></MinAngle>

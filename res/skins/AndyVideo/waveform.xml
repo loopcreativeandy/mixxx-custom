@@ -19,9 +19,56 @@
     <Layout>horizontal</Layout>
     <SizePolicy>me,me</SizePolicy>
     <Children>
-      <!-- andy-custom CP15: the 240px StemControls block that LateNight
-           puts here has moved next to its deck (AndyVideo/stem_controls.xml),
-           so the waveform gets the full window width. -->
+      <!-- andy-custom CP16 (Andy voice msg 6923): the stem block is back in
+           LateNight's original spot, left of the waveform - CP15 (next to the
+           deck) and CP15b (flanking the mixer) were both rejected. The
+           objection was the size, not the place, so this version is compact:
+           single-letter labels, smaller mute/volume widgets, and no fixed
+           240f width - the group takes its children's minimum, which is why
+           it also grows correctly when the FX widgets appear.
+           Kept from CP15: those QuickEffect widgets only show when the FX
+           rack is on (see stem_channel.xml).
+           The rejected placements are still available: AndyVideo/
+           stem_controls.xml + the AndyStems skin. -->
+      <WidgetGroup>
+        <ObjectName>StemControls</ObjectName>
+        <RequiresStem>true</RequiresStem>
+        <Layout>vertical</Layout>
+        <SizePolicy>min,me</SizePolicy>
+        <Children>
+          <WidgetGroup><Size>0min,1me</Size></WidgetGroup>
+
+          <WidgetGroup>
+            <ObjectName>StemControlsInner</ObjectName>
+            <Layout>vertical</Layout>
+            <SizePolicy>min,min</SizePolicy>
+            <Children>
+              <Template src="skins:AndyVideo/stem_channel.xml">
+                <SetVariable name="StemNum">1</SetVariable>
+              </Template>
+              <Template src="skins:AndyVideo/stem_channel.xml">
+                <SetVariable name="StemNum">2</SetVariable>
+              </Template>
+              <Template src="skins:AndyVideo/stem_channel.xml">
+                <SetVariable name="StemNum">3</SetVariable>
+              </Template>
+              <Template src="skins:AndyVideo/stem_channel.xml">
+                <SetVariable name="StemNum">4</SetVariable>
+              </Template>
+            </Children>
+            <Connection>
+              <ConfigKey persist="true"><Variable name="Group"/>,stem_count</ConfigKey>
+              <BindProperty>visible</BindProperty>
+            </Connection>
+          </WidgetGroup>
+
+          <WidgetGroup><Size>0min,1me</Size></WidgetGroup>
+        </Children>
+        <Connection>
+          <ConfigKey persist="true">[Skin],show_stem_controls</ConfigKey>
+          <BindProperty>visible</BindProperty>
+        </Connection>
+      </WidgetGroup>
 
 
       <WidgetGroup>

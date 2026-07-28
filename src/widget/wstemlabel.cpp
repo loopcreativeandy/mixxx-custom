@@ -8,12 +8,14 @@ const mixxx::Logger kLogger("WStemLabel");
 WStemLabel::WStemLabel(QWidget* pParent)
         : WLabel(pParent),
           m_stemInfo(QString(), QColor()),
-          m_stemNo(0) {
+          m_stemNo(0),
+          m_shortLabel(false) {
 }
 
 void WStemLabel::setup(const QDomNode& node, const SkinContext& context) {
     WLabel::setup(node, context);
     m_stemNo = context.selectInt(node, "StemNum");
+    m_shortLabel = context.selectBool(node, "ShortLabel", false);
 
     VERIFY_OR_DEBUG_ASSERT(m_stemNo >= 1 && m_stemNo <= mixxx::kMaxSupportedStems) {
         SKIN_WARNING(node,
@@ -56,8 +58,15 @@ void WStemLabel::slotTrackLoaded(TrackPointer pTrack) {
 
 void WStemLabel::updateLabel() {
     QColor color = m_stemInfo.getColor();
-    QString text = m_stemInfo.getLabel();
+    const QString text = m_stemInfo.getLabel();
     setTextColor(color);
+    if (m_shortLabel) {
+        // The stems are colour-coded anyway, so one letter is enough to tell
+        // them apart; keep the full name reachable as a tooltip.
+        setToolTip(text);
+        setLabelText(text.left(1).toUpper());
+        return;
+    }
     setLabelText(text);
 }
 
