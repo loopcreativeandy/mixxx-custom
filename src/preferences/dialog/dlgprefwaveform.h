@@ -62,6 +62,7 @@ class DlgPrefWaveform : public DlgPreferencePage, public Ui::DlgPrefWaveformDlg 
     void slotSetUntilMarkTextHeightLimit(int index);
     void slotStemOpacity(float value);
     void slotStemReorderOnChange(bool value);
+    void slotStemSplitTracks(bool value);
     void slotStemOutlineOpacity(float value);
     // overview options
     void slotSetWaveformOverviewType();

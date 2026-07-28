@@ -133,6 +133,7 @@ WaveformWidgetFactory::WaveformWidgetFactory()
           m_untilMarkAlign(Qt::AlignVCenter),
           m_untilMarkTextPointSize(24),
           m_untilMarkTextHeightLimit(toUntilMarkTextHeightLimit(0)),
+          m_stemSplitTracks(false),
           m_openGlAvailable(false),
           m_openGlesAvailable(false),
           m_openGLShaderAvailable(false),
@@ -465,6 +466,9 @@ bool WaveformWidgetFactory::setConfig(UserSettingsPointer config) {
     setStemReorderOnChange(m_config->getValue(
             ConfigKey(kWaveformGroup, QStringLiteral("stem_reorder_on_change")),
             true));
+    setStemSplitTracks(m_config->getValue(
+            ConfigKey(kWaveformGroup, QStringLiteral("stem_split_tracks")),
+            false));
     setStemOpacity(static_cast<float>(
             m_config->getValue(ConfigKey(kWaveformGroup, QStringLiteral("stem_opacity")),
                     0.75)));
@@ -1480,6 +1484,15 @@ void WaveformWidgetFactory::setStemReorderOnChange(bool value) {
                 value);
     }
     emit stemReorderOnChangeChanged(value);
+}
+
+void WaveformWidgetFactory::setStemSplitTracks(bool value) {
+    m_stemSplitTracks = value;
+    if (m_config) {
+        m_config->setValue(ConfigKey(kWaveformGroup, QStringLiteral("stem_split_tracks")),
+                value);
+    }
+    emit stemSplitTracksChanged(value);
 }
 
 void WaveformWidgetFactory::setStemOutlineOpacity(float value) {

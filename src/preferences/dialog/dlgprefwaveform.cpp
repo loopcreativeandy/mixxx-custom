@@ -234,6 +234,10 @@ DlgPrefWaveform::DlgPrefWaveform(
             &QCheckBox::clicked,
             this,
             &DlgPrefWaveform::slotStemReorderOnChange);
+    connect(stemSplitTracksCheckBox,
+            &QCheckBox::clicked,
+            this,
+            &DlgPrefWaveform::slotStemSplitTracks);
     connect(stemOpacitySpinBox,
             &QDoubleSpinBox::valueChanged,
             this,
@@ -343,6 +347,7 @@ void DlgPrefWaveform::slotUpdate() {
                     factory->getUntilMarkTextHeightLimit()));
 
     stemReorderLayerOnChangedCheckBox->setChecked(factory->isStemReorderOnChange());
+    stemSplitTracksCheckBox->setChecked(factory->isStemSplitTracks());
     stemOpacitySpinBox->setValue(factory->getStemOpacity());
     stemOutlineOpacitySpinBox->setValue(factory->getStemOutlineOpacity());
 
@@ -646,6 +651,7 @@ void DlgPrefWaveform::updateStemOptionsEnabled() {
     stemOpacityMainLabel->setEnabled(stemsSupported && enabled);
     stemOpacityOutlineLabel->setEnabled(stemsSupported && enabled);
     stemReorderLayerOnChangedCheckBox->setEnabled(stemsSupported && enabled);
+    stemSplitTracksCheckBox->setEnabled(stemsSupported && enabled);
     stemOpacitySpinBox->setEnabled(stemsSupported && enabled);
     stemOutlineOpacitySpinBox->setEnabled(stemsSupported && enabled);
     requiresGLSLLabel2->setVisible(!stemsSupported && enabled);
@@ -763,6 +769,12 @@ void DlgPrefWaveform::slotStemOpacity(float value) {
 
 void DlgPrefWaveform::slotStemReorderOnChange(bool value) {
     WaveformWidgetFactory::instance()->setStemReorderOnChange(value);
+}
+
+// andy-custom CP17: toggle between the overlaid stem waveform and one lane per
+// stem. Both renderings stay available, this only picks which one is drawn.
+void DlgPrefWaveform::slotStemSplitTracks(bool value) {
+    WaveformWidgetFactory::instance()->setStemSplitTracks(value);
 }
 
 void DlgPrefWaveform::slotStemOutlineOpacity(float value) {

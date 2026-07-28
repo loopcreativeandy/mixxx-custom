@@ -173,6 +173,9 @@ class WaveformWidgetFactory : public QObject,
     void setUntilMarkTextHeightLimit(float value);
 
     void setStemReorderOnChange(bool value);
+    /// andy-custom CP17: draw the four stems in separate stacked lanes
+    /// instead of overlaid in one waveform.
+    void setStemSplitTracks(bool value);
     void setStemOutlineOpacity(float value);
     void setStemOpacity(float value);
 
@@ -193,6 +196,9 @@ class WaveformWidgetFactory : public QObject,
     }
     bool isStemReorderOnChange() const {
         return m_stemReorderOnChange;
+    }
+    bool isStemSplitTracks() const {
+        return m_stemSplitTracks;
     }
     float getStemOutlineOpacity() const {
         return m_stemOutlineOpacity;
@@ -267,6 +273,7 @@ class WaveformWidgetFactory : public QObject,
     void untilMarkTextHeightLimitChanged(float value);
 
     void stemReorderOnChangeChanged(bool value);
+    void stemSplitTracksChanged(bool value);
     void stemOutlineOpacityChanged(float value);
     void stemOpacityChanged(float value);
 
@@ -332,6 +339,7 @@ class WaveformWidgetFactory : public QObject,
     float m_untilMarkTextHeightLimit;
 
     bool m_stemReorderOnChange;
+    bool m_stemSplitTracks;
     float m_stemOutlineOpacity;
     float m_stemOpacity;
 

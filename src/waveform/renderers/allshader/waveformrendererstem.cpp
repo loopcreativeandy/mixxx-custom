@@ -82,6 +82,14 @@ bool WaveformRendererStem::init() {
             &WaveformWidgetFactory::stemReorderOnChangeChanged,
             this,
             &WaveformRendererStem::setReorderOnChange);
+    // andy-custom CP17: the split-lane rendering below already existed but was
+    // only reachable from the QML skin; wire it to the same factory/preferences
+    // plumbing the other stem options use so the legacy skins can toggle it.
+    setSplitStemTracks(pWaveformWidgetFactory->isStemSplitTracks());
+    connect(pWaveformWidgetFactory,
+            &WaveformWidgetFactory::stemSplitTracksChanged,
+            this,
+            &WaveformRendererStem::setSplitStemTracks);
     setOutlineOpacity(pWaveformWidgetFactory->getStemOutlineOpacity());
     connect(pWaveformWidgetFactory,
             &WaveformWidgetFactory::stemOutlineOpacityChanged,
