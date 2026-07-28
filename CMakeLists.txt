@@ -1614,6 +1614,7 @@ add_library(
   src/util/imagefiledata.cpp
   src/util/imageutils.cpp
   src/util/indexrange.cpp
+  src/util/layoutconfig.cpp
   src/util/logger.cpp
   src/util/logging.cpp
   src/util/mac.cpp

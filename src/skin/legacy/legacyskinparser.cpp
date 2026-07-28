@@ -28,6 +28,7 @@
 #include "track/track.h"
 #include "util/assert.h"
 #include "util/cmdlineargs.h"
+#include "util/layoutconfig.h"
 #include "util/timer.h"
 #include "util/valuetransformer.h"
 #include "util/xml.h"
@@ -2223,6 +2224,24 @@ void LegacySkinParser::setupSize(const QDomNode& node, QWidget* pWidget) {
                     *m_pContext,
                     QStringLiteral("Could not parse widget MaximumSize: %1")
                             .arg(size));
+        }
+    }
+
+    // andy-custom: andys_layout.ini can override the minimum size of any
+    // named widget group. A minimum is what stops a splitter handle from
+    // being dragged further, so this is the knob for "the presenter column
+    // won't get any wider" - without a rebuild. Applied after the skin's own
+    // <MinimumSize> so the file wins.
+    const QString minSizeObjectName = pWidget->objectName();
+    if (!minSizeObjectName.isEmpty()) {
+        const mixxx::LayoutConfig layout = mixxx::LayoutConfig::current();
+        const auto widthIt = layout.minWidth.constFind(minSizeObjectName);
+        if (widthIt != layout.minWidth.constEnd()) {
+            pWidget->setMinimumWidth(*widthIt);
+        }
+        const auto heightIt = layout.minHeight.constFind(minSizeObjectName);
+        if (heightIt != layout.minHeight.constEnd()) {
+            pWidget->setMinimumHeight(*heightIt);
         }
     }
 

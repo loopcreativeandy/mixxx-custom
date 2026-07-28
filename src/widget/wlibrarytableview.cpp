@@ -9,6 +9,7 @@
 #include <QToolTip>
 
 #include "moc_wlibrarytableview.cpp"
+#include "util/layoutconfig.h"
 #include "util/math.h"
 #include "widget/wtracktableviewheader.h"
 
@@ -204,7 +205,12 @@ void WLibraryTableView::restoreCurrentIndex(const QModelIndex& index) {
 void WLibraryTableView::setTrackTableFont(const QFont& font) {
     setFont(font);
     QFontMetrics metrics(font);
-    verticalHeader()->setMinimumSectionSize(metrics.height());
+    // andy-custom: upstream floors the row height at the font's pixel
+    // height; andys_layout.ini can lower that floor (rows then clip a little
+    // of the descenders, which is fine for a dense list).
+    verticalHeader()->setMinimumSectionSize(math_max(1,
+            static_cast<int>(metrics.height() *
+                    mixxx::LayoutConfig::current().rowHeightMinFactor)));
     // Resize the 'Played' checkbox and the BPM lock icon.
     // Note: this works well for library font sizes up to ~200% of the original
     // system font's size (that set with Qt5 Settings respectively). Above that,

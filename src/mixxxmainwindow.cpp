@@ -474,6 +474,26 @@ void MixxxMainWindow::initialize() {
             ControlObject::set(ConfigKey("[Channel2]", "play"), 1.0);
         });
     }
+
+    // Dev hook: MIXXX_DUMP_LAYOUT=1 logs the minimum width every named widget
+    // group insists on, once the skin is laid out. That minimum is what stops
+    // a splitter handle from moving further - see andys_layout.ini.
+    if (qEnvironmentVariableIsSet("MIXXX_DUMP_LAYOUT")) {
+        QTimer::singleShot(std::chrono::seconds(5), this, [this] {
+            const QList<QWidget*> children = findChildren<QWidget*>();
+            for (const QWidget* pChild : children) {
+                if (pChild->objectName().isEmpty()) {
+                    continue;
+                }
+                qDebug().noquote()
+                        << "LAYOUTDUMP" << pChild->objectName()
+                        << "class=" << pChild->metaObject()->className()
+                        << "width=" << pChild->width()
+                        << "minW=" << pChild->minimumWidth()
+                        << "minHintW=" << pChild->minimumSizeHint().width();
+            }
+        });
+    }
 }
 
 MixxxMainWindow::~MixxxMainWindow() {
