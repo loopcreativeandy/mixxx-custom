@@ -21,6 +21,11 @@ struct LayoutConfig {
     /// be shorter than the text); lower values allow tighter rows.
     double rowHeightMinFactor;
 
+    /// Keep the widget named by a splitter's <AutoCenter> horizontally
+    /// centered in that splitter on every resize (AndyVideo: the mixer +
+    /// spectrum column). false leaves the split wherever it was dragged.
+    bool autoCenter;
+
     /// Thread-safe cached snapshot; re-parses the file when its modification
     /// time changes, throttled to ~2 s.
     static LayoutConfig current();

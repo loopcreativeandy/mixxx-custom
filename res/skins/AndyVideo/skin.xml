@@ -506,6 +506,12 @@
                       <SizePolicy>me,me</SizePolicy>
                       <SplitSizes>1400,520</SplitSizes>
                       <SplitSizesConfigKey>[AndyVideo],presenterZone_splitSize_v1</SplitSizesConfigKey>
+                      <!-- CP14: put the mixer + spectrum column in the
+                           horizontal center of the window on every resize,
+                           so the shot stays composed on any screen size
+                           instead of needing a manual drag. Turn off with
+                           auto_center=0 in andys_layout.ini. -->
+                      <AutoCenter>MixerSpectrumColumn</AutoCenter>
                       <Collapsible>0,0</Collapsible>
                       <Children>
 

@@ -2,14 +2,17 @@
 
 #include <QEvent>
 #include <QList>
+#include <QTimer>
 
 #include "moc_wsplitter.cpp"
 #include "skin/legacy/skincontext.h"
+#include "util/layoutconfig.h"
 
 WSplitter::WSplitter(QWidget* pParent, UserSettingsPointer pConfig)
         : QSplitter(pParent),
           WBaseWidget(this),
-          m_pConfig(pConfig) {
+          m_pConfig(pConfig),
+          m_autoCenterPending(false) {
     connect(this, &WSplitter::splitterMoved, this, &WSplitter::slotSplitterMoved);
 }
 
@@ -98,6 +101,65 @@ void WSplitter::setup(const QDomNode& node, const SkinContext& context) {
             }
         }
     }
+
+    // andy-custom CP14: keep a named descendant horizontally centered in the
+    // splitter regardless of window/screen width. <SplitSizes> and the saved
+    // config key still provide the starting point; this just corrects it once
+    // the real geometry is known and again on every resize.
+    context.hasNodeSelectString(node, "AutoCenter", &m_autoCenterName);
+}
+
+void WSplitter::scheduleAutoCenter() {
+    if (m_autoCenterName.isEmpty() || m_autoCenterPending) {
+        return;
+    }
+    // Wait for the layout pass this resize triggered: applyAutoCenter()
+    // measures live geometry and would otherwise read stale positions.
+    m_autoCenterPending = true;
+    QTimer::singleShot(0, this, &WSplitter::applyAutoCenter);
+}
+
+void WSplitter::applyAutoCenter() {
+    m_autoCenterPending = false;
+    if (orientation() != Qt::Horizontal || count() != 2) {
+        return;
+    }
+    if (!mixxx::LayoutConfig::current().autoCenter) {
+        return;
+    }
+    QWidget* pTarget = findChild<QWidget*>(m_autoCenterName);
+    QWidget* pFirst = widget(0);
+    if (!pTarget || !pFirst || !pTarget->isVisible() ||
+            !pFirst->isAncestorOf(pTarget)) {
+        return;
+    }
+    const int total = width();
+    if (total <= 0 || pTarget->width() <= 0) {
+        return;
+    }
+
+    // The target sits at a fixed distance from the RIGHT edge of the first
+    // pane (it is the last child of a horizontal row, and its width is its
+    // natural one - SizePolicy max). So its center only depends on how wide
+    // that pane is, and the wanted width follows in one step instead of
+    // iterating: rightGap and the target width are invariant under the move.
+    const QPoint targetTopRight = pTarget->mapTo(this, QPoint(pTarget->width(), 0));
+    const int firstPaneRight = pFirst->mapTo(this, QPoint(pFirst->width(), 0)).x();
+    const int rightGap = firstPaneRight - targetTopRight.x();
+    const int wantedFirst = total / 2 + rightGap + pTarget->width() / 2;
+
+    QList<int> newSizes = sizes();
+    if (newSizes.size() != 2 || newSizes.at(0) == wantedFirst) {
+        return;
+    }
+    newSizes[0] = wantedFirst;
+    newSizes[1] = total - handleWidth() - wantedFirst;
+    if (newSizes.at(1) < 0) {
+        return;
+    }
+    // QSplitter clamps this against both panes' minimums, so an impossible
+    // request simply lands as close as the layout allows.
+    setSizes(newSizes);
 }
 
 void WSplitter::slotSplitterMoved() {
@@ -115,6 +177,9 @@ void WSplitter::slotSplitterMoved() {
 bool WSplitter::event(QEvent* pEvent) {
     if (pEvent->type() == QEvent::ToolTip) {
         updateTooltip();
+    } else if (pEvent->type() == QEvent::Resize ||
+            pEvent->type() == QEvent::Show) {
+        scheduleAutoCenter();
     }
     return QSplitter::event(pEvent);
 }

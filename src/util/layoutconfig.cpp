@@ -32,6 +32,7 @@ LayoutConfig defaultConfig() {
     config.minWidth.insert(QStringLiteral("ControlColumn"), 860);
     config.minWidth.insert(QStringLiteral("PresenterZone"), 0);
     config.rowHeightMinFactor = 1.0;
+    config.autoCenter = true;
     return config;
 }
 
@@ -103,7 +104,18 @@ void writeTemplateFile(const QString& filePath) {
         << "# 1.0 = upstream, 0.6 = noticeably tighter rows with slight "
            "descender\n"
         << "# clipping. Row height itself stays in Preferences -> Library.\n"
-        << "row_height_min_factor=1.0\n";
+        << "row_height_min_factor=1.0\n"
+        << "#\n"
+        << "# auto_center=1 keeps the mixer + spectrum column horizontally "
+           "centered\n"
+        << "# in the window whatever its width is, by moving the presenter "
+           "split for\n"
+        << "# you on every resize. Set 0 to keep the split exactly where you "
+           "dragged\n"
+        << "# it. Unlike the rest of this file this one IS read live (~2 s), "
+           "no\n"
+        << "# restart needed.\n"
+        << "auto_center=" << (config.autoCenter ? 1 : 0) << "\n";
 }
 
 LayoutConfig parseConfigFile(const QString& filePath) {
@@ -143,6 +155,8 @@ LayoutConfig parseConfigFile(const QString& filePath) {
                 config.minHeight.insert(objectName,
                         static_cast<int>(qBound(0.0, number, 10000.0)));
             }
+        } else if (key == QLatin1String("auto_center")) {
+            config.autoCenter = number != 0;
         } else if (key == QLatin1String("row_height_min_factor")) {
             config.rowHeightMinFactor = qBound(0.1, number, 4.0);
         } else {
