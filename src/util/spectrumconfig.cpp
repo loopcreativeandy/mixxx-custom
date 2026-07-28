@@ -32,7 +32,9 @@ SpectrumConfig defaultConfig() {
     config.attack = 1.0;
     config.peakHoldMs = 600;
     config.peakFallSpeed = 1.2;
-    config.smoothTopSegment = true;
+    // CP13: Andy prefers hard LED steps — the faded top LED read as a
+    // rendering glitch ("half colors"), not as smoothing.
+    config.smoothTopSegment = false;
     config.frameIntervalMs = 16;
     return config;
 }
@@ -81,6 +83,7 @@ void writeTemplateFile(const QString& filePath) {
         << "# smooth_top_segment=1 fades the topmost LED by its fractional "
            "level\n"
         << "# so the motion looks continuous instead of stepping LED by LED.\n"
+        << "# Default 0: the half-lit cap tends to read as a color glitch.\n"
         << "smooth_top_segment=" << (config.smoothTopSegment ? 1 : 0) << "\n"
         << "#\n"
         << "# Animation frame interval in ms (16 = 60 fps).\n"
