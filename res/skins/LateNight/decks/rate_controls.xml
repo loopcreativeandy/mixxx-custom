@@ -138,6 +138,11 @@
                         <ObjectName>RateSlider</ObjectName>
                         <Size>40f,119f</Size>
                         <Pos>5,2</Pos>
+                        <!-- Andy custom: symmetric exponential tempo response.
+                             Fine control near 0%, coarser toward the ends, so a
+                             wide adjustment range (set 50% in Prefs->Decks, e.g.
+                             128->64 bpm) stays usable. Neutral stays centred. -->
+                        <Exponent>2.0</Exponent>
                         <TooltipId>rate</TooltipId>
                         <Handle scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/knob_pitch_deck.svg</Handle>
                         <Slider scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/slider_pitch_deck.svg</Slider>
