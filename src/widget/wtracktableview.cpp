@@ -87,6 +87,14 @@ WTrackTableView::~WTrackTableView() {
         pHeader->saveHeaderState();
     }
 }
+
+void WTrackTableView::slotSaveCurrentHeaderState() {
+    WTrackTableViewHeader* pHeader =
+            qobject_cast<WTrackTableViewHeader*>(horizontalHeader());
+    if (pHeader) {
+        pHeader->saveHeaderState();
+    }
+}
 #ifdef __LINUX__
 void WTrackTableView::currentChanged(
         const QModelIndex& current,

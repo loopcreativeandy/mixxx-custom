@@ -1,7 +1,9 @@
 #include "widget/wandysplaylistpane.h"
 
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QLabel>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -41,6 +43,7 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
           m_pModel(new PlaylistTableModel(this,
                   pLibrary->trackCollectionManager(),
                   "mixxx.db.model.andys_pane")),
+          m_pHeaderSaveTimer(new QTimer(this)),
           m_currentPlaylistId(-1),
           m_spoilerMode(m_pConfig->getValue(kSpoilerModeConfigKey, false)) {
     setObjectName(QStringLiteral("AndysPlaylistPane"));
@@ -124,6 +127,18 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
     // to drag tracks between two open playlists, so it must differ.
     m_pTrackTableView->setDragSourceIdentifier(
             QStringLiteral("[AndysPlaylistPane]"));
+
+    // Persist the pane's column layout (order/visibility/width/sort) eagerly.
+    // Unlike the main library, this pane keeps one model for its whole life, so
+    // it never triggers the save-on-model-switch that keeps the main table's
+    // layout on disk — it would only save at shutdown, which loses the layout
+    // if teardown races the DB. Debounce so a live column-resize drag doesn't
+    // hammer the settings table.
+    m_pHeaderSaveTimer->setSingleShot(true);
+    m_pHeaderSaveTimer->setInterval(400);
+    connect(m_pHeaderSaveTimer, &QTimer::timeout, this, [this]() {
+        m_pTrackTableView->slotSaveCurrentHeaderState();
+    });
 
     // Route double-click / deck-load requests through the Library like the
     // main track table does.
@@ -214,8 +229,44 @@ void WAndysPlaylistPane::openPlaylist(int playlistId) {
     m_pModel->select();
     m_pTrackTableView->loadTrackModel(m_pModel);
     m_currentPlaylistId = playlistId;
+    wireHeaderPersistence();
     updateHeader();
     applySpoilerFilter();
+}
+
+void WAndysPlaylistPane::wireHeaderPersistence() {
+    QHeaderView* pHeader = m_pTrackTableView->horizontalHeader();
+    if (!pHeader) {
+        return;
+    }
+    // Unique connections so repeated openPlaylist() calls (which reuse the same
+    // header when the model is unchanged) don't stack duplicates. When a new
+    // header is created for a different model the stale connections are dropped
+    // with it, and these re-establish on the fresh one.
+    connect(pHeader,
+            &QHeaderView::sectionMoved,
+            this,
+            &WAndysPlaylistPane::slotHeaderLayoutChanged,
+            Qt::UniqueConnection);
+    connect(pHeader,
+            &QHeaderView::sectionResized,
+            this,
+            &WAndysPlaylistPane::slotHeaderLayoutChanged,
+            Qt::UniqueConnection);
+    connect(pHeader,
+            &QHeaderView::geometriesChanged,
+            this,
+            &WAndysPlaylistPane::slotHeaderLayoutChanged,
+            Qt::UniqueConnection);
+    connect(pHeader,
+            &QHeaderView::sortIndicatorChanged,
+            this,
+            &WAndysPlaylistPane::slotHeaderLayoutChanged,
+            Qt::UniqueConnection);
+}
+
+void WAndysPlaylistPane::slotHeaderLayoutChanged() {
+    m_pHeaderSaveTimer->start();
 }
 
 void WAndysPlaylistPane::slotToggleSpoilerMode() {

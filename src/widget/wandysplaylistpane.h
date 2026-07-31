@@ -6,6 +6,7 @@
 #include "widget/wbasewidget.h"
 
 class QLabel;
+class QTimer;
 class QToolButton;
 class Library;
 class KeyboardEventFilter;
@@ -33,10 +34,18 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
     void slotPlaylistsChanged();
     void slotUnloadPlaylist();
     void slotToggleSpoilerMode();
+    /// A header section was moved/resized/hidden or the sort changed. Kicks the
+    /// debounce timer so we persist the layout without hammering the DB during
+    /// a live drag.
+    void slotHeaderLayoutChanged();
 
   private:
     void openPlaylist(int playlistId);
     void updateHeader();
+    /// Connect the current track-table header's change signals to the debounced
+    /// save. Safe to call repeatedly (uses unique connections); the header is
+    /// recreated whenever a different model is loaded.
+    void wireHeaderPersistence();
     /// Spoiler-free mode: when enabled, only rows whose track has already been
     /// played this session plus the first not-yet-played row (the next song)
     /// are visible; everything further down is hidden so the set has no
@@ -52,6 +61,7 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
     QToolButton* m_pSpoilerButton;
     WTrackTableView* m_pTrackTableView;
     PlaylistTableModel* m_pModel;
+    QTimer* m_pHeaderSaveTimer;
     int m_currentPlaylistId;
     bool m_spoilerMode;
 };

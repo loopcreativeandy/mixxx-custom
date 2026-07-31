@@ -148,6 +148,12 @@ class WTrackTableView : public WLibraryTableView {
     void slotSaveCurrentViewState() {
         saveCurrentViewState();
     };
+    /// Persist the current header layout (column order/visibility/width/sort)
+    /// to the model's settings right now. Normally this only happens when the
+    /// model is swapped or the view is destroyed; a view that keeps one model
+    /// for its whole lifetime (e.g. Andy's side playlist pane) can call this to
+    /// save eagerly instead of relying on the fragile shutdown-time save.
+    void slotSaveCurrentHeaderState();
     bool slotRestoreCurrentViewState() {
         return restoreCurrentViewState();
     };
