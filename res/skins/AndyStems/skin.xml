@@ -42,6 +42,9 @@
       <!-- Andy Video: the waveforms ARE the video. Forced on every load. -->
       <attribute persist="false" config_key="[Skin],show_waveforms">1</attribute>
       <attribute persist="true" config_key="[Skin],timing_shift_buttons">0</attribute>
+    <!-- Andy custom: exponential tempo-fader response toggle (off = linear).
+         Created here so the control exists before the rate sliders bind it. -->
+      <attribute persist="true" config_key="[Skin],rate_exponential">0</attribute>
 
     <!-- Decks -->
       <!-- general -->
