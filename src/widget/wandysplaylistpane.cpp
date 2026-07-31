@@ -2,6 +2,7 @@
 
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QItemSelectionModel>
 #include <QLabel>
 #include <QTimer>
 #include <QToolButton>
@@ -336,8 +337,14 @@ void WAndysPlaylistPane::applySpoilerFilter() {
 }
 
 void WAndysPlaylistPane::updateSelectionInfo() {
-    const QModelIndexList indices =
-            m_pTrackTableView->selectionModel()->selectedRows();
+    // The view has no selection model until the first loadTrackModel(); this
+    // runs from the constructor (and could run before a playlist is opened),
+    // so a bare selectionModel()->... would crash Mixxx at skin load.
+    const QItemSelectionModel* pSelectionModel =
+            m_pTrackTableView->selectionModel();
+    const QModelIndexList indices = pSelectionModel
+            ? pSelectionModel->selectedRows()
+            : QModelIndexList();
     if (indices.isEmpty()) {
         m_pSelectionInfo->clear();
         m_pSelectionInfo->setVisible(false);
