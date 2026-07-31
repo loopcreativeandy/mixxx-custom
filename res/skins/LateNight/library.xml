@@ -127,23 +127,23 @@
                 <SignalColor><Variable name="SignalColor_12"/></SignalColor>
               </Library>
 
-              <!-- Andy's second playlist pane: header + its own track table,
-                   filled via sidebar right-click "Open in side pane". Drag the
-                   splitter handle fully right to collapse it. -->
-              <AndysPlaylistPane>
-                <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
-              </AndysPlaylistPane>
-
-            </Children>
-          </Splitter><!-- LibrarySplitter -->
-
-              <!-- Andy's Auto DJ pane: full-width strip below the library so
-                   Auto DJ and a playlist can be open at once. Drag the
-                   splitter handle fully down to collapse it. -->
+              <!-- CP20 swap: Auto DJ now lives in the right column beside the
+                   main track table (it needs little width, so the right side
+                   suits it). Drag the splitter handle fully right to collapse. -->
               <AndysAutoDJPane>
                 <ShowButtonText>false</ShowButtonText>
                 <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
               </AndysAutoDJPane>
+
+            </Children>
+          </Splitter><!-- LibrarySplitter -->
+
+              <!-- CP20 swap: Andy's second playlist pane is now the full-width
+                   strip below the library (filled via sidebar right-click
+                   "Open in side pane"). Drag the handle fully down to collapse. -->
+              <AndysPlaylistPane>
+                <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
+              </AndysPlaylistPane>
 
             </Children>
           </Splitter><!-- LibraryVSplitter -->
