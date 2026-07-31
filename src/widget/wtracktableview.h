@@ -67,6 +67,16 @@ class WTrackTableView : public WLibraryTableView {
     void addToAutoDJReplace();
     void selectTrack(const TrackId&);
 
+    /// Identifier stamped on drags started here and checked on drops. Mixxx
+    /// rejects a drop when its mime text equals this identifier (its way of
+    /// forbidding a table dropping onto itself). Every WTrackTableView defaults
+    /// to "library", which means two library tables (e.g. Andy's side playlist
+    /// pane next to the main library) can't exchange tracks. Give a secondary
+    /// table a distinct identifier so drags between the two are accepted.
+    void setDragSourceIdentifier(const QString& identifier) {
+        m_dragSourceIdentifier = identifier;
+    }
+
     void removeSelectedTracks();
     void cutSelectedTracks();
     void copySelectedTracks();
@@ -203,6 +213,8 @@ class WTrackTableView : public WLibraryTableView {
     QColor m_trackPlayedColor;
     QColor m_trackMissingColor;
     QColor m_dropIndicatorColor;
+    // Drag/drop source tag; see setDragSourceIdentifier(). Defaults to "library".
+    QString m_dragSourceIdentifier;
     bool m_sorting;
 
     // Control the delay to load a cover art.

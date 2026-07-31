@@ -117,6 +117,14 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
 
     m_pTrackTableView->installEventFilter(pKeyboard);
 
+    // Give this pane its own drag/drop tag so it counts as a distinct table
+    // from the main library. Without this, both share the "library" identifier
+    // and Mixxx's self-drop guard silently rejects tracks dragged from the main
+    // library into this pane (and vice versa) — the whole point of the pane is
+    // to drag tracks between two open playlists, so it must differ.
+    m_pTrackTableView->setDragSourceIdentifier(
+            QStringLiteral("[AndysPlaylistPane]"));
+
     // Route double-click / deck-load requests through the Library like the
     // main track table does.
     connect(m_pTrackTableView,

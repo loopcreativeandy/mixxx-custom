@@ -54,6 +54,7 @@ WTrackTableView::WTrackTableView(QWidget* pParent,
           m_trackPlayedColor(kDefaultTrackPlayedColor),
           m_trackMissingColor(kDefaultTrackMissingColor),
           m_dropIndicatorColor(kDefaultDropIndicatorColor),
+          m_dragSourceIdentifier(QStringLiteral("library")),
           m_sorting(false),
           m_selectionChangedSinceLastGuiTick(true),
           m_loadCachedOnly(false),
@@ -707,7 +708,7 @@ void WTrackTableView::mouseMoveEvent(QMouseEvent* pEvent) {
             }
             locations.append(pTrackModel->getTrackLocation(index));
         }
-        DragAndDropHelper::dragTrackLocations(locations, this, "library");
+        DragAndDropHelper::dragTrackLocations(locations, this, m_dragSourceIdentifier);
     }
 }
 
@@ -724,7 +725,7 @@ void WTrackTableView::dragEnterEvent(QDragEnterEvent * event) {
             event->acceptProposedAction();
         }
     } else if (DragAndDropHelper::dragEnterAccept(*event->mimeData(),
-                       "library",
+                       m_dragSourceIdentifier,
                        true,
                        true)) {
         event->acceptProposedAction();
