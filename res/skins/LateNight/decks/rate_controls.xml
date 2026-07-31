@@ -143,6 +143,7 @@
                              wide adjustment range (set 50% in Prefs->Decks, e.g.
                              128->64 bpm) stays usable. Neutral stays centred. -->
                         <Exponent>2.0</Exponent>
+                        <ExponentControl>[Skin],rate_exponential</ExponentControl>
                         <TooltipId>rate</TooltipId>
                         <Handle scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/knob_pitch_deck.svg</Handle>
                         <Slider scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/slider_pitch_deck.svg</Slider>

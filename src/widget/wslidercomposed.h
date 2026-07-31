@@ -8,6 +8,7 @@
 
 class QDomNode;
 class SkinContext;
+class ControlProxy;
 
 /// A widget for a slider composed of a background pixmap and a handle.
 class WSliderComposed : public WWidget  {
@@ -36,6 +37,11 @@ class WSliderComposed : public WWidget  {
   public slots:
     void onConnectedControlChanged(double dParameter, double dValue) override;
     void fillDebugTooltip(QStringList* debug) override;
+
+  private slots:
+    // Enable/disable the non-linear response at runtime from a control bound to
+    // a skin-settings toggle. Off = linear.
+    void slotExponentToggleChanged(double v);
 
   protected:
     void mouseMoveEvent(QMouseEvent* e) override;
@@ -74,6 +80,12 @@ class WSliderComposed : public WWidget  {
     // Pointer to pixmap of the handle
     PaintablePointer m_pHandle;
     SliderEventHandler<WSliderComposed> m_handler;
+    // Non-linear response configured in the skin (applied when the optional
+    // toggle control, if any, is on). m_dConfiguredExponent 1.0 = linear.
+    double m_dConfiguredExponent;
+    double m_dConfiguredCenter;
+    // Optional control that toggles the non-linear response on/off at runtime.
+    ControlProxy* m_pExponentToggle;
 
     friend class SliderEventHandler<WSliderComposed>;
 };

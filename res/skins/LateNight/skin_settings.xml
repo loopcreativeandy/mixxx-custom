@@ -503,6 +503,13 @@ Description:
                 <SetVariable name="Setting">[Skin],show_library_coverart</SetVariable>
               </Template>
 
+              <!-- Andy custom: Exponential tempo-fader response (off = linear) -->
+              <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
+                <SetVariable name="TooltipId">rate</SetVariable>
+                <SetVariable name="Text">Exponential Pitch</SetVariable>
+                <SetVariable name="Setting">[Skin],rate_exponential</SetVariable>
+              </Template>
+
             </Children>
           </WidgetGroup><!-- /Library -->
 

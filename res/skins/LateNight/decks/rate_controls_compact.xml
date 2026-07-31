@@ -136,6 +136,7 @@
                             <Pos>5,2</Pos>
                             <!-- Andy custom: symmetric exponential tempo response (see rate_controls.xml). -->
                             <Exponent>2.0</Exponent>
+                            <ExponentControl>[Skin],rate_exponential</ExponentControl>
                             <TooltipId>rate</TooltipId>
                             <Handle scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/knob_pitch_deck.svg</Handle>
                             <Slider scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/slider_pitch_deck_compact_sync.svg</Slider>
@@ -200,6 +201,7 @@
                         <Pos>5,2</Pos>
                         <!-- Andy custom: symmetric exponential tempo response (see rate_controls.xml). -->
                         <Exponent>2.0</Exponent>
+                        <ExponentControl>[Skin],rate_exponential</ExponentControl>
                         <TooltipId>rate</TooltipId>
                         <Handle scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/knob_pitch_deck.svg</Handle>
                         <Slider scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/slider_pitch_deck_compact.svg</Slider>

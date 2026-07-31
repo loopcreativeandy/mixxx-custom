@@ -52,6 +52,14 @@ class SliderEventHandler {
         m_dWarpCenter = math_clamp(center, 0.05, 0.95);
     }
 
+    /// Recompute the cached handle pixel position after the warp changed, so a
+    /// runtime toggle of the response curve moves the handle to the pixel that
+    /// now represents the unchanged control value.
+    void refreshPosition(T* pWidget) {
+        m_dPos = parameterToPosition(pWidget->getControlParameter());
+        m_dOldParameter = -1.0;
+    }
+
     void mouseMoveEvent(T* pWidget, QMouseEvent* e) {
         if (!m_bRightButtonPressed) {
             if (m_bHorizontal) {

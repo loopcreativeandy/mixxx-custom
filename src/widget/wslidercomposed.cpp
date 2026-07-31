@@ -5,6 +5,7 @@
 #include <QStylePainter>
 #include <QtDebug>
 
+#include "control/controlproxy.h"
 #include "moc_wslidercomposed.cpp"
 #include "skin/legacy/skincontext.h"
 #include "util/debug.h"
@@ -29,7 +30,10 @@ WSliderComposed::WSliderComposed(QWidget* parent)
           m_barBgColor(nullptr),
           m_barPenCap(Qt::FlatCap),
           m_pSlider(nullptr),
-          m_pHandle(nullptr) {
+          m_pHandle(nullptr),
+          m_dConfiguredExponent(1.0),
+          m_dConfiguredCenter(0.5),
+          m_pExponentToggle(nullptr) {
 }
 
 WSliderComposed::~WSliderComposed() {
@@ -169,9 +173,24 @@ void WSliderComposed::setup(const QDomNode& node, const SkinContext& context) {
     // than moves toward the ends (<Exponent> > 1), and the neutral point can
     // sit above centre for more downward travel (<NeutralPosition> > 0.5).
     // Absent nodes keep the defaults (1.0 / 0.5) = exact linear/centred.
-    const double warpExponent = context.selectDouble(node, "Exponent", 1.0);
-    const double warpNeutral = context.selectDouble(node, "NeutralPosition", 0.5);
-    m_handler.setWarp(warpExponent, warpNeutral);
+    m_dConfiguredExponent = context.selectDouble(node, "Exponent", 1.0);
+    m_dConfiguredCenter = context.selectDouble(node, "NeutralPosition", 0.5);
+    // Optional <ExponentControl> names a control (bound to a skin-settings
+    // toggle) that switches the non-linear response on/off at runtime. Without
+    // it, the configured response is applied statically.
+    QString exponentControl;
+    if (context.hasNodeSelectString(node, "ExponentControl", &exponentControl) &&
+            !exponentControl.isEmpty()) {
+        const ConfigKey key = ConfigKey::parseCommaSeparated(exponentControl);
+        m_pExponentToggle = new ControlProxy(
+                key, this, ControlFlag::NoAssertIfMissing);
+        m_pExponentToggle->connectValueChanged(
+                this, &WSliderComposed::slotExponentToggleChanged);
+        // Apply the initial state (off = linear).
+        slotExponentToggleChanged(m_pExponentToggle->get());
+    } else {
+        m_handler.setWarp(m_dConfiguredExponent, m_dConfiguredCenter);
+    }
     if (!m_connections.empty()) {
         auto& pDefaultConnection = m_connections[0];
         if (pDefaultConnection) {
@@ -185,6 +204,15 @@ void WSliderComposed::setup(const QDomNode& node, const SkinContext& context) {
     }
 
     setFocusPolicy(Qt::NoFocus);
+}
+
+void WSliderComposed::slotExponentToggleChanged(double v) {
+    const bool enabled = v != 0.0;
+    m_handler.setWarp(enabled ? m_dConfiguredExponent : 1.0, m_dConfiguredCenter);
+    // The control value is unchanged; only its pixel mapping moved, so
+    // recompute the handle position and repaint.
+    m_handler.refreshPosition(this);
+    update();
 }
 
 void WSliderComposed::setSliderPixmap(const PixmapSource& sourceSlider,
