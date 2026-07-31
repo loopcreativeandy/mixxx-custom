@@ -34,6 +34,9 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
     void slotPlaylistsChanged();
     void slotUnloadPlaylist();
     void slotToggleSpoilerMode();
+    /// Refresh the "summed duration (count)" readout in the header from the
+    /// current table selection. Mirrors Auto DJ's selection-info label.
+    void updateSelectionInfo();
     /// A header section was moved/resized/hidden or the sort changed. Kicks the
     /// debounce timer so we persist the layout without hammering the DB during
     /// a live drag.
@@ -57,6 +60,7 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
     Library* m_pLibrary;
     QWidget* m_pHeaderRow;
     QLabel* m_pHeader;
+    QLabel* m_pSelectionInfo;
     QToolButton* m_pEjectButton;
     QToolButton* m_pSpoilerButton;
     WTrackTableView* m_pTrackTableView;

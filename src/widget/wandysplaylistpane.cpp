@@ -16,6 +16,7 @@
 #include "library/trackcollectionmanager.h"
 #include "moc_wandysplaylistpane.cpp"
 #include "track/track.h"
+#include "util/duration.h"
 #include "widget/wtracktableview.h"
 
 namespace {
@@ -34,6 +35,7 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
           m_pLibrary(pLibrary),
           m_pHeaderRow(new QWidget(this)),
           m_pHeader(new QLabel(m_pHeaderRow)),
+          m_pSelectionInfo(new QLabel(m_pHeaderRow)),
           m_pEjectButton(new QToolButton(m_pHeaderRow)),
           m_pSpoilerButton(new QToolButton(m_pHeaderRow)),
           m_pTrackTableView(new WTrackTableView(this,
@@ -95,13 +97,34 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
             this,
             &WAndysPlaylistPane::slotToggleSpoilerMode);
 
+    // Summed duration + count of the selected tracks, top-right like Auto DJ.
+    // Empty (and takes no visual weight) until something is selected.
+    m_pSelectionInfo->setObjectName(QStringLiteral("AndysPaneSelectionInfo"));
+    m_pSelectionInfo->setToolTip(
+            tr("Displays the duration and number of selected tracks."));
+    m_pSelectionInfo->setStyleSheet(QStringLiteral(
+            "QLabel#AndysPaneSelectionInfo {"
+            " background-color: #1e1e26; color: #ddba71;"
+            " padding: 3px 6px; }"));
+
     QHBoxLayout* pHeaderLayout = new QHBoxLayout(m_pHeaderRow);
     pHeaderLayout->setContentsMargins(0, 0, 0, 0);
     pHeaderLayout->setSpacing(0);
     pHeaderLayout->addWidget(m_pHeader, 1);
+    pHeaderLayout->addWidget(m_pSelectionInfo);
     pHeaderLayout->addWidget(m_pSpoilerButton);
     pHeaderLayout->addWidget(m_pEjectButton);
     updateHeader();
+
+    // Recompute the selection readout whenever the table selection changes.
+    // trackSelected is a WTrackTableView signal (GUI-tick throttled) that
+    // survives model reloads, so unlike the raw selectionModel it needs no
+    // rewiring when a different playlist is loaded.
+    connect(m_pTrackTableView,
+            &WTrackTableView::trackSelected,
+            this,
+            &WAndysPlaylistPane::updateSelectionInfo);
+    updateSelectionInfo();
 
     // Re-run the spoiler filter whenever the model's rows or played state
     // change — the view resets visible rows on every select()/reload, and a
@@ -310,6 +333,25 @@ void WAndysPlaylistPane::applySpoilerFilter() {
         }
         m_pTrackTableView->setRowHidden(row, !visible);
     }
+}
+
+void WAndysPlaylistPane::updateSelectionInfo() {
+    const QModelIndexList indices =
+            m_pTrackTableView->selectionModel()->selectedRows();
+    if (indices.isEmpty()) {
+        m_pSelectionInfo->clear();
+        m_pSelectionInfo->setVisible(false);
+        return;
+    }
+    // Derive total duration from the table model — much faster than pulling
+    // duration off each Track object (same approach Auto DJ uses).
+    const mixxx::Duration duration = m_pModel->getTotalDuration(indices);
+    m_pSelectionInfo->setText(
+            QStringLiteral("%1 (%2)")
+                    .arg(mixxx::DurationBase::formatTime(
+                                 duration.toDoubleSeconds()),
+                            QString::number(indices.size())));
+    m_pSelectionInfo->setVisible(true);
 }
 
 void WAndysPlaylistPane::slotUnloadPlaylist() {
