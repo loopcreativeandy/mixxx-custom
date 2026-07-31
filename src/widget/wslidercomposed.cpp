@@ -163,6 +163,15 @@ void WSliderComposed::setup(const QDomNode& node, const SkinContext& context) {
             m_handler.setEventWhileDrag(false);
         }
     }
+
+    // Andy custom: opt-in non-linear / off-centre handle response. Used by the
+    // tempo fader so small moves near the neutral point change the value less
+    // than moves toward the ends (<Exponent> > 1), and the neutral point can
+    // sit above centre for more downward travel (<NeutralPosition> > 0.5).
+    // Absent nodes keep the defaults (1.0 / 0.5) = exact linear/centred.
+    const double warpExponent = context.selectDouble(node, "Exponent", 1.0);
+    const double warpNeutral = context.selectDouble(node, "NeutralPosition", 0.5);
+    m_handler.setWarp(warpExponent, warpNeutral);
     if (!m_connections.empty()) {
         auto& pDefaultConnection = m_connections[0];
         if (pDefaultConnection) {

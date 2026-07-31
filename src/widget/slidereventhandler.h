@@ -6,6 +6,8 @@
 #include <QApplication>
 #include <QPoint>
 
+#include <cmath>
+
 #include "util/math.h"
 
 template <class T>
@@ -37,6 +39,17 @@ class SliderEventHandler {
 
     void setEventWhileDrag(bool eventwhile) {
         m_bEventWhileDrag = eventwhile;
+    }
+
+    /// Opt-in non-linear / off-centre handle response (used by the tempo
+    /// fader). @p exponent > 1 gives fine control near the neutral point and
+    /// coarser control toward the ends; @p center is the physical fraction of
+    /// the travel (0 = far end, 1 = near end) at which the control's neutral
+    /// value (parameter 0.5) sits, so center > 0.5 leaves more travel below
+    /// neutral. Defaults (1.0 / 0.5) are an exact identity.
+    void setWarp(double exponent, double center) {
+        m_dWarpExponent = exponent > 0.0 ? exponent : 1.0;
+        m_dWarpCenter = math_clamp(center, 0.05, 0.95);
     }
 
     void mouseMoveEvent(T* pWidget, QMouseEvent* e) {
@@ -183,10 +196,12 @@ class SliderEventHandler {
         if (m_dSliderLength - m_dHandleLength <= 0.0) {
             return 0.0;
         }
+        // Oriented physical fraction of the travel (1 = near end / top).
+        double lin = warpInverse(parameter);
         if (!m_bHorizontal) {
-            parameter = 1.0 - parameter;
+            lin = 1.0 - lin;
         }
-        return parameter * (m_dSliderLength - m_dHandleLength);
+        return lin * (m_dSliderLength - m_dHandleLength);
     }
 
     // Convert handle pixel position to a CO parameter value.
@@ -195,10 +210,39 @@ class SliderEventHandler {
             return 0.0;
         }
         double val = pos / (m_dSliderLength - m_dHandleLength);
-        if (!m_bHorizontal) {
-            return 1.0 - val;
+        double lin = m_bHorizontal ? val : (1.0 - val);
+        return warpForward(lin);
+    }
+
+    // Map an oriented physical travel fraction (0..1) to a CO parameter (0..1).
+    // Symmetric power curve around the (possibly off-centre) neutral point.
+    double warpForward(double x) const {
+        if (m_dWarpExponent == 1.0 && m_dWarpCenter == 0.5) {
+            return x;
         }
-        return val;
+        const double c = m_dWarpCenter;
+        if (x >= c) {
+            const double s = (c < 1.0) ? (x - c) / (1.0 - c) : 0.0;
+            return 0.5 + 0.5 * std::pow(math_clamp(s, 0.0, 1.0), m_dWarpExponent);
+        }
+        const double s = (c > 0.0) ? (c - x) / c : 0.0;
+        return 0.5 - 0.5 * std::pow(math_clamp(s, 0.0, 1.0), m_dWarpExponent);
+    }
+
+    // Inverse of warpForward: CO parameter (0..1) -> physical fraction (0..1).
+    double warpInverse(double y) const {
+        if (m_dWarpExponent == 1.0 && m_dWarpCenter == 0.5) {
+            return y;
+        }
+        const double c = m_dWarpCenter;
+        if (y >= 0.5) {
+            const double s = std::pow(math_clamp(2.0 * (y - 0.5), 0.0, 1.0),
+                    1.0 / m_dWarpExponent);
+            return c + s * (1.0 - c);
+        }
+        const double s = std::pow(math_clamp(2.0 * (0.5 - y), 0.0, 1.0),
+                1.0 / m_dWarpExponent);
+        return c - s * c;
     }
 
   private:
@@ -223,4 +267,8 @@ class SliderEventHandler {
     bool m_bDrag;
     // Is true if events is emitted while the slider is dragged
     bool m_bEventWhileDrag;
+    // Non-linear response exponent (1.0 = linear) and neutral-point travel
+    // fraction (0.5 = centred). See setWarp().
+    double m_dWarpExponent = 1.0;
+    double m_dWarpCenter = 0.5;
 };
