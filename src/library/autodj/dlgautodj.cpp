@@ -54,6 +54,13 @@ DlgAutoDJ::DlgAutoDJ(QWidget* pParent,
 
     m_pTrackTableView->installEventFilter(pKeyboard);
 
+    // Give the Auto DJ queue its own drag/drop tag. Like Andy's side playlist
+    // pane, this is a second track table that can be visible next to the main
+    // library; without a distinct identifier both share "library" and Mixxx's
+    // self-drop guard silently rejects tracks dragged from the library into the
+    // Auto DJ queue.
+    m_pTrackTableView->setDragSourceIdentifier(QStringLiteral("[AutoDJPane]"));
+
     connect(m_pTrackTableView,
             &WTrackTableView::loadTrack,
             this,
