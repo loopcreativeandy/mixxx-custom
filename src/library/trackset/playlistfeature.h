@@ -38,6 +38,8 @@ class PlaylistFeature : public BasePlaylistFeature {
     void slotPlaylistTableRenamed(int playlistId, const QString& newName) override;
     void slotShufflePlaylist();
     void slotOpenInSidePane();
+    void slotMarkAllTracksPlayed();
+    void slotMarkAllTracksUnplayed();
     void slotUnlockAllPlaylists();
     void slotDeleteAllUnlockedPlaylists();
 
@@ -48,9 +50,15 @@ class PlaylistFeature : public BasePlaylistFeature {
 
   private:
     QString getRootViewHtml() const override;
+    // Set the played status of every track in the right-clicked playlist,
+    // without changing the play count. Backs the "Mark all tracks
+    // played/unplayed" context-menu actions.
+    void setAllTracksPlayedStatus(bool played);
 
     parented_ptr<QAction> m_pShufflePlaylistAction;
     parented_ptr<QAction> m_pOpenInSidePaneAction;
+    parented_ptr<QAction> m_pMarkAllPlayedAction;
+    parented_ptr<QAction> m_pMarkAllUnplayedAction;
     parented_ptr<QAction> m_pUnlockPlaylistsAction;
     parented_ptr<QAction> m_pDeleteAllUnlockedPlaylistsAction;
 };

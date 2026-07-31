@@ -13,6 +13,7 @@
 #include "library/treeitem.h"
 #include "moc_playlistfeature.cpp"
 #include "sources/soundsourceproxy.h"
+#include "track/track.h"
 #include "util/db/dbconnection.h"
 #include "util/dnd.h"
 #include "util/duration.h"
@@ -45,6 +46,19 @@ PlaylistFeature::PlaylistFeature(Library* pLibrary, UserSettingsPointer pConfig)
             &QAction::triggered,
             this,
             &PlaylistFeature::slotShufflePlaylist);
+
+    m_pMarkAllPlayedAction = make_parented<QAction>(tr("Mark all tracks played"), this);
+    connect(m_pMarkAllPlayedAction,
+            &QAction::triggered,
+            this,
+            &PlaylistFeature::slotMarkAllTracksPlayed);
+
+    m_pMarkAllUnplayedAction =
+            make_parented<QAction>(tr("Mark all tracks unplayed"), this);
+    connect(m_pMarkAllUnplayedAction,
+            &QAction::triggered,
+            this,
+            &PlaylistFeature::slotMarkAllTracksUnplayed);
 
     m_pUnlockPlaylistsAction =
             make_parented<QAction>(tr("Unlock all playlists"), this);
@@ -113,6 +127,8 @@ void PlaylistFeature::onRightClickChild(
     // TODO If playlist is selected and has more than one track selected
     // show "Shuffle selected tracks", else show "Shuffle playlist"?
     menu.addAction(m_pShufflePlaylistAction);
+    menu.addAction(m_pMarkAllPlayedAction);
+    menu.addAction(m_pMarkAllUnplayedAction);
     menu.addSeparator();
     menu.addAction(m_pRenamePlaylistAction);
     menu.addAction(m_pDuplicatePlaylistAction);
@@ -295,6 +311,39 @@ void PlaylistFeature::slotShufflePlaylist() {
         pPlaylistTableModel->select();
 
         pPlaylistTableModel->shuffleTracks(selection, QModelIndex());
+    }
+}
+
+void PlaylistFeature::slotMarkAllTracksPlayed() {
+    setAllTracksPlayedStatus(true);
+}
+
+void PlaylistFeature::slotMarkAllTracksUnplayed() {
+    setAllTracksPlayedStatus(false);
+}
+
+void PlaylistFeature::setAllTracksPlayedStatus(bool played) {
+    const int playlistId = playlistIdFromIndex(m_lastRightClickedIndex);
+    if (playlistId == kInvalidPlaylistId) {
+        return;
+    }
+    // Temporary model so we don't disturb the persistent selection/table view.
+    std::unique_ptr<PlaylistTableModel> pPlaylistTableModel =
+            std::make_unique<PlaylistTableModel>(this,
+                    m_pLibrary->trackCollectionManager(),
+                    "mixxx.db.model.playlist_mark_played");
+    pPlaylistTableModel->selectPlaylist(playlistId);
+    pPlaylistTableModel->select();
+    const int rows = pPlaylistTableModel->rowCount();
+    for (int i = 0; i < rows; ++i) {
+        const QModelIndex index = pPlaylistTableModel->index(i, 0);
+        if (index.isValid()) {
+            TrackPointer pTrack = pPlaylistTableModel->getTrack(index);
+            if (pTrack) {
+                // Only set played status; leave the play count untouched.
+                pTrack->updatePlayedStatusKeepPlayCount(played);
+            }
+        }
     }
 }
 
