@@ -103,7 +103,12 @@
     <!-- Library -->
       <attribute config_key="[Skin],show_maximized_library">0</attribute>
       <attribute persist="true" config_key="[LateNight],max_lib_show_decks">1</attribute>
-      <attribute persist="false" config_key="[Skin],show_preview_decks">0</attribute>
+      <!-- NOTE: do NOT force [Skin],show_preview_decks here. It is a persistent,
+           config-backed control shared with the regular LateNight install via
+           the same mixxx.cfg. A persist="false" override force-writes its value
+           on every load, which poisoned the shared key and killed the preview
+           deck in the normal skin too. Leave it to follow the shared setting;
+           the preview deck is toggled by the user via the skin settings. -->
       <attribute persist="true" config_key="[Skin],show_library_coverart">1</attribute>
 
     <!-- Disable hidden effect routing Buttons -->
