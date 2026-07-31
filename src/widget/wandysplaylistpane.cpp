@@ -13,10 +13,12 @@
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "moc_wandysplaylistpane.cpp"
+#include "track/track.h"
 #include "widget/wtracktableview.h"
 
 namespace {
 const ConfigKey kLastPlaylistConfigKey("[AndysPlaylistPane]", "playlist_id");
+const ConfigKey kSpoilerModeConfigKey("[AndysPlaylistPane]", "spoiler_mode");
 } // anonymous namespace
 
 WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
@@ -31,6 +33,7 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
           m_pHeaderRow(new QWidget(this)),
           m_pHeader(new QLabel(m_pHeaderRow)),
           m_pEjectButton(new QToolButton(m_pHeaderRow)),
+          m_pSpoilerButton(new QToolButton(m_pHeaderRow)),
           m_pTrackTableView(new WTrackTableView(this,
                   pConfig,
                   pLibrary,
@@ -38,7 +41,8 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
           m_pModel(new PlaylistTableModel(this,
                   pLibrary->trackCollectionManager(),
                   "mixxx.db.model.andys_pane")),
-          m_currentPlaylistId(-1) {
+          m_currentPlaylistId(-1),
+          m_spoilerMode(m_pConfig->getValue(kSpoilerModeConfigKey, false)) {
     setObjectName(QStringLiteral("AndysPlaylistPane"));
     m_pHeader->setObjectName(QStringLiteral("AndysPaneHeader"));
     // Inline fallback style so the header never renders as a white system
@@ -65,12 +69,45 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
             this,
             &WAndysPlaylistPane::slotUnloadPlaylist);
 
+    // Spoiler-free toggle: hides everything past the next song so the set has
+    // no on-camera spoilers. Checkable; state persists across sessions.
+    m_pSpoilerButton->setObjectName(QStringLiteral("AndysPaneSpoiler"));
+    m_pSpoilerButton->setCheckable(true);
+    m_pSpoilerButton->setChecked(m_spoilerMode);
+    m_pSpoilerButton->setText(m_spoilerMode
+                    ? QStringLiteral("🙈")
+                    : QStringLiteral("👁"));
+    m_pSpoilerButton->setToolTip(
+            tr("Spoiler-free: show only played songs plus the next one"));
+    m_pSpoilerButton->setAutoRaise(true);
+    m_pSpoilerButton->setCursor(Qt::PointingHandCursor);
+    m_pSpoilerButton->setStyleSheet(QStringLiteral(
+            "QToolButton#AndysPaneSpoiler {"
+            " background-color: #1e1e26; color: #ddba71;"
+            " border: none; font-weight: bold; padding: 3px 8px; }"
+            "QToolButton#AndysPaneSpoiler:checked { color: #ff5ca8; }"
+            "QToolButton#AndysPaneSpoiler:hover { color: #ffffff; }"));
+    connect(m_pSpoilerButton,
+            &QToolButton::clicked,
+            this,
+            &WAndysPlaylistPane::slotToggleSpoilerMode);
+
     QHBoxLayout* pHeaderLayout = new QHBoxLayout(m_pHeaderRow);
     pHeaderLayout->setContentsMargins(0, 0, 0, 0);
     pHeaderLayout->setSpacing(0);
     pHeaderLayout->addWidget(m_pHeader, 1);
+    pHeaderLayout->addWidget(m_pSpoilerButton);
     pHeaderLayout->addWidget(m_pEjectButton);
     updateHeader();
+
+    // Re-run the spoiler filter whenever the model's rows or played state
+    // change — the view resets visible rows on every select()/reload, and a
+    // freshly-played track flips its played flag via dataChanged.
+    connect(m_pModel, &QAbstractItemModel::modelReset, this, &WAndysPlaylistPane::applySpoilerFilter);
+    connect(m_pModel, &QAbstractItemModel::layoutChanged, this, &WAndysPlaylistPane::applySpoilerFilter);
+    connect(m_pModel, &QAbstractItemModel::dataChanged, this, &WAndysPlaylistPane::applySpoilerFilter);
+    connect(m_pModel, &QAbstractItemModel::rowsInserted, this, &WAndysPlaylistPane::applySpoilerFilter);
+    connect(m_pModel, &QAbstractItemModel::rowsRemoved, this, &WAndysPlaylistPane::applySpoilerFilter);
 
     QVBoxLayout* pLayout = new QVBoxLayout(this);
     pLayout->setContentsMargins(0, 0, 0, 0);
@@ -170,6 +207,50 @@ void WAndysPlaylistPane::openPlaylist(int playlistId) {
     m_pTrackTableView->loadTrackModel(m_pModel);
     m_currentPlaylistId = playlistId;
     updateHeader();
+    applySpoilerFilter();
+}
+
+void WAndysPlaylistPane::slotToggleSpoilerMode() {
+    m_spoilerMode = m_pSpoilerButton->isChecked();
+    m_pSpoilerButton->setText(m_spoilerMode
+                    ? QStringLiteral("🙈")
+                    : QStringLiteral("👁"));
+    m_pConfig->setValue(kSpoilerModeConfigKey, m_spoilerMode);
+    applySpoilerFilter();
+}
+
+void WAndysPlaylistPane::applySpoilerFilter() {
+    const int rowCount = m_pModel->rowCount();
+    if (!m_spoilerMode) {
+        // Mode off: make sure nothing stays hidden from a previous pass.
+        for (int row = 0; row < rowCount; ++row) {
+            m_pTrackTableView->setRowHidden(row, false);
+        }
+        return;
+    }
+    // Show every played row plus the first not-yet-played row (the next song);
+    // hide everything after it. "Played" is the per-session played flag — the
+    // same state the played indicator shows — so a fresh set starts collapsed
+    // and reveals songs as they get played.
+    bool nextShown = false;
+    for (int row = 0; row < rowCount; ++row) {
+        bool played = false;
+        const TrackPointer pTrack = m_pModel->getTrack(m_pModel->index(row, 0));
+        if (pTrack) {
+            played = pTrack->getPlayCounter().isPlayed();
+        }
+        bool visible;
+        if (played) {
+            visible = true;
+        } else if (!nextShown) {
+            // First unplayed row = the next song; reveal it, hide the rest.
+            visible = true;
+            nextShown = true;
+        } else {
+            visible = false;
+        }
+        m_pTrackTableView->setRowHidden(row, !visible);
+    }
 }
 
 void WAndysPlaylistPane::slotUnloadPlaylist() {

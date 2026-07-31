@@ -32,17 +32,26 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
   private slots:
     void slotPlaylistsChanged();
     void slotUnloadPlaylist();
+    void slotToggleSpoilerMode();
 
   private:
     void openPlaylist(int playlistId);
     void updateHeader();
+    /// Spoiler-free mode: when enabled, only rows whose track has already been
+    /// played this session plus the first not-yet-played row (the next song)
+    /// are visible; everything further down is hidden so the set has no
+    /// spoilers on camera. The model keeps every track — this only hides rows
+    /// in the view, so the decks still see the full playlist.
+    void applySpoilerFilter();
 
     UserSettingsPointer m_pConfig;
     Library* m_pLibrary;
     QWidget* m_pHeaderRow;
     QLabel* m_pHeader;
     QToolButton* m_pEjectButton;
+    QToolButton* m_pSpoilerButton;
     WTrackTableView* m_pTrackTableView;
     PlaylistTableModel* m_pModel;
     int m_currentPlaylistId;
+    bool m_spoilerMode;
 };
