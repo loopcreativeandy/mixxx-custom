@@ -47,8 +47,10 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
                   pLibrary->trackCollectionManager(),
                   "mixxx.db.model.andys_pane")),
           m_pHeaderSaveTimer(new QTimer(this)),
+          m_pSpoilerFilterTimer(new QTimer(this)),
           m_currentPlaylistId(-1),
-          m_spoilerMode(m_pConfig->getValue(kSpoilerModeConfigKey, false)) {
+          m_spoilerMode(m_pConfig->getValue(kSpoilerModeConfigKey, false)),
+          m_inSpoilerFilter(false) {
     setObjectName(QStringLiteral("AndysPlaylistPane"));
     m_pHeader->setObjectName(QStringLiteral("AndysPaneHeader"));
     // Inline fallback style so the header never renders as a white system
@@ -130,11 +132,23 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
     // Re-run the spoiler filter whenever the model's rows or played state
     // change — the view resets visible rows on every select()/reload, and a
     // freshly-played track flips its played flag via dataChanged.
-    connect(m_pModel, &QAbstractItemModel::modelReset, this, &WAndysPlaylistPane::applySpoilerFilter);
-    connect(m_pModel, &QAbstractItemModel::layoutChanged, this, &WAndysPlaylistPane::applySpoilerFilter);
-    connect(m_pModel, &QAbstractItemModel::dataChanged, this, &WAndysPlaylistPane::applySpoilerFilter);
-    connect(m_pModel, &QAbstractItemModel::rowsInserted, this, &WAndysPlaylistPane::applySpoilerFilter);
-    connect(m_pModel, &QAbstractItemModel::rowsRemoved, this, &WAndysPlaylistPane::applySpoilerFilter);
+    //
+    // Deliberately deferred (single-shot 0 ms) instead of running inline:
+    // running the filter *inside* dataChanged lets the filter's own side
+    // effects re-enter it before it has finished (see applySpoilerFilter),
+    // which is what hung Mixxx. Bouncing through the event loop breaks that
+    // cycle and coalesces bursts of dataChanged into a single pass.
+    m_pSpoilerFilterTimer->setSingleShot(true);
+    m_pSpoilerFilterTimer->setInterval(0);
+    connect(m_pSpoilerFilterTimer,
+            &QTimer::timeout,
+            this,
+            &WAndysPlaylistPane::applySpoilerFilter);
+    connect(m_pModel, &QAbstractItemModel::modelReset, this, &WAndysPlaylistPane::scheduleSpoilerFilter);
+    connect(m_pModel, &QAbstractItemModel::layoutChanged, this, &WAndysPlaylistPane::scheduleSpoilerFilter);
+    connect(m_pModel, &QAbstractItemModel::dataChanged, this, &WAndysPlaylistPane::scheduleSpoilerFilter);
+    connect(m_pModel, &QAbstractItemModel::rowsInserted, this, &WAndysPlaylistPane::scheduleSpoilerFilter);
+    connect(m_pModel, &QAbstractItemModel::rowsRemoved, this, &WAndysPlaylistPane::scheduleSpoilerFilter);
 
     QVBoxLayout* pLayout = new QVBoxLayout(this);
     pLayout->setContentsMargins(0, 0, 0, 0);
@@ -299,16 +313,45 @@ void WAndysPlaylistPane::slotToggleSpoilerMode() {
                     ? QStringLiteral("–")
                     : QStringLiteral("👁"));
     m_pConfig->setValue(kSpoilerModeConfigKey, m_spoilerMode);
+    // Direct call: a button click never runs inside a model/track-cache
+    // emission, and the user wants the toggle to take effect instantly.
     applySpoilerFilter();
 }
 
+void WAndysPlaylistPane::scheduleSpoilerFilter() {
+    m_pSpoilerFilterTimer->start();
+}
+
 void WAndysPlaylistPane::applySpoilerFilter() {
+    // Hiding rows makes the view emit geometry/selection churn that can loop
+    // back into the model signals above; one pass at a time is enough.
+    if (m_inSpoilerFilter) {
+        return;
+    }
+    if (m_pTrackTableView->model() != m_pModel) {
+        // No playlist loaded into the view yet — nothing to hide.
+        return;
+    }
+    m_inSpoilerFilter = true;
     const int rowCount = m_pModel->rowCount();
-    if (!m_spoilerMode) {
-        // Mode off: make sure nothing stays hidden from a previous pass.
+    // Read the played flag straight off the model's "played" column instead of
+    // resolving a Track object per row. m_pModel->getTrack() forces a full
+    // track load (DB row + SoundSourceProxy re-reading the file's tags), which
+    // marks the track dirty → Track::changed → TrackDAO::tracksChanged →
+    // dataChanged → this filter again, from row 0. That was the hang Andy hit:
+    // turning spoiler mode on never returned. Measured on the pre-fix build
+    // with a 243-track playlist: stuck on the splash screen, GUI thread pegged
+    // at 100 %, ~64000 track re-imports logged in 90 s. Reading the column is
+    // pure cached model data — no track loads, no signal storm, O(1) per row.
+    const int playedColumn =
+            m_pModel->fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_PLAYED);
+    if (!m_spoilerMode || playedColumn < 0) {
+        // Mode off (or no played column to filter on — show everything rather
+        // than hiding the whole playlist): unhide any leftovers.
         for (int row = 0; row < rowCount; ++row) {
             m_pTrackTableView->setRowHidden(row, false);
         }
+        m_inSpoilerFilter = false;
         return;
     }
     // Show every played row plus the first not-yet-played row (the next song);
@@ -317,11 +360,8 @@ void WAndysPlaylistPane::applySpoilerFilter() {
     // and reveals songs as they get played.
     bool nextShown = false;
     for (int row = 0; row < rowCount; ++row) {
-        bool played = false;
-        const TrackPointer pTrack = m_pModel->getTrack(m_pModel->index(row, 0));
-        if (pTrack) {
-            played = pTrack->getPlayCounter().isPlayed();
-        }
+        const bool played =
+                m_pModel->index(row, playedColumn).data().toBool();
         bool visible;
         if (played) {
             visible = true;
@@ -334,6 +374,7 @@ void WAndysPlaylistPane::applySpoilerFilter() {
         }
         m_pTrackTableView->setRowHidden(row, !visible);
     }
+    m_inSpoilerFilter = false;
 }
 
 void WAndysPlaylistPane::updateSelectionInfo() {

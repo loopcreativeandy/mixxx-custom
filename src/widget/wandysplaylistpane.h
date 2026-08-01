@@ -34,6 +34,10 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
     void slotPlaylistsChanged();
     void slotUnloadPlaylist();
     void slotToggleSpoilerMode();
+    /// Kick the coalescing timer that (re-)runs the spoiler filter. Every model
+    /// signal goes through here instead of calling applySpoilerFilter()
+    /// directly — see the comment on applySpoilerFilter().
+    void scheduleSpoilerFilter();
     /// Refresh the "summed duration (count)" readout in the header from the
     /// current table selection. Mirrors Auto DJ's selection-info label.
     void updateSelectionInfo();
@@ -54,6 +58,11 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
     /// are visible; everything further down is hidden so the set has no
     /// spoilers on camera. The model keeps every track — this only hides rows
     /// in the view, so the decks still see the full playlist.
+    ///
+    /// MUST NOT be invoked directly from a model signal — that re-entrancy is
+    /// what froze Mixxx on the splash screen (measured: 64k track re-imports
+    /// and a pegged GUI thread in 90 s). Always go through
+    /// scheduleSpoilerFilter().
     void applySpoilerFilter();
 
     UserSettingsPointer m_pConfig;
@@ -66,6 +75,8 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
     WTrackTableView* m_pTrackTableView;
     PlaylistTableModel* m_pModel;
     QTimer* m_pHeaderSaveTimer;
+    QTimer* m_pSpoilerFilterTimer;
     int m_currentPlaylistId;
     bool m_spoilerMode;
+    bool m_inSpoilerFilter;
 };
