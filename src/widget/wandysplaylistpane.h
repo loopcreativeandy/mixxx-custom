@@ -21,11 +21,16 @@ class PlaylistTableModel;
 class WAndysPlaylistPane : public QWidget, public WBaseWidget {
     Q_OBJECT
   public:
+    /// @param paneId distinguishes several panes living in the same skin.
+    /// Everything this pane persists — column layout, the open playlist, the
+    /// spoiler-mode flag — and its drag/drop identity are keyed by it, so two
+    /// panes never overwrite each other's state. Empty = the original pane.
     WAndysPlaylistPane(QWidget* pParent,
             UserSettingsPointer pConfig,
             Library* pLibrary,
             KeyboardEventFilter* pKeyboard,
-            double backgroundColorOpacity);
+            double backgroundColorOpacity,
+            const QString& paneId = QString());
 
   public slots:
     void slotOpenPlaylist(int playlistId);
@@ -67,6 +72,11 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
 
     UserSettingsPointer m_pConfig;
     Library* m_pLibrary;
+    const ConfigKey m_lastPlaylistConfigKey;
+    const ConfigKey m_spoilerModeConfigKey;
+    /// Owns the bytes behind the `const char*` settings namespace we hand to
+    /// PlaylistTableModel — it keeps the pointer, not a copy.
+    const QByteArray m_settingsNamespace;
     QWidget* m_pHeaderRow;
     QLabel* m_pHeader;
     QLabel* m_pSelectionInfo;

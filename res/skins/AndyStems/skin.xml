@@ -676,6 +676,12 @@
                               <SizePolicy>me,me</SizePolicy>
                               <Children>
                                 <AndysPlaylistPane>
+                                  <!-- Distinct id: this skin also pulls in
+                                       LateNight's library.xml, which contains a
+                                       second pane. Without separate ids both
+                                       write to the same settings keys and the
+                                       column layout never survives a restart. -->
+                                  <Id>presenter</Id>
                                   <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
                                 </AndysPlaylistPane>
                               </Children>

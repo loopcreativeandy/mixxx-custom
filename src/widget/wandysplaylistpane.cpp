@@ -21,19 +21,32 @@
 #include "widget/wtracktableview.h"
 
 namespace {
-const ConfigKey kLastPlaylistConfigKey("[AndysPlaylistPane]", "playlist_id");
-const ConfigKey kSpoilerModeConfigKey("[AndysPlaylistPane]", "spoiler_mode");
+/// A skin may contain more than one pane (AndyVideo/AndyStems show one in the
+/// PresenterZone *and* inherit LateNight's library.xml, which has its own).
+/// Every persisted identity below is suffixed with the pane's id so the
+/// instances stay independent; an empty id keeps the original keys.
+QString suffixed(const QString& base, const QString& paneId) {
+    return paneId.isEmpty() ? base : base + QChar('_') + paneId;
+}
 } // anonymous namespace
 
 WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
         UserSettingsPointer pConfig,
         Library* pLibrary,
         KeyboardEventFilter* pKeyboard,
-        double backgroundColorOpacity)
+        double backgroundColorOpacity,
+        const QString& paneId)
         : QWidget(pParent),
           WBaseWidget(this),
           m_pConfig(pConfig),
           m_pLibrary(pLibrary),
+          m_lastPlaylistConfigKey("[AndysPlaylistPane]",
+                  suffixed(QStringLiteral("playlist_id"), paneId)),
+          m_spoilerModeConfigKey("[AndysPlaylistPane]",
+                  suffixed(QStringLiteral("spoiler_mode"), paneId)),
+          m_settingsNamespace(
+                  suffixed(QStringLiteral("mixxx.db.model.andys_pane"), paneId)
+                          .toUtf8()),
           m_pHeaderRow(new QWidget(this)),
           m_pHeader(new QLabel(m_pHeaderRow)),
           m_pSelectionInfo(new QLabel(m_pHeaderRow)),
@@ -45,11 +58,11 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
                   backgroundColorOpacity)),
           m_pModel(new PlaylistTableModel(this,
                   pLibrary->trackCollectionManager(),
-                  "mixxx.db.model.andys_pane")),
+                  m_settingsNamespace.constData())),
           m_pHeaderSaveTimer(new QTimer(this)),
           m_pSpoilerFilterTimer(new QTimer(this)),
           m_currentPlaylistId(-1),
-          m_spoilerMode(m_pConfig->getValue(kSpoilerModeConfigKey, false)),
+          m_spoilerMode(m_pConfig->getValue(m_spoilerModeConfigKey, false)),
           m_inSpoilerFilter(false) {
     setObjectName(QStringLiteral("AndysPlaylistPane"));
     m_pHeader->setObjectName(QStringLiteral("AndysPaneHeader"));
@@ -164,7 +177,7 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
     // library into this pane (and vice versa) — the whole point of the pane is
     // to drag tracks between two open playlists, so it must differ.
     m_pTrackTableView->setDragSourceIdentifier(
-            QStringLiteral("[AndysPlaylistPane]"));
+            suffixed(QStringLiteral("[AndysPlaylistPane]"), paneId));
 
     // Persist the pane's column layout (order/visibility/width/sort) eagerly.
     // Unlike the main library, this pane keeps one model for its whole life, so
@@ -228,7 +241,7 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
     connect(&playlistDao, &PlaylistDAO::renamed, this, &WAndysPlaylistPane::slotPlaylistsChanged);
 
     // Restore the playlist that was open last time.
-    const int lastPlaylistId = m_pConfig->getValue(kLastPlaylistConfigKey, -1);
+    const int lastPlaylistId = m_pConfig->getValue(m_lastPlaylistConfigKey, -1);
     if (lastPlaylistId >= 0 &&
             !playlistDao.getPlaylistName(lastPlaylistId).isEmpty()) {
         openPlaylist(lastPlaylistId);
@@ -240,7 +253,7 @@ void WAndysPlaylistPane::slotOpenPlaylist(int playlistId) {
         return;
     }
     openPlaylist(playlistId);
-    m_pConfig->setValue(kLastPlaylistConfigKey, playlistId);
+    m_pConfig->setValue(m_lastPlaylistConfigKey, playlistId);
 }
 
 void WAndysPlaylistPane::slotPlaylistsChanged() {
@@ -312,7 +325,7 @@ void WAndysPlaylistPane::slotToggleSpoilerMode() {
     m_pSpoilerButton->setText(m_spoilerMode
                     ? QStringLiteral("–")
                     : QStringLiteral("👁"));
-    m_pConfig->setValue(kSpoilerModeConfigKey, m_spoilerMode);
+    m_pConfig->setValue(m_spoilerModeConfigKey, m_spoilerMode);
     // Direct call: a button click never runs inside a model/track-cache
     // emission, and the user wants the toggle to take effect instantly.
     applySpoilerFilter();
@@ -413,7 +426,7 @@ void WAndysPlaylistPane::slotUnloadPlaylist() {
     m_pModel->selectPlaylist(0);
     m_pModel->select();
     m_currentPlaylistId = -1;
-    m_pConfig->setValue(kLastPlaylistConfigKey, -1);
+    m_pConfig->setValue(m_lastPlaylistConfigKey, -1);
     updateHeader();
 }
 

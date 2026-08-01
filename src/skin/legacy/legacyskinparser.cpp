@@ -1696,11 +1696,16 @@ QWidget* LegacySkinParser::parseAndysPlaylistPane(const QDomElement& node) {
                     WLibrary::kDefaultTrackTableBackgroundColorOpacity),
             WLibrary::kMinTrackTableBackgroundColorOpacity,
             WLibrary::kMaxTrackTableBackgroundColorOpacity);
+    // Optional <Id>: a skin that shows more than one pane must give each a
+    // distinct id, otherwise they share (and overwrite) each other's stored
+    // column layout, open playlist and spoiler flag.
+    const QString paneId = m_pContext->selectString(node, "Id");
     WAndysPlaylistPane* pPane = new WAndysPlaylistPane(m_pParent,
             m_pConfig,
             m_pLibrary,
             m_pKeyboard,
-            backgroundColorOpacity);
+            backgroundColorOpacity,
+            paneId);
     commonWidgetSetup(node, pPane, false);
     return pPane;
 }
