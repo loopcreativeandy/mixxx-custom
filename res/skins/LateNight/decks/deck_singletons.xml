@@ -48,6 +48,7 @@
               <Display>prefix</Display>
               <ClampMinPercent>-32</ClampMinPercent>
               <ClampMaxPercent>8</ClampMaxPercent>
+              <ClampControl>[Skin],rate_asymmetric</ClampControl>
               <Size>7f,16f</Size>
               <Pos>3,0</Pos>
             </RateRange>
@@ -59,6 +60,7 @@
               <Display>range</Display>
               <ClampMinPercent>-32</ClampMinPercent>
               <ClampMaxPercent>8</ClampMaxPercent>
+              <ClampControl>[Skin],rate_asymmetric</ClampControl>
               <Size>18f,16f</Size>
               <Pos>35,1</Pos>
             </RateRange>
@@ -80,6 +82,7 @@
               <Display>prefix</Display>
               <ClampMinPercent>-32</ClampMinPercent>
               <ClampMaxPercent>8</ClampMaxPercent>
+              <ClampControl>[Skin],rate_asymmetric</ClampControl>
               <Size>7f,16f</Size>
               <Pos>3,0</Pos>
             </RateRange>
@@ -91,6 +94,7 @@
               <Display>range</Display>
               <ClampMinPercent>-32</ClampMinPercent>
               <ClampMaxPercent>8</ClampMaxPercent>
+              <ClampControl>[Skin],rate_asymmetric</ClampControl>
               <Size>18f,16f</Size>
               <Pos>35,0</Pos>
             </RateRange>

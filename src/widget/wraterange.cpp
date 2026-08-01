@@ -40,8 +40,26 @@ void WRateRange::setup(const QDomNode& node, const SkinContext& context) {
     // +-range. Spans wider than the active rate range clamp at the range.
     m_dClampMinPercent = context.selectDouble(node, "ClampMinPercent", 0.0);
     m_dClampMaxPercent = context.selectDouble(node, "ClampMaxPercent", 0.0);
+    // Optional <ClampControl> mirrors the slider's runtime on/off toggle;
+    // when off the labels fall back to the plain +-range display.
+    QString clampControl;
+    if (context.hasNodeSelectString(node, "ClampControl", &clampControl) &&
+            !clampControl.isEmpty()) {
+        const ConfigKey clampKey = ConfigKey::parseCommaSeparated(clampControl);
+        m_pClampToggle = new ControlProxy(
+                clampKey, this, ControlFlag::NoAssertIfMissing);
+        m_pClampToggle->connectValueChanged(
+                this, &WRateRange::slotClampToggleChanged);
+    }
 
     // Initialize the widget (overrides the base class initial value).
+    const double range = m_pRateRangeControl->get();
+    setValue(range);
+}
+
+void WRateRange::slotClampToggleChanged(double v) {
+    Q_UNUSED(v);
+
     const double range = m_pRateRangeControl->get();
     setValue(range);
 }
@@ -69,7 +87,8 @@ void WRateRange::setValue(double range) {
     // range; with one, the faster end reads the up-clamp and the slower end
     // the down-clamp (each limited by the range itself).
     double displayPercent = range * 100;
-    if (m_dClampMinPercent < m_dClampMaxPercent) {
+    const bool clampEnabled = !m_pClampToggle || m_pClampToggle->get() != 0.0;
+    if (clampEnabled && m_dClampMinPercent < m_dClampMaxPercent) {
         const double upPercent =
                 math_clamp(m_dClampMaxPercent, 0.0, range * 100);
         const double downPercent =

@@ -37,7 +37,8 @@ WSliderComposed::WSliderComposed(QWidget* parent)
           m_dRateClampMinPercent(0.0),
           m_dRateClampMaxPercent(0.0),
           m_pRateRangeControl(nullptr),
-          m_pRateDirControl(nullptr) {
+          m_pRateDirControl(nullptr),
+          m_pRateClampToggle(nullptr) {
 }
 
 WSliderComposed::~WSliderComposed() {
@@ -227,6 +228,18 @@ void WSliderComposed::setup(const QDomNode& node, const SkinContext& context) {
                 group, "rate_dir", this, ControlFlag::NoAssertIfMissing);
         m_pRateDirControl->connectValueChanged(
                 this, &WSliderComposed::slotRateClampSourceChanged);
+        // Optional <RateClampControl> names a control (bound to a
+        // skin-settings toggle) that switches the asymmetric range on/off at
+        // runtime; off = the normal symmetric full range.
+        QString clampControl;
+        if (context.hasNodeSelectString(node, "RateClampControl", &clampControl) &&
+                !clampControl.isEmpty()) {
+            const ConfigKey clampKey = ConfigKey::parseCommaSeparated(clampControl);
+            m_pRateClampToggle = new ControlProxy(
+                    clampKey, this, ControlFlag::NoAssertIfMissing);
+            m_pRateClampToggle->connectValueChanged(
+                    this, &WSliderComposed::slotRateClampSourceChanged);
+        }
         applyRateClampWindow();
     }
 
@@ -241,8 +254,9 @@ void WSliderComposed::slotRateClampSourceChanged(double v) {
 void WSliderComposed::applyRateClampWindow() {
     double pmin = 0.0;
     double pmax = 1.0;
+    const bool clampEnabled = !m_pRateClampToggle || m_pRateClampToggle->get() != 0.0;
     const double range = m_pRateRangeControl ? m_pRateRangeControl->get() : 0.0;
-    if (range > 0.0) {
+    if (clampEnabled && range > 0.0) {
         // rate parameter 1 = slider top = rate value +1; with rate_dir +1
         // (up = faster) that end is +range. With rate_dir -1 the speed axis
         // is mirrored, so the clamp span flips sign.

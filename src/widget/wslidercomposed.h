@@ -97,6 +97,9 @@ class WSliderComposed : public WWidget  {
     double m_dRateClampMaxPercent;
     ControlProxy* m_pRateRangeControl;
     ControlProxy* m_pRateDirControl;
+    // Optional control (bound to a skin-settings toggle) that switches the
+    // asymmetric clamp on/off at runtime. Without it the clamp is static.
+    ControlProxy* m_pRateClampToggle;
 
     friend class SliderEventHandler<WSliderComposed>;
 };

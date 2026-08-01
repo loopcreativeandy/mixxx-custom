@@ -23,6 +23,7 @@ class WRateRange : public WNumber {
 
   private slots:
     void slotRateDirChanged(double dir);
+    void slotClampToggleChanged(double v);
     void setValue(double range) override;
 
   private:
@@ -35,4 +36,6 @@ class WRateRange : public WNumber {
     // tempo slider's RateClampMin/MaxPercent. Active when min < max.
     double m_dClampMinPercent = 0.0;
     double m_dClampMaxPercent = 0.0;
+    // Optional runtime on/off toggle matching the slider's RateClampControl.
+    ControlProxy* m_pClampToggle = nullptr;
 };

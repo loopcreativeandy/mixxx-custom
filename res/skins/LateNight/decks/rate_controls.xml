@@ -125,16 +125,34 @@
                   <WidgetGroup>
                     <Size>54f,121f</Size>
                     <Children>
+                      <!-- Andy custom: two center dots; which one shows follows the
+                           Asymmetric Pitch toggle. Asym dot = neutral at 80% of travel
+                           (-32..+8 clamp, exact for range >= 32% and up = faster). -->
                       <Label>
                         <ObjectName>RateCenter</ObjectName>
                         <Size>5f,5f</Size>
-                        <!-- Andy custom: neutral sits at 80% of the travel
-                             with the -32..+8 clamp (exact for range >= 32%
-                             and up = faster). -->
                         <Pos>2,28</Pos>
                         <Connection>
                           <ConfigKey><Variable name="Group"/>,rate_set_default</ConfigKey>
                           <BindProperty>highlight</BindProperty>
+                        </Connection>
+                        <Connection>
+                          <ConfigKey>[Skin],rate_asymmetric</ConfigKey>
+                          <BindProperty>visible</BindProperty>
+                        </Connection>
+                      </Label>
+                      <Label>
+                        <ObjectName>RateCenter</ObjectName>
+                        <Size>5f,5f</Size>
+                        <Pos>2,59</Pos>
+                        <Connection>
+                          <ConfigKey><Variable name="Group"/>,rate_set_default</ConfigKey>
+                          <BindProperty>highlight</BindProperty>
+                        </Connection>
+                        <Connection>
+                          <ConfigKey>[Skin],rate_asymmetric</ConfigKey>
+                          <Transform><Not/></Transform>
+                          <BindProperty>visible</BindProperty>
                         </Connection>
                       </Label>
                       <SliderComposed>
@@ -147,6 +165,7 @@
                              narrower ones clamp at +-range). -->
                         <RateClampMinPercent>-32</RateClampMinPercent>
                         <RateClampMaxPercent>8</RateClampMaxPercent>
+                        <RateClampControl>[Skin],rate_asymmetric</RateClampControl>
                         <TooltipId>rate</TooltipId>
                         <Handle scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/knob_pitch_deck.svg</Handle>
                         <Slider scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/slider_pitch_deck.svg</Slider>
