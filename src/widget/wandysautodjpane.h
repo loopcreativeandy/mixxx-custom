@@ -23,6 +23,11 @@ class WAndysAutoDJPane : public QWidget, public WBaseWidget {
             double backgroundColorOpacity,
             bool showButtonText);
 
+    /// The embedded DlgAutoDJ's button row is wide, and a QSplitter refuses to
+    /// shrink a child below its minimumSizeHint(). Report 0 so the pane can be
+    /// resized freely; the transport buttons simply get clipped (Andy's call).
+    QSize minimumSizeHint() const override;
+
   private:
     DlgAutoDJ* m_pAutoDJView;
 };

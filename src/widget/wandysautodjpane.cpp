@@ -37,4 +37,12 @@ WAndysAutoDJPane::WAndysAutoDJPane(QWidget* pParent,
     pLayout->setContentsMargins(0, 0, 0, 0);
     pLayout->setSpacing(0);
     pLayout->addWidget(m_pAutoDJView, 1);
+    // Without this the layout pushes its own minimum onto the pane, which the
+    // splitter then honours.
+    pLayout->setSizeConstraint(QLayout::SetNoConstraint);
+    setMinimumSize(0, 0);
+}
+
+QSize WAndysAutoDJPane::minimumSizeHint() const {
+    return QSize(0, 0);
 }
