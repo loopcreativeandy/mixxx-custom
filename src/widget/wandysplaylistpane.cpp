@@ -181,6 +181,14 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
     m_pTrackTableView->setDragSourceIdentifier(
             suffixed(QStringLiteral("[AndysPlaylistPane]"), paneId));
 
+    // Sort this pane independently of the main library. Both are visible at the
+    // same time, and upstream routes every sort through the single shared
+    // [Library],sort_column/sort_order pair — so sorting the pane by playlist
+    // position also re-sorted the search results, and sorting the library by
+    // grouping dragged the pane along. Each table now keeps its own sort
+    // (persisted with its header state).
+    m_pTrackTableView->setIndependentSorting(true);
+
     // Persist the pane's column layout (order/visibility/width/sort) eagerly.
     // Unlike the main library, this pane keeps one model for its whole life, so
     // it never triggers the save-on-model-switch that keeps the main table's

@@ -61,6 +61,11 @@ DlgAutoDJ::DlgAutoDJ(QWidget* pParent,
     // Auto DJ queue.
     m_pTrackTableView->setDragSourceIdentifier(QStringLiteral("[AutoDJPane]"));
 
+    // Same reason: a pane table is visible at the same time as the main
+    // library, and the shared [Library],sort_column/sort_order controls would
+    // otherwise make a sort click in one table re-sort the other.
+    m_pTrackTableView->setIndependentSorting(true);
+
     connect(m_pTrackTableView,
             &WTrackTableView::loadTrack,
             this,

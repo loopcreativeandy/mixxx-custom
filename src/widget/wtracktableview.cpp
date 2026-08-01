@@ -58,6 +58,7 @@ WTrackTableView::WTrackTableView(QWidget* pParent,
           m_sorting(false),
           m_selectionChangedSinceLastGuiTick(true),
           m_loadCachedOnly(false),
+          m_independentSorting(false),
           m_dropRow(-1) {
     // Connect slots and signals to make the world go 'round.
     connect(this, &WTrackTableView::doubleClicked, this, &WTrackTableView::slotMouseDoubleClicked);
@@ -350,9 +351,15 @@ void WTrackTableView::loadTrackModel(QAbstractItemModel* pNewModel, bool restore
             }
         }
 
-        m_pSortColumn->set(static_cast<double>(sortColumn));
-        m_pSortOrder->set(sortOrder);
-        applySorting();
+        if (m_independentSorting) {
+            // Keep the shared controls (and therefore the main library's sort)
+            // untouched — this table restores its own header sort instead.
+            applySorting(sortColumn, sortOrder);
+        } else {
+            m_pSortColumn->set(static_cast<double>(sortColumn));
+            m_pSortOrder->set(sortOrder);
+            applySorting();
+        }
     }
 
     // Set up drag and drop behavior according to whether or not the track
@@ -1858,15 +1865,16 @@ void WTrackTableView::applySortingIfVisible() {
     if (!isVisible()) {
         return;
     }
+    if (m_independentSorting) {
+        // Not a follower of the shared sort controls (see
+        // setIndependentSorting) — a sort elsewhere must not move this table.
+        return;
+    }
 
     applySorting();
 }
 
 void WTrackTableView::applySorting() {
-    TrackModel* pTrackModel = getTrackModel();
-    if (!pTrackModel) {
-        return;
-    }
     int sortColumnId = static_cast<int>(m_pSortColumn->get());
     if (sortColumnId == static_cast<int>(TrackModel::SortColumnId::Invalid)) {
         // During startup phase of Mixxx, this method is called with Invalid
@@ -1878,13 +1886,20 @@ void WTrackTableView::applySorting() {
         return;
     }
 
-    int sortColumn = pTrackModel->columnIndexFromSortColumnId(
-            static_cast<TrackModel::SortColumnId>(sortColumnId));
+    applySorting(static_cast<TrackModel::SortColumnId>(sortColumnId),
+            (m_pSortOrder->get() == 0) ? Qt::AscendingOrder : Qt::DescendingOrder);
+}
+
+void WTrackTableView::applySorting(
+        TrackModel::SortColumnId sortColumnId, Qt::SortOrder sortOrder) {
+    TrackModel* pTrackModel = getTrackModel();
+    if (!pTrackModel) {
+        return;
+    }
+    int sortColumn = pTrackModel->columnIndexFromSortColumnId(sortColumnId);
     if (sortColumn < 0) {
         return;
     }
-
-    Qt::SortOrder sortOrder = (m_pSortOrder->get() == 0) ? Qt::AscendingOrder : Qt::DescendingOrder;
 
     // This line sorts the TrackModel
     horizontalHeader()->setSortIndicator(sortColumn, sortOrder);
@@ -1901,6 +1916,13 @@ void WTrackTableView::slotSortingChanged(int headerSection, Qt::SortOrder order)
 
     TrackModel::SortColumnId sortColumnId = pTrackModel->sortColumnIdFromColumnIndex(headerSection);
     if (sortColumnId == TrackModel::SortColumnId::Invalid) {
+        return;
+    }
+
+    if (m_independentSorting) {
+        // Sort only this table, straight from its own header click — never
+        // publish it to the shared controls the main library follows.
+        doSortByColumn(headerSection, order);
         return;
     }
 
@@ -1926,6 +1948,10 @@ void WTrackTableView::slotRandomSorting() {
     // (and replace it with a dedicated randomize slot to BaseSqltableModel),
     // so we simply abuse that column.
     auto previewCol = TrackModel::SortColumnId::Preview;
+    if (m_independentSorting) {
+        applySorting(previewCol, horizontalHeader()->sortIndicatorOrder());
+        return;
+    }
     m_pSortColumn->set(static_cast<int>(previewCol));
     applySortingIfVisible();
 }

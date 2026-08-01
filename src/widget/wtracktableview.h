@@ -77,6 +77,20 @@ class WTrackTableView : public WLibraryTableView {
         m_dragSourceIdentifier = identifier;
     }
 
+    /// Detach this table from the global [Library],sort_column/sort_order
+    /// controls. Upstream routes every sort through those two controls, which
+    /// works because only one WTrackTableView is ever visible at a time. Andy's
+    /// side playlist pane is visible *alongside* the main library, so both
+    /// tables saw each other's sort clicks: sorting the pane by playlist
+    /// position re-sorted the search results and vice versa. An independent
+    /// table sorts itself directly from its own header (whose sort indicator is
+    /// part of the persisted per-table header state) and neither reads nor
+    /// writes the shared controls, so controller/global sorting keeps driving
+    /// the main library only.
+    void setIndependentSorting(bool independent) {
+        m_independentSorting = independent;
+    }
+
     void removeSelectedTracks();
     void cutSelectedTracks();
     void copySelectedTracks();
@@ -165,6 +179,7 @@ class WTrackTableView : public WLibraryTableView {
     void doSortByColumn(int headerSection, Qt::SortOrder sortOrder);
     void applySortingIfVisible();
     void applySorting();
+    void applySorting(TrackModel::SortColumnId sortColumnId, Qt::SortOrder sortOrder);
 
     // Signalled 20 times per second (every 50ms) by GuiTick.
     void slotGuiTick50ms(double);
@@ -232,6 +247,7 @@ class WTrackTableView : public WLibraryTableView {
     ControlProxy* m_pKeyNotation;
     ControlProxy* m_pSortColumn;
     ControlProxy* m_pSortOrder;
+    bool m_independentSorting;
 
     int m_dropRow;
 };
