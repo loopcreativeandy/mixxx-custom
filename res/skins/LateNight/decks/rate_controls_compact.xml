@@ -124,7 +124,8 @@
                           <Label>
                             <ObjectName>RateCenter</ObjectName>
                             <Size>5f,5f</Size>
-                            <Pos>2,39</Pos>
+                            <!-- Andy custom: neutral at 80% of travel (-32..+8 clamp) -->
+                            <Pos>2,20</Pos>
                             <Connection>
                               <ConfigKey><Variable name="Group"/>,rate_set_default</ConfigKey>
                               <BindProperty>highlight</BindProperty>
@@ -134,9 +135,9 @@
                             <ObjectName>RateSlider</ObjectName>
                             <Size>40f,79f</Size>
                             <Pos>5,2</Pos>
-                            <!-- Andy custom: symmetric exponential tempo response (see rate_controls.xml). -->
-                            <Exponent>2.0</Exponent>
-                            <ExponentControl>[Skin],rate_exponential</ExponentControl>
+                            <!-- Andy custom: asymmetric -32..+8 linear tempo range (see rate_controls.xml). -->
+                            <RateClampMinPercent>-32</RateClampMinPercent>
+                            <RateClampMaxPercent>8</RateClampMaxPercent>
                             <TooltipId>rate</TooltipId>
                             <Handle scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/knob_pitch_deck.svg</Handle>
                             <Slider scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/slider_pitch_deck_compact_sync.svg</Slider>
@@ -188,7 +189,8 @@
                       <Label>
                         <ObjectName>RateCenter</ObjectName>
                         <Size>5f,5f</Size>
-                        <Pos>2,47</Pos>
+                        <!-- Andy custom: neutral at 80% of travel (-32..+8 clamp) -->
+                        <Pos>2,24</Pos>
                         <Connection>
                           <ConfigKey><Variable name="Group"/>,rate_set_default</ConfigKey>
                           <BindProperty>highlight</BindProperty>
@@ -199,9 +201,9 @@
                         <ObjectName>RateSlider</ObjectName>
                         <Size>40f,95f</Size>
                         <Pos>5,2</Pos>
-                        <!-- Andy custom: symmetric exponential tempo response (see rate_controls.xml). -->
-                        <Exponent>2.0</Exponent>
-                        <ExponentControl>[Skin],rate_exponential</ExponentControl>
+                        <!-- Andy custom: asymmetric -32..+8 linear tempo range (see rate_controls.xml). -->
+                        <RateClampMinPercent>-32</RateClampMinPercent>
+                        <RateClampMaxPercent>8</RateClampMaxPercent>
                         <TooltipId>rate</TooltipId>
                         <Handle scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/knob_pitch_deck.svg</Handle>
                         <Slider scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/slider_pitch_deck_compact.svg</Slider>

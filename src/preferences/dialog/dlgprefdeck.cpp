@@ -243,6 +243,8 @@ DlgPrefDeck::DlgPrefDeck(QWidget* parent, UserSettingsPointer pConfig)
     ComboBoxRateRange->addItem(tr("10%"), 10);
     ComboBoxRateRange->addItem(tr("16%"), 16);
     ComboBoxRateRange->addItem(tr("24%"), 24);
+    // Andy custom: matches the asymmetric -32..+8 tempo slider clamp.
+    ComboBoxRateRange->addItem(tr("32%"), 32);
     ComboBoxRateRange->addItem(tr("50%"), 50);
     ComboBoxRateRange->addItem(tr("90%"), 90);
     connect(ComboBoxRateRange,

@@ -33,7 +33,11 @@ WSliderComposed::WSliderComposed(QWidget* parent)
           m_pHandle(nullptr),
           m_dConfiguredExponent(1.0),
           m_dConfiguredCenter(0.5),
-          m_pExponentToggle(nullptr) {
+          m_pExponentToggle(nullptr),
+          m_dRateClampMinPercent(0.0),
+          m_dRateClampMaxPercent(0.0),
+          m_pRateRangeControl(nullptr),
+          m_pRateDirControl(nullptr) {
 }
 
 WSliderComposed::~WSliderComposed() {
@@ -203,7 +207,62 @@ void WSliderComposed::setup(const QDomNode& node, const SkinContext& context) {
         }
     }
 
+    // Andy custom: asymmetric linear tempo range. <RateClampMinPercent> /
+    // <RateClampMaxPercent> give the playback-speed span (in percent, e.g.
+    // -32 / +8) the full physical travel should cover. The reachable
+    // parameter window is derived from the connected deck's rateRange and
+    // rate_dir controls at runtime, so it holds for any Prefs range wide
+    // enough to contain it (narrower ranges clamp at +-range) and follows a
+    // flipped slider direction. Mapping is linear; neutral sits off-centre.
+    m_dRateClampMinPercent = context.selectDouble(node, "RateClampMinPercent", 0.0);
+    m_dRateClampMaxPercent = context.selectDouble(node, "RateClampMaxPercent", 0.0);
+    if (m_dRateClampMinPercent < m_dRateClampMaxPercent &&
+            !m_connections.empty() && m_connections[0]) {
+        const QString group = m_connections[0]->getKey().group;
+        m_pRateRangeControl = new ControlProxy(
+                group, "rateRange", this, ControlFlag::NoAssertIfMissing);
+        m_pRateRangeControl->connectValueChanged(
+                this, &WSliderComposed::slotRateClampSourceChanged);
+        m_pRateDirControl = new ControlProxy(
+                group, "rate_dir", this, ControlFlag::NoAssertIfMissing);
+        m_pRateDirControl->connectValueChanged(
+                this, &WSliderComposed::slotRateClampSourceChanged);
+        applyRateClampWindow();
+    }
+
     setFocusPolicy(Qt::NoFocus);
+}
+
+void WSliderComposed::slotRateClampSourceChanged(double v) {
+    Q_UNUSED(v);
+    applyRateClampWindow();
+}
+
+void WSliderComposed::applyRateClampWindow() {
+    double pmin = 0.0;
+    double pmax = 1.0;
+    const double range = m_pRateRangeControl ? m_pRateRangeControl->get() : 0.0;
+    if (range > 0.0) {
+        // rate parameter 1 = slider top = rate value +1; with rate_dir +1
+        // (up = faster) that end is +range. With rate_dir -1 the speed axis
+        // is mirrored, so the clamp span flips sign.
+        const bool upIsFaster = !m_pRateDirControl || m_pRateDirControl->get() >= 0.0;
+        double vLo = m_dRateClampMinPercent / 100.0 / range;
+        double vHi = m_dRateClampMaxPercent / 100.0 / range;
+        if (!upIsFaster) {
+            const double tmp = vLo;
+            vLo = -vHi;
+            vHi = -tmp;
+        }
+        vLo = math_clamp(vLo, -1.0, 1.0);
+        vHi = math_clamp(vHi, -1.0, 1.0);
+        pmin = (vLo + 1.0) / 2.0;
+        pmax = (vHi + 1.0) / 2.0;
+    }
+    m_handler.setParameterWindow(pmin, pmax);
+    // The control value is unchanged; only its pixel mapping moved.
+    m_handler.refreshPosition(this);
+    update();
 }
 
 void WSliderComposed::slotExponentToggleChanged(double v) {

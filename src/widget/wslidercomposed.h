@@ -42,6 +42,9 @@ class WSliderComposed : public WWidget  {
     // Enable/disable the non-linear response at runtime from a control bound to
     // a skin-settings toggle. Off = linear.
     void slotExponentToggleChanged(double v);
+    // Recompute the asymmetric-rate parameter window when the deck's
+    // rateRange or rate_dir changes.
+    void slotRateClampSourceChanged(double v);
 
   protected:
     void mouseMoveEvent(QMouseEvent* e) override;
@@ -56,6 +59,7 @@ class WSliderComposed : public WWidget  {
   private:
     double calculateHandleLength();
     void unsetPixmaps();
+    void applyRateClampWindow();
 
     // Length of handle in pixels
     double m_dHandleLength;
@@ -86,6 +90,13 @@ class WSliderComposed : public WWidget  {
     double m_dConfiguredCenter;
     // Optional control that toggles the non-linear response on/off at runtime.
     ControlProxy* m_pExponentToggle;
+    // Asymmetric rate clamp configured in the skin, in percent of playback
+    // speed (e.g. -32 / +8). Active when min < max; the reachable window is
+    // derived from the connected deck's rateRange and rate_dir at runtime.
+    double m_dRateClampMinPercent;
+    double m_dRateClampMaxPercent;
+    ControlProxy* m_pRateRangeControl;
+    ControlProxy* m_pRateDirControl;
 
     friend class SliderEventHandler<WSliderComposed>;
 };

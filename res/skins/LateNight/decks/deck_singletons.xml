@@ -46,6 +46,8 @@
               <Channel><Variable name="ChanNum"/></Channel>
               <Position>Top</Position>
               <Display>prefix</Display>
+              <ClampMinPercent>-32</ClampMinPercent>
+              <ClampMaxPercent>8</ClampMaxPercent>
               <Size>7f,16f</Size>
               <Pos>3,0</Pos>
             </RateRange>
@@ -55,6 +57,8 @@
               <Channel><Variable name="ChanNum"/></Channel>
               <Position>Top</Position>
               <Display>range</Display>
+              <ClampMinPercent>-32</ClampMinPercent>
+              <ClampMaxPercent>8</ClampMaxPercent>
               <Size>18f,16f</Size>
               <Pos>35,1</Pos>
             </RateRange>
@@ -74,6 +78,8 @@
               <Channel><Variable name="ChanNum" /></Channel>
               <Position>Bottom</Position>
               <Display>prefix</Display>
+              <ClampMinPercent>-32</ClampMinPercent>
+              <ClampMaxPercent>8</ClampMaxPercent>
               <Size>7f,16f</Size>
               <Pos>3,0</Pos>
             </RateRange>
@@ -83,6 +89,8 @@
               <Channel><Variable name="ChanNum" /></Channel>
               <Position>Bottom</Position>
               <Display>range</Display>
+              <ClampMinPercent>-32</ClampMinPercent>
+              <ClampMaxPercent>8</ClampMaxPercent>
               <Size>18f,16f</Size>
               <Pos>35,0</Pos>
             </RateRange>

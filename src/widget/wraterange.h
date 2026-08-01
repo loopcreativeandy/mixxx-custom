@@ -31,4 +31,8 @@ class WRateRange : public WNumber {
     VerticalPosition m_nodePosition;
     DisplayType m_nodeDisplay;
     QString m_nodeText;
+    // Optional asymmetric clamp (percent of playback speed) matching the
+    // tempo slider's RateClampMin/MaxPercent. Active when min < max.
+    double m_dClampMinPercent = 0.0;
+    double m_dClampMaxPercent = 0.0;
 };

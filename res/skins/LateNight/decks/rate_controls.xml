@@ -128,7 +128,10 @@
                       <Label>
                         <ObjectName>RateCenter</ObjectName>
                         <Size>5f,5f</Size>
-                        <Pos>2,59</Pos>
+                        <!-- Andy custom: neutral sits at 80% of the travel
+                             with the -32..+8 clamp (exact for range >= 32%
+                             and up = faster). -->
+                        <Pos>2,28</Pos>
                         <Connection>
                           <ConfigKey><Variable name="Group"/>,rate_set_default</ConfigKey>
                           <BindProperty>highlight</BindProperty>
@@ -138,12 +141,12 @@
                         <ObjectName>RateSlider</ObjectName>
                         <Size>40f,119f</Size>
                         <Pos>5,2</Pos>
-                        <!-- Andy custom: symmetric exponential tempo response.
-                             Fine control near 0%, coarser toward the ends, so a
-                             wide adjustment range (set 50% in Prefs->Decks, e.g.
-                             128->64 bpm) stays usable. Neutral stays centred. -->
-                        <Exponent>2.0</Exponent>
-                        <ExponentControl>[Skin],rate_exponential</ExponentControl>
+                        <!-- Andy custom: asymmetric linear tempo range. Full
+                             travel covers -32%..+8% of playback speed (set
+                             Prefs->Decks range to 32%; wider ranges work too,
+                             narrower ones clamp at +-range). -->
+                        <RateClampMinPercent>-32</RateClampMinPercent>
+                        <RateClampMaxPercent>8</RateClampMaxPercent>
                         <TooltipId>rate</TooltipId>
                         <Handle scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/knob_pitch_deck.svg</Handle>
                         <Slider scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/slider_pitch_deck.svg</Slider>
