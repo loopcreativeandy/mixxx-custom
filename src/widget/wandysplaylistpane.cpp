@@ -81,7 +81,7 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
     m_pSpoilerButton->setCheckable(true);
     m_pSpoilerButton->setChecked(m_spoilerMode);
     m_pSpoilerButton->setText(m_spoilerMode
-                    ? QStringLiteral("🙈")
+                    ? QStringLiteral("–")
                     : QStringLiteral("👁"));
     m_pSpoilerButton->setToolTip(
             tr("Spoiler-free: show only played songs plus the next one"));
@@ -296,7 +296,7 @@ void WAndysPlaylistPane::slotHeaderLayoutChanged() {
 void WAndysPlaylistPane::slotToggleSpoilerMode() {
     m_spoilerMode = m_pSpoilerButton->isChecked();
     m_pSpoilerButton->setText(m_spoilerMode
-                    ? QStringLiteral("🙈")
+                    ? QStringLiteral("–")
                     : QStringLiteral("👁"));
     m_pConfig->setValue(kSpoilerModeConfigKey, m_spoilerMode);
     applySpoilerFilter();
