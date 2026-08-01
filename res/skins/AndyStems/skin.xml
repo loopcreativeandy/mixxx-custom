@@ -434,7 +434,15 @@
     <SingletonDefinition>
       <ObjectName>LibrarySingleton</ObjectName>
       <Children>
-        <Template src="skins:LateNight/library.xml"/>
+        <!-- These skins already have their own side pane in the
+             PresenterZone, so the one inside the library template is
+             switched off — otherwise the skin shows two. -->
+        <Template src="skins:LateNight/library.xml">
+          <SetVariable name="ShowLibrarySidePane">false</SetVariable>
+          <SetVariable name="LibraryVSplitSizes">1</SetVariable>
+          <SetVariable name="LibraryVSplitSizesKey">library_splitsize_cp9v_nopane</SetVariable>
+          <SetVariable name="LibraryVSplitCollapsible">0</SetVariable>
+        </Template>
       </Children>
     </SingletonDefinition>
 

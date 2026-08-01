@@ -23,9 +23,13 @@
             <ObjectName>LibraryVSplitter</ObjectName>
             <SizePolicy>me,me</SizePolicy>
             <Orientation>vertical</Orientation>
-            <SplitSizes>10,4</SplitSizes>
-            <SplitSizesConfigKey>[Skin],library_splitsize_cp9v</SplitSizesConfigKey>
-            <Collapsible>0,1</Collapsible>
+            <!-- Driven by the including skin: a skin that switches off the
+                 side pane below (ShowLibrarySidePane=false) has one child here
+                 instead of two, so it needs its own sizes and its own stored
+                 split-size key. -->
+            <SplitSizes><Variable name="LibraryVSplitSizes"/></SplitSizes>
+            <SplitSizesConfigKey>[Skin],<Variable name="LibraryVSplitSizesKey"/></SplitSizesConfigKey>
+            <Collapsible><Variable name="LibraryVSplitCollapsible"/></Collapsible>
             <Children>
 
           <Splitter>
@@ -141,7 +145,12 @@
               <!-- CP20 swap: Andy's second playlist pane is now the full-width
                    strip below the library (filled via sidebar right-click
                    "Open in side pane"). Drag the handle fully down to collapse. -->
+              <!-- Skins that inherit this template and already show a pane of
+                   their own (AndyVideo/AndyStems, PresenterZone) switch this
+                   one off with <SetVariable name="ShowLibrarySidePane">false
+                   </SetVariable> on their <Template> node. Undefined = shown. -->
               <AndysPlaylistPane>
+                <Enabled><Variable name="ShowLibrarySidePane"/></Enabled>
                 <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
               </AndysPlaylistPane>
 

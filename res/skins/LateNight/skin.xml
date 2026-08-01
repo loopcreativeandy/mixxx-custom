@@ -421,7 +421,11 @@
     <SingletonDefinition>
       <ObjectName>LibrarySingleton</ObjectName>
       <Children>
-        <Template src="skins:LateNight/library.xml"/>
+        <Template src="skins:LateNight/library.xml">
+          <SetVariable name="LibraryVSplitSizes">10,4</SetVariable>
+          <SetVariable name="LibraryVSplitSizesKey">library_splitsize_cp9v</SetVariable>
+          <SetVariable name="LibraryVSplitCollapsible">0,1</SetVariable>
+        </Template>
       </Children>
     </SingletonDefinition>
 
