@@ -52,22 +52,6 @@ class SliderEventHandler {
         m_dWarpCenter = math_clamp(center, 0.05, 0.95);
     }
 
-    /// Restrict the parameter span the physical travel maps onto, so full-down
-    /// / full-up hit @p pmin / @p pmax instead of 0 / 1. Used by the tempo
-    /// fader for an asymmetric range (e.g. -32 %..+8 % of a wider rate range):
-    /// the mapping stays linear, neutral just sits off-centre. Parameters
-    /// outside the window can still arrive from controllers; the handle then
-    /// pins at the nearer end. (1.0/0.0 span restores the identity.)
-    void setParameterWindow(double pmin, double pmax) {
-        if (pmin >= 0.0 && pmax <= 1.0 && pmax - pmin >= 0.01) {
-            m_dParamMin = pmin;
-            m_dParamMax = pmax;
-        } else {
-            m_dParamMin = 0.0;
-            m_dParamMax = 1.0;
-        }
-    }
-
     /// Recompute the cached handle pixel position after the warp changed, so a
     /// runtime toggle of the response curve moves the handle to the pixel that
     /// now represents the unchanged control value.
@@ -166,8 +150,8 @@ class SliderEventHandler {
         double wheelAdjustment = (e)->angleDelta().y() / (120.0 * 127.0);
         double newParameter = pWidget->getControlParameter() + wheelAdjustment;
 
-        // Clamp to the reachable parameter window (usually [0.0, 1.0]).
-        newParameter = math_clamp(newParameter, m_dParamMin, m_dParamMax);
+        // Clamp to [0.0, 1.0]
+        newParameter = math_clamp(newParameter, 0.0, 1.0);
 
         pWidget->setControlParameter(newParameter);
         onConnectedControlChanged(pWidget, newParameter);
@@ -221,10 +205,7 @@ class SliderEventHandler {
             return 0.0;
         }
         // Oriented physical fraction of the travel (1 = near end / top).
-        // Values outside the parameter window pin at the nearer end.
-        const double windowed = math_clamp(
-                (parameter - m_dParamMin) / (m_dParamMax - m_dParamMin), 0.0, 1.0);
-        double lin = warpInverse(windowed);
+        double lin = warpInverse(parameter);
         if (!m_bHorizontal) {
             lin = 1.0 - lin;
         }
@@ -238,7 +219,7 @@ class SliderEventHandler {
         }
         double val = pos / (m_dSliderLength - m_dHandleLength);
         double lin = m_bHorizontal ? val : (1.0 - val);
-        return m_dParamMin + warpForward(lin) * (m_dParamMax - m_dParamMin);
+        return warpForward(lin);
     }
 
     // Map an oriented physical travel fraction (0..1) to a CO parameter (0..1).
@@ -298,8 +279,4 @@ class SliderEventHandler {
     // fraction (0.5 = centred). See setWarp().
     double m_dWarpExponent = 1.0;
     double m_dWarpCenter = 0.5;
-    // Reachable parameter window (1.0/0.0 span = full range). See
-    // setParameterWindow().
-    double m_dParamMin = 0.0;
-    double m_dParamMax = 1.0;
 };

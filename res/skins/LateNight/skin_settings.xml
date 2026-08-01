@@ -147,14 +147,6 @@ Description:
           </WidgetGroup><!-- DeckSizeSettings -->
 <!-- Deck size selectors -->
 
-          <!-- Andy custom: asymmetric tempo range (-32..+8, on = default).
-               Off = normal symmetric +-range slider. -->
-          <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
-            <SetVariable name="TooltipId">rate</SetVariable>
-            <SetVariable name="Text">Asymmetric Pitch</SetVariable>
-            <SetVariable name="Setting">[Skin],rate_asymmetric</SetVariable>
-          </Template>
-
 <!-- Deck Options FULL / Compact / mini -->
           <WidgetGroup>
             <SizePolicy>me,f</SizePolicy>

@@ -121,22 +121,6 @@
                       <WidgetGroup><!-- Rate slider + center indicator -->
                         <Size>54f,81f</Size>
                         <Children>
-                          <!-- Andy custom: two center dots; which one shows follows the
-                               Asymmetric Pitch toggle. Asym dot = neutral at 80% of travel
-                               (-32..+8 clamp, exact for range >= 32% and up = faster). -->
-                          <Label>
-                            <ObjectName>RateCenter</ObjectName>
-                            <Size>5f,5f</Size>
-                            <Pos>2,20</Pos>
-                            <Connection>
-                              <ConfigKey><Variable name="Group"/>,rate_set_default</ConfigKey>
-                              <BindProperty>highlight</BindProperty>
-                            </Connection>
-                            <Connection>
-                              <ConfigKey>[Skin],rate_asymmetric</ConfigKey>
-                              <BindProperty>visible</BindProperty>
-                            </Connection>
-                          </Label>
                           <Label>
                             <ObjectName>RateCenter</ObjectName>
                             <Size>5f,5f</Size>
@@ -145,20 +129,11 @@
                               <ConfigKey><Variable name="Group"/>,rate_set_default</ConfigKey>
                               <BindProperty>highlight</BindProperty>
                             </Connection>
-                            <Connection>
-                              <ConfigKey>[Skin],rate_asymmetric</ConfigKey>
-                              <Transform><Not/></Transform>
-                              <BindProperty>visible</BindProperty>
-                            </Connection>
                           </Label>
                           <SliderComposed>
                             <ObjectName>RateSlider</ObjectName>
                             <Size>40f,79f</Size>
                             <Pos>5,2</Pos>
-                            <!-- Andy custom: asymmetric -32..+8 linear tempo range (see rate_controls.xml). -->
-                            <RateClampMinPercent>-32</RateClampMinPercent>
-                            <RateClampMaxPercent>8</RateClampMaxPercent>
-                            <RateClampControl>[Skin],rate_asymmetric</RateClampControl>
                             <TooltipId>rate</TooltipId>
                             <Handle scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/knob_pitch_deck.svg</Handle>
                             <Slider scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/slider_pitch_deck_compact_sync.svg</Slider>
@@ -207,22 +182,6 @@
                     <ObjectName></ObjectName>
                     <Size>54f,97f</Size>
                     <Children>
-                      <!-- Andy custom: two center dots; which one shows follows the
-                           Asymmetric Pitch toggle. Asym dot = neutral at 80% of travel
-                           (-32..+8 clamp, exact for range >= 32% and up = faster). -->
-                      <Label>
-                        <ObjectName>RateCenter</ObjectName>
-                        <Size>5f,5f</Size>
-                        <Pos>2,24</Pos>
-                        <Connection>
-                          <ConfigKey><Variable name="Group"/>,rate_set_default</ConfigKey>
-                          <BindProperty>highlight</BindProperty>
-                        </Connection>
-                        <Connection>
-                          <ConfigKey>[Skin],rate_asymmetric</ConfigKey>
-                          <BindProperty>visible</BindProperty>
-                        </Connection>
-                      </Label>
                       <Label>
                         <ObjectName>RateCenter</ObjectName>
                         <Size>5f,5f</Size>
@@ -231,21 +190,12 @@
                           <ConfigKey><Variable name="Group"/>,rate_set_default</ConfigKey>
                           <BindProperty>highlight</BindProperty>
                         </Connection>
-                        <Connection>
-                          <ConfigKey>[Skin],rate_asymmetric</ConfigKey>
-                          <Transform><Not/></Transform>
-                          <BindProperty>visible</BindProperty>
-                        </Connection>
                       </Label>
 
                       <SliderComposed>
                         <ObjectName>RateSlider</ObjectName>
                         <Size>40f,95f</Size>
                         <Pos>5,2</Pos>
-                        <!-- Andy custom: asymmetric -32..+8 linear tempo range (see rate_controls.xml). -->
-                        <RateClampMinPercent>-32</RateClampMinPercent>
-                        <RateClampMaxPercent>8</RateClampMaxPercent>
-                        <RateClampControl>[Skin],rate_asymmetric</RateClampControl>
                         <TooltipId>rate</TooltipId>
                         <Handle scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/knob_pitch_deck.svg</Handle>
                         <Slider scalemode="STRETCH_ASPECT">skins:LateNight/<Variable name="SliderScheme"/>/sliders/slider_pitch_deck_compact.svg</Slider>

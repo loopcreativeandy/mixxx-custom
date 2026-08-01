@@ -3,7 +3,6 @@
 #include "control/controlproxy.h"
 #include "moc_wraterange.cpp"
 #include "skin/legacy/skincontext.h"
-#include "util/math.h"
 
 WRateRange::WRateRange(const QString& group, QWidget* parent)
         : WNumber(parent),
@@ -34,32 +33,7 @@ void WRateRange::setup(const QDomNode& node, const SkinContext& context) {
     }
     setAlignment(Qt::AlignCenter);
 
-    // Andy custom: when the tempo slider carries an asymmetric clamp
-    // (RateClampMin/MaxPercent), mirror the same span here so the end labels
-    // show what the slider ends actually reach (e.g. +8 / -32) instead of
-    // +-range. Spans wider than the active rate range clamp at the range.
-    m_dClampMinPercent = context.selectDouble(node, "ClampMinPercent", 0.0);
-    m_dClampMaxPercent = context.selectDouble(node, "ClampMaxPercent", 0.0);
-    // Optional <ClampControl> mirrors the slider's runtime on/off toggle;
-    // when off the labels fall back to the plain +-range display.
-    QString clampControl;
-    if (context.hasNodeSelectString(node, "ClampControl", &clampControl) &&
-            !clampControl.isEmpty()) {
-        const ConfigKey clampKey = ConfigKey::parseCommaSeparated(clampControl);
-        m_pClampToggle = new ControlProxy(
-                clampKey, this, ControlFlag::NoAssertIfMissing);
-        m_pClampToggle->connectValueChanged(
-                this, &WRateRange::slotClampToggleChanged);
-    }
-
     // Initialize the widget (overrides the base class initial value).
-    const double range = m_pRateRangeControl->get();
-    setValue(range);
-}
-
-void WRateRange::slotClampToggleChanged(double v) {
-    Q_UNUSED(v);
-
     const double range = m_pRateRangeControl->get();
     setValue(range);
 }
@@ -83,27 +57,12 @@ void WRateRange::setValue(double range) {
         prefix = '+';
     }
 
-    // Magnitude shown at this end. Without a clamp both ends read the full
-    // range; with one, the faster end reads the up-clamp and the slower end
-    // the down-clamp (each limited by the range itself).
-    double displayPercent = range * 100;
-    const bool clampEnabled = !m_pClampToggle || m_pClampToggle->get() != 0.0;
-    if (clampEnabled && m_dClampMinPercent < m_dClampMaxPercent) {
-        const double upPercent =
-                math_clamp(m_dClampMaxPercent, 0.0, range * 100);
-        const double downPercent =
-                math_clamp(-m_dClampMinPercent, 0.0, range * 100);
-        const bool fasterEnd =
-                (m_nodePosition == VerticalPosition::Top) == (direction > 0);
-        displayPercent = fasterEnd ? upPercent : downPercent;
-    }
-
     if (m_nodeDisplay == DisplayType::Prefix) {
         m_nodeText = prefix;
     } else if (m_nodeDisplay == DisplayType::Range) {
-        m_nodeText = QString::number(displayPercent);
+        m_nodeText = QString::number(range * 100);
     } else {
-        m_nodeText = prefix.append(QString::number(displayPercent));
+        m_nodeText = prefix.append(QString::number(range * 100));
     }
 
     setText(m_nodeText);

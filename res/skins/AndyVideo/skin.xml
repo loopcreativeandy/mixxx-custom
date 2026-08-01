@@ -110,9 +110,6 @@
            deck in the normal skin too. Leave it to follow the shared setting;
            the preview deck is toggled by the user via the skin settings. -->
       <attribute persist="true" config_key="[Skin],show_library_coverart">1</attribute>
-    <!-- Andy custom: asymmetric -32..+8 tempo-range toggle (on by default).
-         Created here so the control exists before the rate sliders bind it. -->
-      <attribute persist="true" config_key="[Skin],rate_asymmetric">1</attribute>
 
     <!-- Disable hidden effect routing Buttons -->
       <attribute persist="false" config_key="[EffectRack1_EffectUnit1],group_[MasterOutput]_enable">0</attribute>
