@@ -399,7 +399,9 @@ void WAndysPlaylistPane::updateSelectionInfo() {
     const QModelIndexList indices = pSelectionModel
             ? pSelectionModel->selectedRows()
             : QModelIndexList();
-    if (indices.isEmpty()) {
+    // Only meaningful for a multi-selection: for a single track the length is
+    // already in its row, and the readout just adds noise on camera (Andy).
+    if (indices.size() < 2) {
         m_pSelectionInfo->clear();
         m_pSelectionInfo->setVisible(false);
         return;
