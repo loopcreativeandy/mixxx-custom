@@ -106,7 +106,9 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
             "QToolButton#AndysPaneSpoiler {"
             " background-color: #1e1e26; color: #ddba71;"
             " border: none; font-weight: bold; padding: 3px 8px; }"
-            "QToolButton#AndysPaneSpoiler:checked { color: #ff5ca8; }"
+            // No :checked colour override — Andy wants the dash in the same
+            // gold as the ✕ eject button; the 👁/– glyph already carries the
+            // state, a pink highlight only drew the eye on camera.
             "QToolButton#AndysPaneSpoiler:hover { color: #ffffff; }"));
     connect(m_pSpoilerButton,
             &QToolButton::clicked,
