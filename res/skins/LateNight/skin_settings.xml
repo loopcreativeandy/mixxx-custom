@@ -147,6 +147,16 @@ Description:
           </WidgetGroup><!-- DeckSizeSettings -->
 <!-- Deck size selectors -->
 
+          <!-- Andy custom: Exponential tempo-fader response (off = linear).
+               Lives up here with the deck settings; at the bottom of the
+               Library section it was easy to miss and got squeezed off the
+               panel on short windows. -->
+          <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
+            <SetVariable name="TooltipId">rate</SetVariable>
+            <SetVariable name="Text">Exponential Pitch</SetVariable>
+            <SetVariable name="Setting">[Skin],rate_exponential</SetVariable>
+          </Template>
+
 
 <!-- Deck Options FULL / Compact / mini -->
           <WidgetGroup>
@@ -501,13 +511,6 @@ Description:
                 <SetVariable name="TooltipId">show_coverart</SetVariable>
                 <SetVariable name="Text">Cover Art</SetVariable>
                 <SetVariable name="Setting">[Skin],show_library_coverart</SetVariable>
-              </Template>
-
-              <!-- Andy custom: Exponential tempo-fader response (off = linear) -->
-              <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
-                <SetVariable name="TooltipId">rate</SetVariable>
-                <SetVariable name="Text">Exponential Pitch</SetVariable>
-                <SetVariable name="Setting">[Skin],rate_exponential</SetVariable>
               </Template>
 
             </Children>
