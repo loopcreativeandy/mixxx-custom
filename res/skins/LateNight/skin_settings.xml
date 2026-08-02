@@ -297,6 +297,21 @@ Description:
             <Size>1min,12f</Size>
           </WidgetGroup>
 
+          <!-- Andy: spectrum analyzer on/off. Only the Andy skins contain the
+               meter; switching it off also stops the engine-side filter bank,
+               so 'off' is a true zero-cost baseline for CPU testing. -->
+          <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
+            <SetVariable name="Text">Spectrum Analyzer</SetVariable>
+            <SetVariable name="Setting">[Skin],show_spectrum</SetVariable>
+            <SetVariable name="TooltipId"></SetVariable>
+            <SetVariable name="Width">190me</SetVariable>
+          </Template>
+
+          <WidgetGroup>
+            <ObjectName>SkinSettingsSeparator</ObjectName>
+            <Size>1min,12f</Size>
+          </WidgetGroup>
+
           <!--  Mixer -->
           <WidgetGroup>
             <ObjectName></ObjectName>

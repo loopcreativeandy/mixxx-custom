@@ -19,11 +19,14 @@ class WSpectrumMeter : public WWidget {
     Q_OBJECT
   public:
     explicit WSpectrumMeter(QWidget* pParent = nullptr);
+    ~WSpectrumMeter() override;
 
     void setup(const QDomNode& node, const SkinContext& context);
 
   protected:
     void paintEvent(QPaintEvent* e) override;
+    void showEvent(QShowEvent* e) override;
+    void hideEvent(QHideEvent* e) override;
 
   private slots:
     void bandChanged(double value);
@@ -47,4 +50,5 @@ class WSpectrumMeter : public WWidget {
     QElapsedTimer m_clock;
     qint64 m_lastFrameMs;
     bool m_pendingDecayUpdate;
+    bool m_registeredListener = false;
 };

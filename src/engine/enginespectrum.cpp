@@ -42,10 +42,23 @@ double bandQ(int numBands) {
 
 } // namespace
 
+std::atomic<int> EngineSpectrum::s_listeners{0};
+
+// static
+void EngineSpectrum::registerListener() {
+    s_listeners.fetch_add(1, std::memory_order_relaxed);
+}
+
+// static
+void EngineSpectrum::unregisterListener() {
+    s_listeners.fetch_sub(1, std::memory_order_relaxed);
+}
+
 EngineSpectrum::EngineSpectrum(const QString& group)
         : m_bands(mixxx::SpectrumConfig::current().bands),
           m_bandQ(bandQ(m_bands)),
           m_samplesCalculated(0),
+          m_wasActive(false),
           m_configuredSampleRate(mixxx::audio::SampleRate()),
           m_scratch(kInitialScratchSize),
           m_sampleRate(QStringLiteral("[App]"), QStringLiteral("samplerate")) {
@@ -76,6 +89,19 @@ void EngineSpectrum::configureFilters(mixxx::audio::SampleRate sampleRate) {
 }
 
 void EngineSpectrum::process(CSAMPLE* pInOut, const std::size_t bufferSize) {
+    // No meter widget in the current skin: skip the whole filter bank. The
+    // one-time reset() zeroes the band controls so a meter created later
+    // starts from an empty display, and clears the accumulators; stale biquad
+    // state is fine — the filters re-converge within milliseconds.
+    if (s_listeners.load(std::memory_order_relaxed) == 0) {
+        if (m_wasActive) {
+            reset();
+            m_wasActive = false;
+        }
+        return;
+    }
+    m_wasActive = true;
+
     const auto sampleRate = mixxx::audio::SampleRate::fromDouble(m_sampleRate.get());
     if (!sampleRate.isValid()) {
         return;

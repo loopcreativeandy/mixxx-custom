@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <vector>
 
@@ -30,6 +31,12 @@ class EngineSpectrum : public EngineObject {
 
     void reset();
 
+    // Skins without a <SpectrumMeter> shouldn't pay for the filter bank on the
+    // audio thread: each WSpectrumMeter registers itself here and process()
+    // early-outs while the count is zero.
+    static void registerListener();
+    static void unregisterListener();
+
   private:
     void configureFilters(mixxx::audio::SampleRate sampleRate);
     static void doSmooth(CSAMPLE& currentValue, CSAMPLE newValue);
@@ -41,8 +48,11 @@ class EngineSpectrum : public EngineObject {
     std::vector<CSAMPLE> m_bandSums;
     std::vector<CSAMPLE> m_bandValues;
     unsigned int m_samplesCalculated;
+    bool m_wasActive;
     mixxx::audio::SampleRate m_configuredSampleRate;
     mixxx::SampleBuffer m_scratch;
 
     PollingControlProxy m_sampleRate;
+
+    static std::atomic<int> s_listeners;
 };

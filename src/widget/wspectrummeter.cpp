@@ -4,6 +4,7 @@
 #include <QTimer>
 
 #include "control/controlproxy.h"
+#include "engine/enginespectrum.h"
 #include "moc_wspectrummeter.cpp"
 #include "skin/legacy/skincontext.h"
 #include "util/spectrumconfig.h"
@@ -78,6 +79,36 @@ WSpectrumMeter::WSpectrumMeter(QWidget* pParent)
     m_peaks.assign(m_numBands, 0);
     m_peakVelocity.assign(m_numBands, 0);
     m_peakSetMs.assign(m_numBands, 0);
+}
+
+WSpectrumMeter::~WSpectrumMeter() {
+    // Safety net for a meter destroyed while still visible (skin teardown
+    // doesn't reliably deliver a final hide event).
+    if (m_registeredListener) {
+        EngineSpectrum::unregisterListener();
+        m_registeredListener = false;
+    }
+}
+
+// The engine-side filter bank only runs while at least one meter is actually
+// on screen, so the skin-settings toggle (and skins without the widget) drop
+// the whole spectrum cost, not just the painting. Qt delivers Show/Hide events
+// to children when an ancestor group is toggled, so a visibility-bound
+// WidgetGroup wrapper lands here too.
+void WSpectrumMeter::showEvent(QShowEvent* e) {
+    WWidget::showEvent(e);
+    if (!m_registeredListener) {
+        EngineSpectrum::registerListener();
+        m_registeredListener = true;
+    }
+}
+
+void WSpectrumMeter::hideEvent(QHideEvent* e) {
+    WWidget::hideEvent(e);
+    if (m_registeredListener) {
+        EngineSpectrum::unregisterListener();
+        m_registeredListener = false;
+    }
 }
 
 void WSpectrumMeter::setup(const QDomNode& node, const SkinContext& context) {

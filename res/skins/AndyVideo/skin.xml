@@ -42,6 +42,8 @@
       <!-- Andy Video: the waveforms ARE the video. Forced on every load. -->
       <attribute persist="false" config_key="[Skin],show_waveforms">1</attribute>
       <attribute persist="true" config_key="[Skin],timing_shift_buttons">0</attribute>
+      <!-- Andy: spectrum analyzer default ON; user choice persists. -->
+      <attribute persist="true" config_key="[Skin],show_spectrum">1</attribute>
 
     <!-- Decks -->
       <!-- general -->
@@ -619,11 +621,24 @@
                                         <Template src="skins:LateNight/mixer.xml"/>
                                       </Children>
                                     </WidgetGroup>
-                                    <SpectrumMeter>
-                                      <ObjectName>AndySpectrum</ObjectName>
+                                    <!-- Wrench-panel toggle: hiding the meter also
+                                         unregisters it from EngineSpectrum, so 'off'
+                                         means zero spectrum CPU (DSP + painting). -->
+                                    <WidgetGroup>
+                                      <Layout>vertical</Layout>
                                       <SizePolicy>me,me</SizePolicy>
-                                      <MinimumSize>150,60</MinimumSize>
-                                    </SpectrumMeter>
+                                      <Children>
+                                        <SpectrumMeter>
+                                          <ObjectName>AndySpectrum</ObjectName>
+                                          <SizePolicy>me,me</SizePolicy>
+                                          <MinimumSize>150,60</MinimumSize>
+                                        </SpectrumMeter>
+                                      </Children>
+                                      <Connection>
+                                        <ConfigKey persist="true">[Skin],show_spectrum</ConfigKey>
+                                        <BindProperty>visible</BindProperty>
+                                      </Connection>
+                                    </WidgetGroup>
                                   </Children>
                                 </WidgetGroup>
 
