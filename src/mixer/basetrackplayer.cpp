@@ -720,6 +720,18 @@ void BaseTrackPlayerImpl::slotTrackLoaded(TrackPointer pNewTrack,
                     m_pPitchAdjust->set(0.0);
                 }
             }
+
+            // Zouk mode (Andy): auto-match the new track's key to the other
+            // deck, exactly like pressing the MATCH button. file_key was set
+            // above, so KeyControl already knows the new track's key.
+            if (m_pChannel->isPrimaryDeck() &&
+                    m_pConfig->getValue(
+                            ConfigKey("[Controls]", "ZoukKeyMatchOnLoad"),
+                            false)) {
+                // trigger (set 1, then 0) like a button press
+                ControlObject::set(ConfigKey(getGroup(), "sync_key"), 1.0);
+                ControlObject::set(ConfigKey(getGroup(), "sync_key"), 0.0);
+            }
         } else {
             // perform a clone of the given channel
 

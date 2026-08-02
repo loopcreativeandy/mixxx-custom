@@ -16,6 +16,7 @@ class QWidget;
 
 namespace {
 constexpr bool kDefaultCloneDeckOnLoad = true;
+constexpr bool kDefaultZoukKeyMatchOnLoad = false;
 }
 
 namespace TrackTime {
@@ -75,6 +76,7 @@ class DlgPrefDeck : public DlgPreferencePage, public Ui::DlgPrefDeckDlg  {
     void slotSetTrackLoadMode(int comboboxIndex);
     void slotLoadWhenDeckPlayingIndexChanged(int comboboxIndex);
     void slotCloneDeckOnLoadDoubleTapCheckbox(bool);
+    void slotZoukKeyMatchOnLoadCheckbox(bool);
     void slotRateRampingModeLinearButton(bool);
     void slotRateRampSensitivitySlider(int);
 
@@ -120,6 +122,7 @@ class DlgPrefDeck : public DlgPreferencePage, public Ui::DlgPrefDeckDlg  {
 
     bool m_bSetIntroStartAtMainCue;
     bool m_bCloneDeckOnLoadDoubleTap;
+    bool m_bZoukKeyMatchOnLoad;
 
     int m_iRateRangePercent;
     bool m_bRateDownIncreasesSpeed;

@@ -227,6 +227,16 @@ DlgPrefDeck::DlgPrefDeck(QWidget* parent, UserSettingsPointer pConfig)
             this,
             &DlgPrefDeck::slotCloneDeckOnLoadDoubleTapCheckbox);
 
+    // Zouk mode: auto key-match on track load (Andy)
+    m_bZoukKeyMatchOnLoad = m_pConfig->getValue(
+            ConfigKey(kControlsGroup, QStringLiteral("ZoukKeyMatchOnLoad")),
+            kDefaultZoukKeyMatchOnLoad);
+    checkBoxZoukKeyMatchOnLoad->setChecked(m_bZoukKeyMatchOnLoad);
+    connect(checkBoxZoukKeyMatchOnLoad,
+            &QCheckBox::toggled,
+            this,
+            &DlgPrefDeck::slotZoukKeyMatchOnLoadCheckbox);
+
     m_bRateDownIncreasesSpeed = m_pConfig->getValue(
             ConfigKey(kControlsGroup, QStringLiteral("RateDir")), kDefaultRateDirectionInverted);
     setRateDirectionForAllDecks(m_bRateDownIncreasesSpeed);
@@ -450,6 +460,10 @@ void DlgPrefDeck::slotUpdate() {
     checkBoxCloneDeckOnLoadDoubleTap->setChecked(m_pConfig->getValue(
             ConfigKey(kControlsGroup, QStringLiteral("CloneDeckOnLoadDoubleTap")), true));
 
+    checkBoxZoukKeyMatchOnLoad->setChecked(m_pConfig->getValue(
+            ConfigKey(kControlsGroup, QStringLiteral("ZoukKeyMatchOnLoad")),
+            kDefaultZoukKeyMatchOnLoad));
+
     double rateRange = m_rateRangeControls[0]->get();
     int index = ComboBoxRateRange->findData(static_cast<int>(rateRange * 100.0));
     if (index == -1) {
@@ -535,6 +549,9 @@ void DlgPrefDeck::slotResetToDefaults() {
 
     // Clone decks by double-tapping Load button.
     checkBoxCloneDeckOnLoadDoubleTap->setChecked(kDefaultCloneDeckOnLoad);
+
+    // Zouk mode off by default.
+    checkBoxZoukKeyMatchOnLoad->setChecked(kDefaultZoukKeyMatchOnLoad);
 
     // Mixxx cue mode
     ComboBoxCueMode->setCurrentIndex(0);
@@ -625,6 +642,10 @@ void DlgPrefDeck::slotCueModeCombobox(int index) {
 
 void DlgPrefDeck::slotCloneDeckOnLoadDoubleTapCheckbox(bool checked) {
     m_bCloneDeckOnLoadDoubleTap = checked;
+}
+
+void DlgPrefDeck::slotZoukKeyMatchOnLoadCheckbox(bool checked) {
+    m_bZoukKeyMatchOnLoad = checked;
 }
 
 void DlgPrefDeck::slotSetTrackTimeDisplay(QAbstractButton* b) {
@@ -719,6 +740,8 @@ void DlgPrefDeck::slotApply() {
     m_pConfig->setValue(ConfigKey(kControlsGroup, QStringLiteral("CueRecall")), m_seekOnLoadMode);
     m_pConfig->setValue(ConfigKey(kControlsGroup, QStringLiteral("CloneDeckOnLoadDoubleTap")),
             m_bCloneDeckOnLoadDoubleTap);
+    m_pConfig->setValue(ConfigKey(kControlsGroup, QStringLiteral("ZoukKeyMatchOnLoad")),
+            m_bZoukKeyMatchOnLoad);
 
     // Set rate range
     // Set the config value before setting the CO values in setRateRangeForAllDecks()
