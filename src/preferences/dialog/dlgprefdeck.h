@@ -102,6 +102,9 @@ class DlgPrefDeck : public DlgPreferencePage, public Ui::DlgPrefDeckDlg  {
 
     const std::unique_ptr<ControlObject> m_pControlTrackTimeDisplay;
     const std::unique_ptr<ControlObject> m_pControlTrackTimeFormat;
+    // Live mirror of the ZoukKeyMatchOnLoad config key so widgets (WKey
+    // clash warning) can react without a restart.
+    const std::unique_ptr<ControlObject> m_pControlZoukMode;
 
     const parented_ptr<ControlProxy> m_pNumDecks;
     const parented_ptr<ControlProxy> m_pNumSamplers;

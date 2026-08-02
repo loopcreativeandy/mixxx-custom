@@ -38,6 +38,8 @@ DlgPrefDeck::DlgPrefDeck(QWidget* parent, UserSettingsPointer pConfig)
                   ConfigKey(kControlsGroup, QStringLiteral("ShowDurationRemaining")))),
           m_pControlTrackTimeFormat(std::make_unique<ControlObject>(
                   ConfigKey(kControlsGroup, QStringLiteral("TimeFormat")))),
+          m_pControlZoukMode(std::make_unique<ControlObject>(
+                  ConfigKey(kControlsGroup, QStringLiteral("zouk_mode")))),
           m_pNumDecks(make_parented<ControlProxy>(
                   kAppGroup, QStringLiteral("num_decks"), this)),
           m_pNumSamplers(make_parented<ControlProxy>(
@@ -231,6 +233,7 @@ DlgPrefDeck::DlgPrefDeck(QWidget* parent, UserSettingsPointer pConfig)
     m_bZoukKeyMatchOnLoad = m_pConfig->getValue(
             ConfigKey(kControlsGroup, QStringLiteral("ZoukKeyMatchOnLoad")),
             kDefaultZoukKeyMatchOnLoad);
+    m_pControlZoukMode->set(m_bZoukKeyMatchOnLoad ? 1.0 : 0.0);
     checkBoxZoukKeyMatchOnLoad->setChecked(m_bZoukKeyMatchOnLoad);
     connect(checkBoxZoukKeyMatchOnLoad,
             &QCheckBox::toggled,
@@ -742,6 +745,7 @@ void DlgPrefDeck::slotApply() {
             m_bCloneDeckOnLoadDoubleTap);
     m_pConfig->setValue(ConfigKey(kControlsGroup, QStringLiteral("ZoukKeyMatchOnLoad")),
             m_bZoukKeyMatchOnLoad);
+    m_pControlZoukMode->set(m_bZoukKeyMatchOnLoad ? 1.0 : 0.0);
 
     // Set rate range
     // Set the config value before setting the CO values in setRateRangeForAllDecks()
