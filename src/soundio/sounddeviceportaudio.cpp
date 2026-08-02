@@ -37,6 +37,15 @@ constexpr int kFifoSize = 2 * kDriftReserve + 1;
 
 constexpr int kCpuUsageUpdateRate = 30; // in 1/s, fits to display frame rate
 
+// A single callback that eats this much of its own deadline is close enough to
+// the edge to be worth flagging, even while the averaged usage meter still
+// looks harmless.
+constexpr double kLatencyPeakWarningThreshold = 0.8;
+
+// Hold a peak warning for this many update ticks (~0.5 s), otherwise a
+// one-callback spike is gone before it can be seen.
+constexpr int kLatencyPeakWarningTicks = kCpuUsageUpdateRate / 2;
+
 // We warn only at invalid timing 3, since the first two
 // callbacks can be always wrong due to a setup/open jitter
 constexpr int m_invalidTimeInfoWarningCount = 3;
@@ -93,6 +102,13 @@ SoundDevicePortAudio::SoundDevicePortAudio(UserSettingsPointer config,
           m_inputDrift(false),
           m_bSetThreadPriority(false),
           m_audioLatencyUsage(kAppGroup, QStringLiteral("audio_latency_usage")),
+          m_audioLatencyUsagePeak(kAppGroup,
+                  QStringLiteral("audio_latency_usage_peak")),
+          m_audioLatencyState(kAppGroup, QStringLiteral("audio_latency_state")),
+          m_audioLatencyOverload(kAppGroup,
+                  QStringLiteral("audio_latency_overload")),
+          m_maxCallbackUsage(0.0),
+          m_peakWarningTicks(0),
           m_framesSinceAudioLatencyUsageUpdate(0),
           m_syncBuffers(2),
           m_invalidTimeInfoCount(0),
@@ -1153,11 +1169,34 @@ void SoundDevicePortAudio::updateAudioLatencyUsage(
         double secInAudioCb = m_timeInAudioCallback.toDoubleSeconds();
         m_audioLatencyUsage.set(
                 secInAudioCb / (m_framesSinceAudioLatencyUsageUpdate / m_sampleRate.toDouble()));
+        m_audioLatencyUsagePeak.set(m_maxCallbackUsage);
+
+        if (m_maxCallbackUsage >= kLatencyPeakWarningThreshold) {
+            m_peakWarningTicks = kLatencyPeakWarningTicks;
+        } else if (m_peakWarningTicks > 0) {
+            --m_peakWarningTicks;
+        }
+        // An underflow PortAudio already reported outranks anything we measured
+        // ourselves. processUnderflowHappened() runs earlier in this same
+        // callback, so the overload flag is current.
+        if (m_audioLatencyOverload.toBool()) {
+            m_audioLatencyState.set(2.0);
+        } else {
+            m_audioLatencyState.set(m_peakWarningTicks > 0 ? 1.0 : 0.0);
+        }
+
+        m_maxCallbackUsage = 0.0;
         m_timeInAudioCallback = mixxx::Duration::fromSeconds(0);
         m_framesSinceAudioLatencyUsageUpdate = 0;
         // qDebug() << m_audioLatencyUsage
         //          << m_audioLatencyUsage->get();
     }
     // measure time in Audio callback at the very last
-    m_timeInAudioCallback += m_clkRefTimer.elapsed();
+    const mixxx::Duration timeInThisCallback = m_clkRefTimer.elapsed();
+    m_timeInAudioCallback += timeInThisCallback;
+    if (framesPerBuffer > 0) {
+        const double deadlineSecs = framesPerBuffer / m_sampleRate.toDouble();
+        m_maxCallbackUsage = math_max(m_maxCallbackUsage,
+                timeInThisCallback.toDoubleSeconds() / deadlineSecs);
+    }
 }

@@ -84,7 +84,14 @@ class SoundDevicePortAudio : public SoundDevice {
     // Whether we have set the thread priority to realtime or not.
     bool m_bSetThreadPriority;
     PollingControlProxy m_audioLatencyUsage;
+    PollingControlProxy m_audioLatencyUsagePeak;
+    PollingControlProxy m_audioLatencyState;
+    PollingControlProxy m_audioLatencyOverload;
     mixxx::Duration m_timeInAudioCallback;
+    // Worst per-callback deadline occupancy seen since the last update tick.
+    double m_maxCallbackUsage;
+    // Counts down update ticks so a single spike stays visible for a while.
+    int m_peakWarningTicks;
     int m_framesSinceAudioLatencyUsageUpdate;
     int m_syncBuffers;
     int m_invalidTimeInfoCount;

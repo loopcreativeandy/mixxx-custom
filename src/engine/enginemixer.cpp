@@ -82,6 +82,16 @@ EngineMixer::EngineMixer(UserSettingsPointer pConfig,
                           QStringLiteral("audio_latency_overload_count")))),
           m_pAudioLatencyUsage(std::make_unique<ControlObject>(
                   ConfigKey(kAppGroup, QStringLiteral("audio_latency_usage")))),
+          // Worst single audio callback within the last usage update window,
+          // as a fraction of that callback's deadline. Unlike
+          // audio_latency_usage (a ~33 ms average) this exposes the spikes
+          // that actually cause dropouts.
+          m_pAudioLatencyUsagePeak(std::make_unique<ControlObject>(ConfigKey(
+                  kAppGroup, QStringLiteral("audio_latency_usage_peak")))),
+          // 0 = headroom, 1 = a callback came close to its deadline,
+          // 2 = the buffer actually underflowed. Drives the meter's colour.
+          m_pAudioLatencyState(std::make_unique<ControlObject>(ConfigKey(
+                  kAppGroup, QStringLiteral("audio_latency_state")))),
           m_pAudioLatencyOverload(std::make_unique<ControlObject>(ConfigKey(
                   kAppGroup, QStringLiteral("audio_latency_overload")))),
           m_pTalkoverDucking(

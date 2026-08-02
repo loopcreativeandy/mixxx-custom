@@ -191,7 +191,12 @@ WSearchLineEdit,
   #LatencyMeterBox[highlight="0"] {
     border: 1px solid #040404;
   }
+  /* a callback came close to its deadline - a glitch is likely soon */
   #LatencyMeterBox[highlight="1"] {
+    border: 1px solid #ffa630;
+  }
+  /* the buffer actually underflowed - you heard that one */
+  #LatencyMeterBox[highlight="2"] {
     border: 1px solid red;
   }
 

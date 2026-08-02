@@ -981,7 +981,11 @@ void Tooltips::addStandardTooltips() {
             << tr("Audio Latency Usage Meter")
             << tr("Displays the fraction of latency used for audio processing.")
             << tr("A high value indicates that audible glitches are likely.")
-            << tr("Do not enable keylock, effects or additional decks in this situation.");
+            << tr("Do not enable keylock, effects or additional decks in this situation.")
+            << tr("The bar shows the worst single audio callback, not an "
+                  "average, so short spikes stay visible.")
+            << tr("Amber border: a callback came close to its deadline. "
+                  "Red border: the buffer underflowed and you heard it.");
 
     add("audio_latency_overload")
             << tr("Audio Latency Overload Indicator")

@@ -306,6 +306,8 @@ class EngineMixer : public QObject, public AudioSource {
     std::unique_ptr<ControlObject> m_pOutputLatencyMs;
     std::unique_ptr<ControlObject> m_pAudioLatencyOverloadCount;
     std::unique_ptr<ControlObject> m_pAudioLatencyUsage;
+    std::unique_ptr<ControlObject> m_pAudioLatencyUsagePeak;
+    std::unique_ptr<ControlObject> m_pAudioLatencyState;
     std::unique_ptr<ControlObject> m_pAudioLatencyOverload;
     std::unique_ptr<EngineTalkoverDucking> m_pTalkoverDucking;
     std::unique_ptr<EngineDelay> m_pMainDelay;
