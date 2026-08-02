@@ -421,6 +421,18 @@ void WTrackMenu::createActions() {
                 this,
                 &WTrackMenu::slotExportMetadataIntoFileTags);
 
+        m_pMarkPlayedAction = make_parented<QAction>(tr("Mark as Played"), this);
+        connect(m_pMarkPlayedAction,
+                &QAction::triggered,
+                this,
+                &WTrackMenu::slotMarkAsPlayed);
+
+        m_pMarkUnplayedAction = make_parented<QAction>(tr("Mark as Unplayed"), this);
+        connect(m_pMarkUnplayedAction,
+                &QAction::triggered,
+                this,
+                &WTrackMenu::slotMarkAsUnplayed);
+
         m_updateInExternalTrackCollections.reserve(
                 m_pLibrary->trackCollectionManager()->externalCollections().size());
         for (auto* const pExternalTrackCollection :
@@ -720,6 +732,8 @@ void WTrackMenu::setupActions() {
 
         addSeparator();
         addMenu(m_pMetadataMenu);
+        addAction(m_pMarkPlayedAction);
+        addAction(m_pMarkUnplayedAction);
 
         m_pHotcueMenu->addAction(m_pSortHotcuesByPositionCompressAction);
         m_pHotcueMenu->addAction(m_pSortHotcuesByPositionAction);
@@ -2035,6 +2049,47 @@ void WTrackMenu::slotClearPlayCount() {
             tr("Resetting play count of %n track(s)", "", getTrackCount());
     const auto trackOperator =
             ResetPlayCounterTrackPointerOperation();
+    applyTrackPointerOperation(
+            progressLabelText,
+            &trackOperator);
+}
+
+namespace {
+
+class SetPlayedStatusTrackPointerOperation : public mixxx::TrackPointerOperation {
+  public:
+    explicit SetPlayedStatusTrackPointerOperation(bool played)
+            : m_played(played) {
+    }
+
+  private:
+    void doApply(
+            const TrackPointer& pTrack) const override {
+        // Only set the played status; leave the play count untouched
+        // (same semantics as the playlist-level mark all played/unplayed).
+        pTrack->updatePlayedStatusKeepPlayCount(m_played);
+    }
+
+    const bool m_played;
+};
+
+} // anonymous namespace
+
+void WTrackMenu::slotMarkAsPlayed() {
+    const auto progressLabelText =
+            tr("Marking %n track(s) as played", "", getTrackCount());
+    const auto trackOperator =
+            SetPlayedStatusTrackPointerOperation(true);
+    applyTrackPointerOperation(
+            progressLabelText,
+            &trackOperator);
+}
+
+void WTrackMenu::slotMarkAsUnplayed() {
+    const auto progressLabelText =
+            tr("Marking %n track(s) as unplayed", "", getTrackCount());
+    const auto trackOperator =
+            SetPlayedStatusTrackPointerOperation(false);
     applyTrackPointerOperation(
             progressLabelText,
             &trackOperator);

@@ -141,6 +141,11 @@ class WTrackMenu : public QMenu {
     // Row color
     void slotColorPicked(const mixxx::RgbColor::optional_t& color);
 
+    // Played status (Andy: mark a selection played/unplayed like the
+    // playlist-level actions, but per track)
+    void slotMarkAsPlayed();
+    void slotMarkAsUnplayed();
+
     // Reset
     void slotClearBeats();
     void slotClearPlayCount();
@@ -311,6 +316,10 @@ class WTrackMenu : public QMenu {
 
     // Save Track Metadata Action:
     parented_ptr<QAction> m_pExportMetadataAct;
+
+    // Mark selection played/unplayed
+    parented_ptr<QAction> m_pMarkPlayedAction;
+    parented_ptr<QAction> m_pMarkUnplayedAction;
 
     // Send to Auto-DJ Action
     parented_ptr<QAction> m_pAutoDJBottomAct;
