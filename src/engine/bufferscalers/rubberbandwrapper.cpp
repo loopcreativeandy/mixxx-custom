@@ -186,7 +186,7 @@ void RubberBandWrapper::process(const float* const* input, size_t samples, bool 
             pInstance->set(input, samples, isFinal);
             // We try to get the stretching job ran by the RBPool if there is a
             // worker slot available
-            if (!pPool->tryStart(pInstance.get())) {
+            if (!pPool->tryStartTask(pInstance.get())) {
                 // Otherwise, it means the main thread should take care of the stretching
                 pInstance->run();
             }
