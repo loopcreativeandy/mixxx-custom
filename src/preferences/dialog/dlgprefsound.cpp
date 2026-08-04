@@ -27,6 +27,8 @@ const ConfigKey kKeylockEngingeCfgkey =
         ConfigKey(kAppGroup, QStringLiteral("keylock_engine"));
 const ConfigKey kKeylockMultiThreadingCfgkey =
         ConfigKey(kAppGroup, QStringLiteral("keylock_multithreading"));
+const ConfigKey kKeylockParallelStemsCfgkey =
+        ConfigKey(kAppGroup, QStringLiteral("keylock_parallel_stems"));
 
 bool soundItemAlreadyExists(const AudioPath& output, const QWidget& widget) {
     for (const QObject* pObj : widget.children()) {
@@ -231,8 +233,17 @@ DlgPrefSound::DlgPrefSound(QWidget* pParent,
             &QCheckBox::clicked,
             this,
             &DlgPrefSound::updateKeylockMultithreading);
+    connect(keylockParallelStemsCheckBox,
+            &QCheckBox::clicked,
+            this,
+            &DlgPrefSound::settingChanged);
+    keylockParallelStemsCheckBox->setToolTip(tr(
+            "Stretch the parts of a stem deck on parallel worker threads "
+            "instead of serially on the engine thread. Spreads the keylock "
+            "CPU load of stem tracks over multiple cores."));
 #else
     keylockDualthreadedCheckBox->hide();
+    keylockParallelStemsCheckBox->hide();
 #endif
 
     connect(queryButton, &QAbstractButton::clicked, this, &DlgPrefSound::queryClicked);
@@ -379,12 +390,20 @@ void DlgPrefSound::slotApply() {
 #ifdef __RUBBERBAND__
         bool keylockMultithreading = m_pSettings->getValue(
                 kKeylockMultiThreadingCfgkey, false);
+        bool keylockParallelStems = m_pSettings->getValue(
+                kKeylockParallelStemsCfgkey, false);
         m_pSettings->setValue(kKeylockMultiThreadingCfgkey,
                 keylockDualthreadedCheckBox->isChecked() &&
                         keylockDualthreadedCheckBox->isEnabled());
+        m_pSettings->setValue(kKeylockParallelStemsCfgkey,
+                keylockParallelStemsCheckBox->isChecked() &&
+                        keylockParallelStemsCheckBox->isEnabled());
         if (keylockMultithreading !=
-                (keylockDualthreadedCheckBox->isChecked() &&
-                        keylockDualthreadedCheckBox->isEnabled())) {
+                        (keylockDualthreadedCheckBox->isChecked() &&
+                                keylockDualthreadedCheckBox->isEnabled()) ||
+                keylockParallelStems !=
+                        (keylockParallelStemsCheckBox->isChecked() &&
+                                keylockParallelStemsCheckBox->isEnabled())) {
             QMessageBox::information(this,
                     tr("Information"),
                     tr("Mixxx must be restarted before the multi-threaded "
@@ -604,6 +623,9 @@ void DlgPrefSound::loadSettings(const SoundManagerConfig& config) {
     keylockDualthreadedCheckBox->setChecked(m_pSettings->getValue(
             kKeylockMultiThreadingCfgkey,
             false));
+    keylockParallelStemsCheckBox->setChecked(m_pSettings->getValue(
+            kKeylockParallelStemsCfgkey,
+            false));
 #endif
 
     // Collect selected I/O channel indices for all non-empty device comboboxes
@@ -809,6 +831,9 @@ void DlgPrefSound::updateKeylockDualThreadingCheckbox() {
             EngineBuffer::KeylockEngine::SoundTouch;
     bool monoMix = mainOutputModeComboBox->currentIndex() == 1;
     keylockDualthreadedCheckBox->setEnabled(!monoMix && supportedScaler);
+    // Parallel stem stretching only depends on the scaler being RubberBand;
+    // stems are always processed as stereo pairs, so a mono main mix is fine.
+    keylockParallelStemsCheckBox->setEnabled(supportedScaler);
     keylockDualthreadedCheckBox->setToolTip(monoMix
                     ? kKeylockMultiThreadedUnavailableMono
                     : (supportedScaler
