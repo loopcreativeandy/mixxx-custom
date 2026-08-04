@@ -87,6 +87,34 @@ T* findFirstStoppedPlayerInList(const QList<T*>& players) {
     return nullptr;
 }
 
+/// Returns the deck a library "load" action should target: the lowest-numbered
+/// *visible* deck without a loaded track, falling back to the lowest-numbered
+/// visible stopped deck. Skins with a 2/4-deck toggle expose
+/// [Skin],show_4decks; when that control exists and is off, decks 3/4 are
+/// hidden and are never targeted.
+template<class T>
+T* findLoadTargetDeckInList(const QList<T*>& decks) {
+    int visibleCount = decks.size();
+    ControlObject* pShow4Decks = ControlObject::getControl(
+            ConfigKey(QStringLiteral("[Skin]"), QStringLiteral("show_4decks")),
+            ControlFlag::NoWarnIfMissing);
+    if (pShow4Decks != nullptr && !pShow4Decks->toBool()) {
+        visibleCount = qMin(2, visibleCount);
+    }
+
+    for (int i = 0; i < visibleCount; ++i) {
+        T* pPlayer = decks[i];
+        VERIFY_OR_DEBUG_ASSERT(pPlayer != nullptr) {
+            continue;
+        }
+        if (!pPlayer->getLoadedTrack()) {
+            return pPlayer;
+        }
+    }
+
+    return findFirstStoppedPlayerInList(decks.mid(0, visibleCount));
+}
+
 inline QString getDefaultSamplerPath(UserSettingsPointer pConfig) {
     return pConfig->getSettingsPath() + QStringLiteral("/samplers.xml");
 }
@@ -731,7 +759,7 @@ void PlayerManager::slotLoadToSampler(const QString& location, int sampler) {
 
 void PlayerManager::slotLoadTrackIntoNextAvailableDeck(TrackPointer pTrack) {
     auto locker = lockMutex(&m_mutex);
-    BaseTrackPlayer* pDeck = findFirstStoppedPlayerInList(m_decks);
+    BaseTrackPlayer* pDeck = findLoadTargetDeckInList(m_decks);
     if (pDeck == nullptr) {
         qDebug() << "PlayerManager: No stopped deck found, not loading track!";
         return;
@@ -760,7 +788,7 @@ void PlayerManager::slotLoadTrackIntoNextAvailableDeck(TrackPointer pTrack) {
 
 void PlayerManager::slotLoadLocationIntoNextAvailableDeck(const QString& location, bool play) {
     auto locker = lockMutex(&m_mutex);
-    BaseTrackPlayer* pDeck = findFirstStoppedPlayerInList(m_decks);
+    BaseTrackPlayer* pDeck = findLoadTargetDeckInList(m_decks);
     if (pDeck == nullptr) {
         qDebug() << "PlayerManager: No stopped deck found, not loading track!";
         return;
