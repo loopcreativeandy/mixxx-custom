@@ -1,5 +1,6 @@
 #include "library/trackset/playlistfeature.h"
 
+#include <QHash>
 #include <QMenu>
 #include <QSqlTableModel>
 #include <QtDebug>
@@ -110,6 +111,12 @@ void PlaylistFeature::onRightClickChild(
     //Save the model index so we can get it in the action slots...
     m_lastRightClickedIndex = index;
     int playlistId = playlistIdFromIndex(index);
+    if (playlistId == kInvalidPlaylistId) {
+        // Folder node: none of the per-playlist actions apply, offer the
+        // same menu as the feature root.
+        onRightClick(globalPos);
+        return;
+    }
 
     bool locked = m_playlistDao.isPlaylistLocked(playlistId);
     m_pDeletePlaylistAction->setEnabled(!locked);
@@ -153,7 +160,8 @@ void PlaylistFeature::onRightClickChild(
 bool PlaylistFeature::dropAcceptChild(
         const QModelIndex& index, const QList<QUrl>& urls, QObject* pSource) {
     int playlistId = playlistIdFromIndex(index);
-    VERIFY_OR_DEBUG_ASSERT(playlistId != kInvalidPlaylistId) {
+    if (playlistId == kInvalidPlaylistId) {
+        // Folder nodes have no playlist id; tracks can't be dropped there.
         return false;
     }
     VERIFY_OR_DEBUG_ASSERT(!m_playlistDao.isPlaylistLocked(playlistId)) {
@@ -266,6 +274,7 @@ QList<BasePlaylistFeature::IdAndLabel> PlaylistFeature::createPlaylistLabels() {
         BasePlaylistFeature::IdAndLabel idAndLabel;
         idAndLabel.id = id;
         idAndLabel.label = createPlaylistLabel(name, count, duration);
+        idAndLabel.name = name;
         playlistLabels.append(idAndLabel);
     }
     return playlistLabels;
@@ -391,38 +400,68 @@ void PlaylistFeature::slotDeleteAllUnlockedPlaylists() {
 /// we require the sidebar model not to reset.
 /// This method queries the database and does dynamic insertion
 /// @param selectedId entry which should be selected
+// andy-custom: sidebar folder support. A playlist named "Folder/Playlist"
+// is grouped under an expandable "Folder" node (one level only, split at
+// the first '/'). Rename a playlist to move it in or out of a folder.
+QString PlaylistFeature::sidebarFolderOfName(const QString& name) {
+    const int slash = name.indexOf(QLatin1Char('/'));
+    if (slash <= 0) {
+        return QString();
+    }
+    const QString folder = name.left(slash).trimmed();
+    const QString leaf = name.mid(slash + 1).trimmed();
+    if (folder.isEmpty() || leaf.isEmpty()) {
+        return QString();
+    }
+    return folder;
+}
+
+QString PlaylistFeature::createPlaylistLabel(
+        const QString& name, int count, int duration) const {
+    if (!sidebarFolderOfName(name).isEmpty()) {
+        const QString leaf = name.mid(name.indexOf(QLatin1Char('/')) + 1).trimmed();
+        return BasePlaylistFeature::createPlaylistLabel(leaf, count, duration);
+    }
+    return BasePlaylistFeature::createPlaylistLabel(name, count, duration);
+}
+
 QModelIndex PlaylistFeature::constructChildModel(int selectedId) {
     // qDebug() << "PlaylistFeature::constructChildModel() id:" << selectedId;
     std::vector<std::unique_ptr<TreeItem>> childrenToAdd;
-    int selectedRow = -1;
+    // Folder nodes carry no playlist id (invalid data), so activating them
+    // or dropping tracks on them is a no-op. A folder sits at the position
+    // of its first member in the tier/date sort; member order inside the
+    // folder keeps the global sort.
+    QHash<QString, TreeItem*> folders;
 
-    int row = 0;
     const QList<IdAndLabel> playlistLabels = createPlaylistLabels();
     for (const auto& idAndLabel : playlistLabels) {
         int playlistId = idAndLabel.id;
-        QString playlistLabel = idAndLabel.label;
+        const QString folder = sidebarFolderOfName(idAndLabel.name);
 
-        if (selectedId == playlistId) {
-            // save index for selection
-            selectedRow = row;
+        TreeItem* pItem;
+        if (folder.isEmpty()) {
+            // Create the TreeItem whose parent is the invisible root item
+            auto pNewItem = std::make_unique<TreeItem>(idAndLabel.label, playlistId);
+            pItem = pNewItem.get();
+            childrenToAdd.push_back(std::move(pNewItem));
+        } else {
+            TreeItem* pFolderItem = folders.value(folder, nullptr);
+            if (pFolderItem == nullptr) {
+                auto pNewFolderItem = std::make_unique<TreeItem>(folder);
+                pFolderItem = pNewFolderItem.get();
+                folders.insert(folder, pFolderItem);
+                childrenToAdd.push_back(std::move(pNewFolderItem));
+            }
+            pItem = pFolderItem->appendChild(idAndLabel.label, playlistId);
         }
-
-        // Create the TreeItem whose parent is the invisible root item
-        auto pItem = std::make_unique<TreeItem>(playlistLabel, playlistId);
         pItem->setBold(m_playlistIdsOfSelectedTrack.contains(playlistId));
-
-        decorateChild(pItem.get(), playlistId);
-        childrenToAdd.push_back(std::move(pItem));
-
-        ++row;
+        decorateChild(pItem, playlistId);
     }
 
     // Append all the newly created TreeItems in a dynamic way to the childmodel
     m_pSidebarModel->insertTreeItemRows(std::move(childrenToAdd), 0);
-    if (selectedRow == -1) {
-        return QModelIndex();
-    }
-    return m_pSidebarModel->index(selectedRow, 0);
+    return indexFromPlaylistId(selectedId);
 }
 
 void PlaylistFeature::decorateChild(TreeItem* item, int playlistId) {

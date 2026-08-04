@@ -85,6 +85,9 @@ class BasePlaylistFeature : public BaseTrackSetFeature {
     struct IdAndLabel {
         int id;
         QString label;
+        // Raw playlist name, needed by PlaylistFeature to derive the
+        // sidebar folder from a "Folder/Playlist" naming convention.
+        QString name;
     };
 
     virtual void updateChildModel(const QSet<int>& playlistIds);
@@ -100,7 +103,7 @@ class BasePlaylistFeature : public BaseTrackSetFeature {
     QModelIndex indexFromPlaylistId(int playlistId);
     bool isChildIndexSelectedInSidebar(const QModelIndex& index);
 
-    QString createPlaylistLabel(const QString& name, int count, int duration) const;
+    virtual QString createPlaylistLabel(const QString& name, int count, int duration) const;
 
     PlaylistDAO& m_playlistDao;
     QModelIndex m_lastClickedIndex;

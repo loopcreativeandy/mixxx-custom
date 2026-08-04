@@ -47,9 +47,16 @@ class PlaylistFeature : public BasePlaylistFeature {
     void decorateChild(TreeItem* pChild, int playlistId) override;
     QList<IdAndLabel> createPlaylistLabels();
     QModelIndex constructChildModel(int selectedId);
+    // Renders the leaf name only for playlists grouped into a sidebar
+    // folder via the "Folder/Playlist" naming convention.
+    QString createPlaylistLabel(const QString& name, int count, int duration) const override;
 
   private:
     QString getRootViewHtml() const override;
+    // Returns the sidebar folder a playlist belongs to per the
+    // "Folder/Playlist" naming convention, or an empty string for
+    // top-level playlists.
+    static QString sidebarFolderOfName(const QString& name);
     // Set the played status of every track in the right-clicked playlist,
     // without changing the play count. Backs the "Mark all tracks
     // played/unplayed" context-menu actions.
