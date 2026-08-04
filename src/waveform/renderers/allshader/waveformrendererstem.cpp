@@ -77,19 +77,16 @@ bool WaveformRendererStem::init() {
 
 #ifndef __SCENEGRAPH__
     auto* pWaveformWidgetFactory = WaveformWidgetFactory::instance();
-    setReorderOnChange(pWaveformWidgetFactory->isStemReorderOnChange());
-    connect(pWaveformWidgetFactory,
-            &WaveformWidgetFactory::stemReorderOnChangeChanged,
-            this,
-            &WaveformRendererStem::setReorderOnChange);
-    // andy-custom CP17: the split-lane rendering below already existed but was
-    // only reachable from the QML skin; wire it to the same factory/preferences
-    // plumbing the other stem options use so the legacy skins can toggle it.
     setSplitStemTracks(pWaveformWidgetFactory->isStemSplitTracks());
     connect(pWaveformWidgetFactory,
             &WaveformWidgetFactory::stemSplitTracksChanged,
             this,
             &WaveformRendererStem::setSplitStemTracks);
+    setReorderOnChange(pWaveformWidgetFactory->isStemReorderOnChange());
+    connect(pWaveformWidgetFactory,
+            &WaveformWidgetFactory::stemReorderOnChangeChanged,
+            this,
+            &WaveformRendererStem::setReorderOnChange);
     setOutlineOpacity(pWaveformWidgetFactory->getStemOutlineOpacity());
     connect(pWaveformWidgetFactory,
             &WaveformWidgetFactory::stemOutlineOpacityChanged,
@@ -210,6 +207,10 @@ bool WaveformRendererStem::preprocessInner() {
     const double maxSamplingRange = visualIncrementPerPixel / 2.0;
 
     for (int visualIdx = 0; visualIdx < stripLength; visualIdx++) {
+        // Position of the stem in the drawing order; only used for the lane
+        // offset in the overlapping mode (in split mode the lane is fixed to
+        // the manifest index so lanes don't reshuffle on stem changes).
+        int stemLayer = 0;
         for (int stemIdx : std::as_const(m_stackOrder)) {
             // m_stackOrder always spans kMaxSupportedStems entries; a track
             // whose manifest declares fewer stems must not index past its
@@ -298,28 +299,32 @@ bool WaveformRendererStem::preprocessInner() {
                     }
                 }
 
-                // andy-custom CP19: in split mode each stem owns a FIXED lane
-                // (its manifest index, i.e. the same top-to-bottom order as the
-                // stem knobs in the skin). Using the stack order here made the
-                // lanes swap places whenever a stem was touched, which is
-                // unreadable. The stack order still governs the drawing order,
-                // so the "last touched stem draws on top" behaviour is kept for
-                // the overlapping (non-split) mode.
-                const float laneOffset = stemIdx * stemBreadth;
+                // In split mode each stem owns a FIXED lane (its manifest
+                // index, i.e. the same top-to-bottom order as the stem knobs
+                // in the skin); the stack order still governs the drawing
+                // order in the overlapping mode. Upstream converged on the
+                // same rule (yIndex) and additionally clips each lane's
+                // height so a loud stem cannot overdraw its neighbour.
+                // yIndex is only meaningful in split mode: overlapping mode
+                // has stemBreadth == 0, so the lane offset vanishes there.
 
                 // Lines are thin rectangles
                 // shadow
+                float height = heightFactor * max;
+                if (m_splitStemTracks) {
+                    height = std::min(height, halfBreadth);
+                }
+                const int yIndex = stemIdx;
                 vertexUpdater.addRectangle(
                         {fVisualIdx - halfStripSize,
-                                laneOffset + halfBreadth -
-                                        heightFactor * max},
+                                yIndex * stemBreadth + halfBreadth - height},
                         {fVisualIdx + halfStripSize,
                                 m_isSlipRenderer
-                                        ? laneOffset + halfBreadth
-                                        : laneOffset + halfBreadth +
-                                                heightFactor * max},
+                                        ? yIndex * stemBreadth + halfBreadth
+                                        : yIndex * stemBreadth + halfBreadth + height},
                         {color_r, color_g, color_b, color_a});
             }
+            stemLayer++;
         }
 
         xVisualFrame += visualIncrementPerPixel;

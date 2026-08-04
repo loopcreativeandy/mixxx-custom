@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QSurfaceFormat>
 #include <QVector>
+#include <memory>
 #include <vector>
 
 #include "preferences/usersettings.h"
@@ -20,6 +21,7 @@ class WaveformWidgetAbstract;
 class VSyncThread;
 class GuiTick;
 class VisualsManager;
+class ControlObject;
 
 class WaveformWidgetAbstractHandle {
   public:
@@ -342,6 +344,7 @@ class WaveformWidgetFactory : public QObject,
     bool m_stemSplitTracks;
     float m_stemOutlineOpacity;
     float m_stemOpacity;
+    std::unique_ptr<ControlObject> m_pStemSplitTracksControl;
 
     bool m_openGlAvailable;
     bool m_openGlesAvailable;
