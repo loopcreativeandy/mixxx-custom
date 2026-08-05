@@ -256,10 +256,15 @@ bool WaveformRendererStem::preprocessInner() {
                     }
                 }
 
-                // On the fill layer, color the strip by its low/mid/high band
-                // content (RGB waveform style); the outline layer keeps the
-                // flat stem color so stems stay identifiable.
-                if (layerIdx && hasStemBands) {
+                // Color the strip by its low/mid/high band content (RGB
+                // waveform style). The fill layer is always RGB; the faded
+                // outline layer keeps the flat stem color ONLY in overlapping
+                // mode, where the flat color is the only way to tell the
+                // stems apart. In split mode each stem owns its own lane, so
+                // identity comes from the position and the ghost is more
+                // useful showing the actual frequency content (Andy,
+                // 2026-08-05).
+                if ((layerIdx || m_splitStemTracks) && hasStemBands) {
                     const float maxLow = static_cast<float>(u8maxLow) * lowGain;
                     const float maxMid = static_cast<float>(u8maxMid) * midGain;
                     const float maxHigh = static_cast<float>(u8maxHigh) * highGain;
