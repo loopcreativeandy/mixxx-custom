@@ -328,8 +328,93 @@ TEST_F(StemOriginalTest, alignsWhenTheStemWasAnalyzedAtDoubleTempo) {
     const CuePointer pHotcue = m_pStem->findHotcueByIndex(1);
     ASSERT_NE(nullptr, pHotcue);
     EXPECT_NEAR(4 * 22050 + kDelayFrames44k, pHotcue->getPosition().value(), 2);
-    // The stem keeps its own tempo, the original's is not forced onto it
-    EXPECT_DOUBLE_EQ(240, m_pStem->getBpm());
+    // The tempo number follows the original, so the double-tempo reading is
+    // corrected. Every beat of the original is still a beat of the stem: the
+    // re-tempoed grid is anchored on a beat that both grids share, never on one
+    // of the in-between beats of the double-tempo reading.
+    EXPECT_DOUBLE_EQ(120, m_pStem->getBpm());
+    const mixxx::BeatsPointer pStemBeats = m_pStem->getBeats();
+    ASSERT_NE(nullptr, pStemBeats);
+    EXPECT_NEAR(kDelayFrames44k,
+            pStemBeats->findClosestBeat(mixxx::audio::FramePos(kDelayFrames44k)).value(),
+            2);
+}
+
+TEST_F(StemOriginalTest, adoptsTheOriginalsHandCorrectedBpmWithoutMovingTheGrid) {
+    // What Andy actually does: the analyzer read 127.98 for the stem file, he
+    // corrected the original to a round 128 by hand.
+    ASSERT_TRUE(m_pOriginal->trySetBeats(constTempoBeats(44100, 0, 128)));
+    ASSERT_TRUE(m_pStem->trySetBeats(constTempoBeats(44100, kDelayFrames44k, 127.98)));
+
+    const double beatFrames128 = 60.0 * 44100 / 128.0;
+    m_pOriginal->createAndAddCue(mixxx::CueType::HotCue,
+            1,
+            mixxx::audio::FramePos(4 * beatFrames128),
+            mixxx::audio::FramePos());
+
+    const auto result = mixxx::stemoriginal::importFromOriginal(*m_pStem, *m_pOriginal);
+    EXPECT_TRUE(result.alignedToTargetGrid);
+    // The grid was not copied from the original, only its tempo was adopted
+    EXPECT_FALSE(result.beatsCopied);
+    EXPECT_TRUE(result.bpmCopied);
+    EXPECT_DOUBLE_EQ(128, result.bpmAdopted);
+    // Exactly the original's number, not a rounded or averaged version of it
+    EXPECT_DOUBLE_EQ(128, m_pStem->getBpm());
+
+    // The phase still belongs to the stem file: its first beat sits at the
+    // codec delay, not at zero like the original's.
+    const mixxx::BeatsPointer pStemBeats = m_pStem->getBeats();
+    ASSERT_NE(nullptr, pStemBeats);
+    EXPECT_NEAR(kDelayFrames44k,
+            pStemBeats->findClosestBeat(mixxx::audio::FramePos(kDelayFrames44k)).value(),
+            2);
+
+    // And the cue correction happened as before
+    const CuePointer pHotcue = m_pStem->findHotcueByIndex(1);
+    ASSERT_NE(nullptr, pHotcue);
+    EXPECT_NEAR(4 * beatFrames128 + kDelayFrames44k, pHotcue->getPosition().value(), 2);
+}
+
+TEST_F(StemOriginalTest, reportsAMatchingBpmAsAdoptedWithoutTouchingTheGrid) {
+    ASSERT_TRUE(m_pOriginal->trySetBeats(constTempoBeats(44100, 0, 120)));
+    ASSERT_TRUE(m_pStem->trySetBeats(constTempoBeats(44100, kDelayFrames44k, 120)));
+    const mixxx::BeatsPointer pBeatsBefore = m_pStem->getBeats();
+
+    const auto result = mixxx::stemoriginal::importFromOriginal(*m_pStem, *m_pOriginal);
+    EXPECT_TRUE(result.bpmCopied);
+    EXPECT_DOUBLE_EQ(120, result.bpmAdopted);
+    // Same tempo on both sides: the grid object is not even replaced
+    EXPECT_EQ(pBeatsBefore, m_pStem->getBeats());
+}
+
+TEST_F(StemOriginalTest, adoptsTheOriginalsBpmAcrossSampleRates) {
+    TrackPointer pOriginal48 = newTrack(kOriginalLocation, 48000);
+    ASSERT_TRUE(pOriginal48->trySetBeats(constTempoBeats(48000, 0, 128)));
+    ASSERT_TRUE(m_pStem->trySetBeats(constTempoBeats(44100, kDelayFrames44k, 127.98)));
+
+    const auto result = mixxx::stemoriginal::importFromOriginal(*m_pStem, *pOriginal48);
+    EXPECT_TRUE(result.alignedToTargetGrid);
+    EXPECT_DOUBLE_EQ(128, m_pStem->getBpm());
+    // The new grid belongs to the stem file, so it is built at the stem's rate
+    const mixxx::BeatsPointer pStemBeats = m_pStem->getBeats();
+    ASSERT_NE(nullptr, pStemBeats);
+    EXPECT_EQ(44100, pStemBeats->getSampleRate());
+    EXPECT_NEAR(kDelayFrames44k,
+            pStemBeats->findClosestBeat(mixxx::audio::FramePos(kDelayFrames44k)).value(),
+            2);
+}
+
+TEST_F(StemOriginalTest, doesNotAdoptABpmOntoALockedStemTrack) {
+    // The import unlocks the target, so a BPM lock must not block the tempo
+    // change either - and the source's lock state is what survives.
+    ASSERT_TRUE(m_pOriginal->trySetBeats(constTempoBeats(44100, 0, 128)));
+    ASSERT_TRUE(m_pStem->trySetBeats(constTempoBeats(44100, kDelayFrames44k, 127.98)));
+    m_pStem->setBpmLocked(true);
+
+    const auto result = mixxx::stemoriginal::importFromOriginal(*m_pStem, *m_pOriginal);
+    EXPECT_TRUE(result.bpmCopied);
+    EXPECT_DOUBLE_EQ(128, m_pStem->getBpm());
+    EXPECT_FALSE(m_pStem->isBpmLocked());
 }
 
 TEST_F(StemOriginalTest, alignsAcrossSampleRates) {

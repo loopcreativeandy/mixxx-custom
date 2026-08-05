@@ -1549,6 +1549,9 @@ struct ImportFromOriginalSummary {
     int alignedCount = 0;
     double minShiftMillis = 0.0;
     double maxShiftMillis = 0.0;
+    /// Stem tracks that kept their own beat grid but took over the original's
+    /// tempo.
+    int bpmAdoptedCount = 0;
     /// Stem tracks without a usable beat grid of their own: their cues could
     /// not be corrected for the stem file's codec delay.
     QStringList unalignedTracks;
@@ -1590,6 +1593,9 @@ class ImportFromOriginalTrackPointerOperation : public mixxx::TrackPointerOperat
                         m_pSummary->maxShiftMillis, result.alignmentShiftMillis);
             }
             m_pSummary->alignedCount++;
+            if (result.bpmAdopted > 0) {
+                m_pSummary->bpmAdoptedCount++;
+            }
         } else {
             m_pSummary->unalignedTracks.append(pTrack->getInfo());
         }
@@ -1719,6 +1725,13 @@ void WTrackMenu::slotImportFromOriginalTrack() {
                 "",
                 pSummary->alignedCount)
                               .arg(shiftText));
+    }
+    if (pSummary->bpmAdoptedCount > 0) {
+        report.append(tr("%n track(s): the beat grid keeps the stem file's own "
+                         "beat positions and now runs at the original track's "
+                         "BPM.",
+                "",
+                pSummary->bpmAdoptedCount));
     }
     if (!pSummary->unalignedTracks.isEmpty()) {
         report.append(tr("%n track(s) have no beat grid of their own, so their "

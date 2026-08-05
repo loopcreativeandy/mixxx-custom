@@ -110,6 +110,10 @@ struct ImportResult {
     /// Median time correction that was applied to the imported cue positions.
     /// Only meaningful if `alignedToTargetGrid` is true.
     double alignmentShiftMillis = 0.0;
+    /// The BPM the target now runs at after adopting the source's tempo, or
+    /// 0.0 if no tempo was adopted. Only set when the target kept its own beat
+    /// grid, i.e. together with `alignedToTargetGrid`.
+    double bpmAdopted = 0.0;
 };
 
 /// Copy cue points, beat grid/BPM, key and the descriptive metadata from
@@ -118,7 +122,9 @@ struct ImportResult {
 ///
 /// If `target` has a beat grid of its own at a compatible tempo, that grid is
 /// kept and the imported cue positions are corrected by the offset between the
-/// two grids, which cancels out the stem file's codec delay.
+/// two grids, which cancels out the stem file's codec delay. The grid's tempo
+/// is still set to the source's exact BPM - hand-corrected tempo has to reach
+/// the stem track - while its phase stays where the stem file's beats are.
 ImportResult importFromOriginal(Track& target, const Track& source);
 
 } // namespace stemoriginal

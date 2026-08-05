@@ -326,6 +326,71 @@ std::optional<double> alignCueInfo(
     return offsetMillis;
 }
 
+/// Builds a beat grid for the stem track that runs at the original track's
+/// tempo but keeps the stem file's own beat positions.
+///
+/// Andy corrects the BPM of his originals by hand, and that correction has to
+/// reach the stem track - but the stem's grid is what the imported cue
+/// positions were just aligned to, so it cannot simply be replaced by the
+/// original's. Instead the grid is re-laid at the original's exact BPM around
+/// one beat of the stem's own grid, which is what editing the BPM in the
+/// library does: the tempo number changes, the phase does not.
+///
+/// The anchor beat is picked through the grid offset rather than just taking
+/// the stem's first beat, because the analyzer regularly reads a stem file at
+/// double tempo. Half of the beats in such a grid sit between the original's
+/// beats, and anchoring on one of those would put the whole re-tempoed grid on
+/// the off-beat. The beat closest to a beat of the original is by construction
+/// not one of them.
+///
+/// Returns nullopt if the grids have nothing to say about the start of the
+/// track, or if the new grid could not be built.
+BeatsPointer retempoedTargetBeats(
+        const Beats& sourceBeats,
+        const Beats& targetBeats,
+        Bpm sourceBpm,
+        audio::SampleRate targetRate) {
+    const auto sourceRate = sourceBeats.getSampleRate();
+    // The grid that is about to be replaced knows the rate it was built for.
+    if (targetBeats.getSampleRate().isValid()) {
+        targetRate = targetBeats.getSampleRate();
+    }
+    if (!sourceBpm.isValid() || !sourceRate.isValid() || !targetRate.isValid()) {
+        return nullptr;
+    }
+    const auto sourceFirstBeat = sourceBeats.firstBeat();
+    if (!sourceFirstBeat.isValid()) {
+        return nullptr;
+    }
+    const double sourceFirstBeatSeconds =
+            sourceFirstBeat.value() / static_cast<double>(sourceRate);
+    const std::optional<double> offsetSeconds = beatGridTimeOffsetSeconds(
+            sourceBeats, targetBeats, sourceFirstBeatSeconds);
+    if (!offsetSeconds) {
+        return nullptr;
+    }
+
+    const double targetFramesPerSecond = static_cast<double>(targetRate);
+    double anchorFrames =
+            (sourceFirstBeatSeconds + *offsetSeconds) * targetFramesPerSecond;
+    // A negative anchor is a valid grid in Mixxx, but it is easier to reason
+    // about one inside the track: the grid is constant, so any beat describes
+    // it.
+    const double beatLengthFrames = 60.0 * targetFramesPerSecond / sourceBpm.value();
+    if (beatLengthFrames > 0.0) {
+        while (anchorFrames < 0.0) {
+            anchorFrames += beatLengthFrames;
+        }
+    } else if (anchorFrames < 0.0) {
+        return nullptr;
+    }
+
+    return Beats::fromConstTempo(targetRate,
+            audio::FramePos(std::round(anchorFrames)),
+            sourceBpm,
+            targetBeats.getSubVersion());
+}
+
 } // anonymous namespace
 
 ImportResult importFromOriginal(Track& target, const Track& source) {
@@ -352,6 +417,23 @@ ImportResult importFromOriginal(Track& target, const Track& source) {
     result.alignedToTargetGrid = alignToTargetGrid;
     result.alignmentUnavailable = !alignToTargetGrid;
 
+    // The tempo the stem track ends up with is decided before the cues are
+    // placed, because that grid is what they are placed against: Andy corrects
+    // the BPM of his originals by hand, and a cue aligned to the stem's own
+    // slightly different reading would sit a little beside the corrected grid -
+    // by more and more of a millisecond the later in the track it is. With the
+    // grid re-tempoed first, the correction collapses to the constant codec
+    // delay it physically is.
+    const BeatsPointer pRetempoedTargetBeats = alignToTargetGrid
+            ? retempoedTargetBeats(*pSourceBeats,
+                      *pTargetOwnBeats,
+                      Bpm(source.getBpm()),
+                      targetRate)
+            : nullptr;
+    const Beats* pAlignmentGrid = pRetempoedTargetBeats
+            ? pRetempoedTargetBeats.get()
+            : pTargetOwnBeats.get();
+
     // Cue points. The CueInfo round trip is time based, so it converts the
     // frame positions if the two files were encoded at different rates.
     const QList<CuePointer> sourceCues = source.getCuePoints();
@@ -365,7 +447,7 @@ ImportResult importFromOriginal(Track& target, const Track& source) {
         mixxx::CueInfo cueInfo = pCue->getCueInfo(sourceRate);
         if (alignToTargetGrid) {
             const std::optional<double> shiftMillis =
-                    alignCueInfo(&cueInfo, *pSourceBeats, *pTargetOwnBeats);
+                    alignCueInfo(&cueInfo, *pSourceBeats, *pAlignmentGrid);
             if (shiftMillis) {
                 shiftsMillis.push_back(*shiftMillis);
             }
@@ -382,7 +464,21 @@ ImportResult importFromOriginal(Track& target, const Track& source) {
     target.setBpmLocked(false);
     if (alignToTargetGrid) {
         // The stem's own grid is what the cue positions were just aligned to,
-        // so overwriting it with the original's would undo the correction.
+        // so overwriting it with the original's would undo the correction. Only
+        // the tempo number is taken over, on a grid that keeps the stem file's
+        // own beat positions.
+        if (pRetempoedTargetBeats) {
+            const Bpm sourceBpm = Bpm(source.getBpm());
+            if (Bpm(target.getBpm()) == sourceBpm) {
+                // Nothing to change, but the tempi do match.
+                result.bpmCopied = true;
+            } else {
+                result.bpmCopied = target.trySetBeats(pRetempoedTargetBeats);
+            }
+            if (result.bpmCopied) {
+                result.bpmAdopted = sourceBpm.value();
+            }
+        }
     } else if (pSourceBeats) {
         mixxx::BeatsPointer pTargetBeats;
         if (sourceRate == targetRate) {
