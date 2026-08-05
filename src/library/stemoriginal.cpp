@@ -4,7 +4,9 @@
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 #include "track/beats.h"
 #include "track/cue.h"
@@ -47,6 +49,22 @@ void resolveSampleRates(
         *pSourceRate = mixxx::audio::SampleRate(44100);
         *pTargetRate = *pSourceRate;
     }
+}
+
+/// The analyzer only ever confuses a tempo with a small whole multiple of it
+/// (usually double or half), so anything up to 4x is accepted as "the same
+/// tempo" for the purpose of comparing two grids of the same recording.
+constexpr int kMaxTempoMultiple = 4;
+/// Relative tolerance when comparing the two beat lengths.
+constexpr double kTempoTolerance = 0.03;
+
+double medianOf(std::vector<double> values) {
+    if (values.empty()) {
+        return 0.0;
+    }
+    const size_t middle = values.size() / 2;
+    std::nth_element(values.begin(), values.begin() + middle, values.end());
+    return values[middle];
 }
 
 } // anonymous namespace
@@ -202,6 +220,114 @@ bool hasUserCueData(const Track& track) {
     return false;
 }
 
+double beatPeriodSecondsAt(const Beats& beats, double timeSeconds) {
+    const auto sampleRate = beats.getSampleRate();
+    if (!sampleRate.isValid()) {
+        return 0.0;
+    }
+    const double framesPerSecond = static_cast<double>(sampleRate);
+    const auto beatPos = beats.findClosestBeat(
+            audio::FramePos(timeSeconds * framesPerSecond));
+    if (!beatPos.isValid()) {
+        return 0.0;
+    }
+    // +1 frame so that a position that already is a beat does not return
+    // itself.
+    const auto nextBeatPos = beats.findNextBeat(audio::FramePos(beatPos.value() + 1));
+    if (!nextBeatPos.isValid()) {
+        return 0.0;
+    }
+    return (nextBeatPos.value() - beatPos.value()) / framesPerSecond;
+}
+
+bool tempoIsCompatible(
+        const Beats& sourceBeats,
+        const Beats& targetBeats,
+        double timeSeconds) {
+    const double sourcePeriod = beatPeriodSecondsAt(sourceBeats, timeSeconds);
+    const double targetPeriod = beatPeriodSecondsAt(targetBeats, timeSeconds);
+    if (sourcePeriod <= 0.0 || targetPeriod <= 0.0) {
+        return false;
+    }
+    double ratio = sourcePeriod / targetPeriod;
+    if (ratio < 1.0) {
+        ratio = 1.0 / ratio;
+    }
+    const double multiple = std::round(ratio);
+    if (multiple < 1.0 || multiple > kMaxTempoMultiple) {
+        return false;
+    }
+    return std::abs(ratio - multiple) <= kTempoTolerance * multiple;
+}
+
+std::optional<double> beatGridTimeOffsetSeconds(
+        const Beats& sourceBeats,
+        const Beats& targetBeats,
+        double timeSeconds) {
+    const auto sourceRate = sourceBeats.getSampleRate();
+    const auto targetRate = targetBeats.getSampleRate();
+    if (!sourceRate.isValid() || !targetRate.isValid()) {
+        return std::nullopt;
+    }
+    const double sourceFramesPerSecond = static_cast<double>(sourceRate);
+    const double targetFramesPerSecond = static_cast<double>(targetRate);
+
+    const auto sourceBeatPos = sourceBeats.findClosestBeat(
+            audio::FramePos(timeSeconds * sourceFramesPerSecond));
+    if (!sourceBeatPos.isValid()) {
+        return std::nullopt;
+    }
+    const double sourceBeatSeconds = sourceBeatPos.value() / sourceFramesPerSecond;
+
+    const auto targetBeatPos = targetBeats.findClosestBeat(
+            audio::FramePos(sourceBeatSeconds * targetFramesPerSecond));
+    if (!targetBeatPos.isValid()) {
+        return std::nullopt;
+    }
+    const double targetBeatSeconds = targetBeatPos.value() / targetFramesPerSecond;
+
+    return targetBeatSeconds - sourceBeatSeconds;
+}
+
+namespace {
+
+/// Moves a cue by the offset between the two beat grids at its own position,
+/// so that a cue that sat on a beat of the original sits on the matching beat
+/// of the stem file. Cues that were deliberately placed off the grid keep
+/// their distance to it.
+///
+/// Returns the applied correction in milliseconds, or nullopt if the grids
+/// have nothing to say about that position.
+std::optional<double> alignCueInfo(
+        CueInfo* pCueInfo,
+        const Beats& sourceBeats,
+        const Beats& targetBeats) {
+    const std::optional<double> startMillis = pCueInfo->getStartPositionMillis();
+    const std::optional<double> endMillis = pCueInfo->getEndPositionMillis();
+    // A saved loop without a start position is anchored by its end.
+    const std::optional<double> anchorMillis = startMillis ? startMillis : endMillis;
+    if (!anchorMillis) {
+        return std::nullopt;
+    }
+    const std::optional<double> offsetSeconds =
+            beatGridTimeOffsetSeconds(sourceBeats, targetBeats, *anchorMillis / 1000.0);
+    if (!offsetSeconds) {
+        return std::nullopt;
+    }
+    const double offsetMillis = *offsetSeconds * 1000.0;
+    if (startMillis) {
+        pCueInfo->setStartPositionMillis(*startMillis + offsetMillis);
+    }
+    if (endMillis) {
+        // The loop length is a musical quantity and does not change, so both
+        // ends move by the same amount.
+        pCueInfo->setEndPositionMillis(*endMillis + offsetMillis);
+    }
+    return offsetMillis;
+}
+
+} // anonymous namespace
+
 ImportResult importFromOriginal(Track& target, const Track& source) {
     ImportResult result;
 
@@ -209,27 +335,55 @@ ImportResult importFromOriginal(Track& target, const Track& source) {
     auto targetRate = target.getSampleRate();
     resolveSampleRates(&sourceRate, &targetRate);
 
+    const mixxx::BeatsPointer pSourceBeats = source.getBeats();
+    const mixxx::BeatsPointer pTargetOwnBeats = target.getBeats();
+
+    // A stem file is decoded from its original and comes back with a codec
+    // delay in front of it - measured at 95-99 ms on Andy's library - so every
+    // cue position of the original is that much too early for the stem file.
+    // The delay is not knowable from the metadata, but it moves the analyzed
+    // beat grid by exactly the same amount, so the stem's own grid is the
+    // measuring stick: whatever it is offset by against the original's grid is
+    // what the cues have to move by. That only works if the stem has been
+    // analyzed and both grids agree on the tempo.
+    const double anchorSeconds = std::max(0.0, source.getDuration() / 2.0);
+    const bool alignToTargetGrid = pSourceBeats && pTargetOwnBeats &&
+            tempoIsCompatible(*pSourceBeats, *pTargetOwnBeats, anchorSeconds);
+    result.alignedToTargetGrid = alignToTargetGrid;
+    result.alignmentUnavailable = !alignToTargetGrid;
+
     // Cue points. The CueInfo round trip is time based, so it converts the
     // frame positions if the two files were encoded at different rates.
     const QList<CuePointer> sourceCues = source.getCuePoints();
     QList<CuePointer> targetCues;
     targetCues.reserve(sourceCues.size());
+    std::vector<double> shiftsMillis;
     for (const auto& pCue : sourceCues) {
         if (!pCue) {
             continue;
         }
-        const mixxx::CueInfo cueInfo = pCue->getCueInfo(sourceRate);
+        mixxx::CueInfo cueInfo = pCue->getCueInfo(sourceRate);
+        if (alignToTargetGrid) {
+            const std::optional<double> shiftMillis =
+                    alignCueInfo(&cueInfo, *pSourceBeats, *pTargetOwnBeats);
+            if (shiftMillis) {
+                shiftsMillis.push_back(*shiftMillis);
+            }
+        }
         targetCues.append(CuePointer(new Cue(cueInfo, targetRate, true)));
     }
     target.setCuePoints(targetCues);
     result.cuesCopied = targetCues.size();
+    result.alignmentShiftMillis = medianOf(std::move(shiftsMillis));
 
     // Beat grid. A locked BPM on the stem track would reject the new grid, so
     // unlock first and adopt the original's lock state afterwards.
     const bool sourceBpmLocked = source.isBpmLocked();
     target.setBpmLocked(false);
-    const mixxx::BeatsPointer pSourceBeats = source.getBeats();
-    if (pSourceBeats) {
+    if (alignToTargetGrid) {
+        // The stem's own grid is what the cue positions were just aligned to,
+        // so overwriting it with the original's would undo the correction.
+    } else if (pSourceBeats) {
         mixxx::BeatsPointer pTargetBeats;
         if (sourceRate == targetRate) {
             pTargetBeats = pSourceBeats;

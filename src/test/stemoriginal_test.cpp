@@ -227,6 +227,204 @@ TEST_F(StemOriginalTest, copiesBpmWithoutABeatGrid) {
     EXPECT_DOUBLE_EQ(96, m_pStem->getBpm());
 }
 
+// --- Codec delay compensation -------------------------------------------
+//
+// A stem file is decoded from its original and re-encoded, which puts a codec
+// delay of some tens of milliseconds in front of the audio (measured at 95 and
+// 99 ms across Andy's library). Every cue of the original is that much too
+// early for the stem file. The stem's own analyzed beat grid carries the same
+// delay, so the offset between the two grids is the correction.
+
+namespace {
+
+// 94.9 ms at 44.1 kHz, i.e. the offset measured on Andy's stem files
+constexpr double kDelayFrames44k = 4186;
+
+mixxx::BeatsPointer constTempoBeats(int sampleRate, double firstBeatFrame, double bpm) {
+    return mixxx::Beats::fromConstTempo(
+            mixxx::audio::SampleRate(sampleRate),
+            mixxx::audio::FramePos(firstBeatFrame),
+            mixxx::Bpm(bpm));
+}
+
+} // anonymous namespace
+
+TEST_F(StemOriginalTest, alignsCuePositionsToTheStemsOwnBeatGrid) {
+    // 120 BPM at 44.1 kHz: one beat is 22050 frames
+    ASSERT_TRUE(m_pOriginal->trySetBeats(constTempoBeats(44100, 0, 120)));
+    ASSERT_TRUE(m_pStem->trySetBeats(constTempoBeats(44100, kDelayFrames44k, 120)));
+
+    // A hot cue right on the fifth beat of the original
+    m_pOriginal->createAndAddCue(mixxx::CueType::HotCue,
+            1,
+            mixxx::audio::FramePos(4 * 22050),
+            mixxx::audio::FramePos());
+
+    const auto result = mixxx::stemoriginal::importFromOriginal(*m_pStem, *m_pOriginal);
+    EXPECT_TRUE(result.alignedToTargetGrid);
+    EXPECT_FALSE(result.alignmentUnavailable);
+    EXPECT_NEAR(94.9, result.alignmentShiftMillis, 0.1);
+    // The stem's own grid is the reference and must survive the import
+    EXPECT_FALSE(result.beatsCopied);
+
+    const CuePointer pHotcue = m_pStem->findHotcueByIndex(1);
+    ASSERT_NE(nullptr, pHotcue);
+    EXPECT_NEAR(4 * 22050 + kDelayFrames44k, pHotcue->getPosition().value(), 2);
+
+    const mixxx::BeatsPointer pStemBeats = m_pStem->getBeats();
+    ASSERT_NE(nullptr, pStemBeats);
+    EXPECT_DOUBLE_EQ(kDelayFrames44k, pStemBeats->firstBeat().value());
+}
+
+TEST_F(StemOriginalTest, keepsTheDistanceOfCuesThatAreNotOnABeat) {
+    ASSERT_TRUE(m_pOriginal->trySetBeats(constTempoBeats(44100, 0, 120)));
+    ASSERT_TRUE(m_pStem->trySetBeats(constTempoBeats(44100, kDelayFrames44k, 120)));
+
+    // Deliberately 1000 frames behind the fifth beat
+    m_pOriginal->createAndAddCue(mixxx::CueType::HotCue,
+            2,
+            mixxx::audio::FramePos(4 * 22050 + 1000),
+            mixxx::audio::FramePos());
+
+    mixxx::stemoriginal::importFromOriginal(*m_pStem, *m_pOriginal);
+
+    const CuePointer pHotcue = m_pStem->findHotcueByIndex(2);
+    ASSERT_NE(nullptr, pHotcue);
+    // Shifted by the codec delay, not snapped onto the beat
+    EXPECT_NEAR(4 * 22050 + 1000 + kDelayFrames44k, pHotcue->getPosition().value(), 2);
+}
+
+TEST_F(StemOriginalTest, movesBothEndsOfASavedLoop) {
+    ASSERT_TRUE(m_pOriginal->trySetBeats(constTempoBeats(44100, 0, 120)));
+    ASSERT_TRUE(m_pStem->trySetBeats(constTempoBeats(44100, kDelayFrames44k, 120)));
+
+    m_pOriginal->createAndAddCue(mixxx::CueType::Loop,
+            0,
+            mixxx::audio::FramePos(4 * 22050),
+            mixxx::audio::FramePos(8 * 22050));
+
+    mixxx::stemoriginal::importFromOriginal(*m_pStem, *m_pOriginal);
+
+    const CuePointer pLoop = m_pStem->findHotcueByIndex(0);
+    ASSERT_NE(nullptr, pLoop);
+    EXPECT_NEAR(4 * 22050 + kDelayFrames44k, pLoop->getPosition().value(), 2);
+    EXPECT_NEAR(8 * 22050 + kDelayFrames44k, pLoop->getEndPosition().value(), 2);
+}
+
+TEST_F(StemOriginalTest, alignsWhenTheStemWasAnalyzedAtDoubleTempo) {
+    // The analyzer regularly picks the double or half tempo for a stem file.
+    // The grids still describe the same beats, so the offset is still valid.
+    ASSERT_TRUE(m_pOriginal->trySetBeats(constTempoBeats(44100, 0, 120)));
+    ASSERT_TRUE(m_pStem->trySetBeats(constTempoBeats(44100, kDelayFrames44k, 240)));
+
+    m_pOriginal->createAndAddCue(mixxx::CueType::HotCue,
+            1,
+            mixxx::audio::FramePos(4 * 22050),
+            mixxx::audio::FramePos());
+
+    const auto result = mixxx::stemoriginal::importFromOriginal(*m_pStem, *m_pOriginal);
+    EXPECT_TRUE(result.alignedToTargetGrid);
+
+    const CuePointer pHotcue = m_pStem->findHotcueByIndex(1);
+    ASSERT_NE(nullptr, pHotcue);
+    EXPECT_NEAR(4 * 22050 + kDelayFrames44k, pHotcue->getPosition().value(), 2);
+    // The stem keeps its own tempo, the original's is not forced onto it
+    EXPECT_DOUBLE_EQ(240, m_pStem->getBpm());
+}
+
+TEST_F(StemOriginalTest, alignsAcrossSampleRates) {
+    // The original is a 48 kHz mp3, the stem file a 44.1 kHz m4a
+    TrackPointer pOriginal48 = newTrack(kOriginalLocation, 48000);
+    ASSERT_TRUE(pOriginal48->trySetBeats(constTempoBeats(48000, 0, 120)));
+    ASSERT_TRUE(m_pStem->trySetBeats(constTempoBeats(44100, kDelayFrames44k, 120)));
+
+    // 2.0 s = the fifth beat at 120 BPM
+    pOriginal48->createAndAddCue(mixxx::CueType::HotCue,
+            1,
+            mixxx::audio::FramePos(96000),
+            mixxx::audio::FramePos());
+
+    const auto result = mixxx::stemoriginal::importFromOriginal(*m_pStem, *pOriginal48);
+    EXPECT_TRUE(result.alignedToTargetGrid);
+
+    const CuePointer pHotcue = m_pStem->findHotcueByIndex(1);
+    ASSERT_NE(nullptr, pHotcue);
+    EXPECT_NEAR(2.0 * 44100 + kDelayFrames44k, pHotcue->getPosition().value(), 2);
+}
+
+TEST_F(StemOriginalTest, fallsBackToCopyingTheGridWhenTheStemHasNone) {
+    ASSERT_TRUE(m_pOriginal->trySetBeats(constTempoBeats(44100, 0, 120)));
+    m_pOriginal->createAndAddCue(mixxx::CueType::HotCue,
+            1,
+            mixxx::audio::FramePos(4 * 22050),
+            mixxx::audio::FramePos());
+
+    const auto result = mixxx::stemoriginal::importFromOriginal(*m_pStem, *m_pOriginal);
+    EXPECT_FALSE(result.alignedToTargetGrid);
+    EXPECT_TRUE(result.alignmentUnavailable);
+    EXPECT_TRUE(result.beatsCopied);
+
+    // Nothing is known about the delay, so the cue is copied as it is
+    const CuePointer pHotcue = m_pStem->findHotcueByIndex(1);
+    ASSERT_NE(nullptr, pHotcue);
+    EXPECT_NEAR(4 * 22050, pHotcue->getPosition().value(), 2);
+}
+
+TEST_F(StemOriginalTest, doesNotAlignAgainstAnUnrelatedTempo) {
+    // 120 vs 100 BPM is not a half/double confusion, so the stem's grid does
+    // not describe the same beats and must not be trusted.
+    ASSERT_TRUE(m_pOriginal->trySetBeats(constTempoBeats(44100, 0, 120)));
+    ASSERT_TRUE(m_pStem->trySetBeats(constTempoBeats(44100, kDelayFrames44k, 100)));
+
+    m_pOriginal->createAndAddCue(mixxx::CueType::HotCue,
+            1,
+            mixxx::audio::FramePos(4 * 22050),
+            mixxx::audio::FramePos());
+
+    const auto result = mixxx::stemoriginal::importFromOriginal(*m_pStem, *m_pOriginal);
+    EXPECT_FALSE(result.alignedToTargetGrid);
+    EXPECT_TRUE(result.beatsCopied);
+    EXPECT_DOUBLE_EQ(120, m_pStem->getBpm());
+    const CuePointer pHotcue = m_pStem->findHotcueByIndex(1);
+    ASSERT_NE(nullptr, pHotcue);
+    EXPECT_NEAR(4 * 22050, pHotcue->getPosition().value(), 2);
+}
+
+TEST_F(StemOriginalTest, beatPeriodIsTheDistanceBetweenTwoBeats) {
+    const auto pBeats = constTempoBeats(44100, 0, 120);
+    EXPECT_NEAR(0.5, mixxx::stemoriginal::beatPeriodSecondsAt(*pBeats, 10.0), 1e-6);
+    // Also on a position that is exactly a beat
+    EXPECT_NEAR(0.5, mixxx::stemoriginal::beatPeriodSecondsAt(*pBeats, 0.0), 1e-6);
+}
+
+TEST_F(StemOriginalTest, tempoCompatibilityAcceptsWholeMultiplesOnly) {
+    const auto pBase = constTempoBeats(44100, 0, 120);
+    EXPECT_TRUE(mixxx::stemoriginal::tempoIsCompatible(
+            *pBase, *constTempoBeats(44100, 0, 120), 30.0));
+    EXPECT_TRUE(mixxx::stemoriginal::tempoIsCompatible(
+            *pBase, *constTempoBeats(44100, 0, 240), 30.0));
+    EXPECT_TRUE(mixxx::stemoriginal::tempoIsCompatible(
+            *pBase, *constTempoBeats(44100, 0, 60), 30.0));
+    // Analyzer noise on the same tempo
+    EXPECT_TRUE(mixxx::stemoriginal::tempoIsCompatible(
+            *pBase, *constTempoBeats(44100, 0, 120.4), 30.0));
+    EXPECT_FALSE(mixxx::stemoriginal::tempoIsCompatible(
+            *pBase, *constTempoBeats(44100, 0, 100), 30.0));
+    EXPECT_FALSE(mixxx::stemoriginal::tempoIsCompatible(
+            *pBase, *constTempoBeats(44100, 0, 180), 30.0));
+}
+
+TEST_F(StemOriginalTest, gridOffsetIsNeverMoreThanHalfABeat) {
+    const auto pSource = constTempoBeats(44100, 0, 120);
+    // Grid B sits a whole beat plus the codec delay behind grid A, which is
+    // indistinguishable from the delay alone: both grids mark the same beats.
+    const auto pTarget = constTempoBeats(44100, 22050 + kDelayFrames44k, 120);
+    const auto offset = mixxx::stemoriginal::beatGridTimeOffsetSeconds(
+            *pSource, *pTarget, 30.0);
+    ASSERT_TRUE(offset.has_value());
+    EXPECT_NEAR(kDelayFrames44k / 44100.0, *offset, 1e-6);
+}
+
 TEST_F(StemOriginalTest, copiesDescriptiveMetadata) {
     m_pOriginal->setTitle(QStringLiteral("Quedate Luna"));
     m_pOriginal->setArtist(QStringLiteral("Trinix, Natalia Doco"));

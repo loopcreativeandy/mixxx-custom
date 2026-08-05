@@ -1,7 +1,9 @@
 #pragma once
 
 #include <QString>
+#include <optional>
 
+#include "track/beats.h"
 #include "track/track_decl.h"
 #include "track/trackid.h"
 
@@ -62,16 +64,61 @@ TrackId findOriginalTrackId(
 /// N60dBSound) do not count - they are recreated on the next analysis.
 bool hasUserCueData(const Track& track);
 
+/// Length of one beat in seconds around `timeSeconds`, or 0.0 if `beats` has
+/// no usable beat there.
+double beatPeriodSecondsAt(const Beats& beats, double timeSeconds);
+
+/// True if `sourceBeats` and `targetBeats` describe the same tempo around
+/// `timeSeconds`, allowing for the analyzer's usual whole-number confusion
+/// (one grid at double, triple or quadruple the other's tempo).
+bool tempoIsCompatible(
+        const Beats& sourceBeats,
+        const Beats& targetBeats,
+        double timeSeconds);
+
+/// How much later the beat around `timeSeconds` occurs in `targetBeats` than
+/// in `sourceBeats`, in seconds. This is the time offset between the audio of
+/// the two files: a stem file is re-encoded from its original and picks up a
+/// codec delay of some tens of milliseconds on the way, which shifts every
+/// musical event - and with it the analyzed beat grid.
+///
+/// The result is the difference between the closest beat of each grid and is
+/// therefore never larger than half a beat: the assumption is that the two
+/// files are the same recording and drifted only slightly apart, not that they
+/// are offset by a whole beat or more.
+///
+/// Returns nullopt if either grid has no beat near that position, or if a
+/// sample rate is missing.
+std::optional<double> beatGridTimeOffsetSeconds(
+        const Beats& sourceBeats,
+        const Beats& targetBeats,
+        double timeSeconds);
+
 struct ImportResult {
     int cuesCopied = 0;
     bool beatsCopied = false;
     bool bpmCopied = false;
     bool keyCopied = false;
+    /// True if the target's own beat grid was used to correct the imported cue
+    /// positions for the codec delay of the stem file. The target's grid is
+    /// then kept instead of being overwritten with the source's.
+    bool alignedToTargetGrid = false;
+    /// True if the target has no beat grid of its own (or one at an unrelated
+    /// tempo), so the cue positions could not be corrected and the source's
+    /// grid was copied verbatim.
+    bool alignmentUnavailable = false;
+    /// Median time correction that was applied to the imported cue positions.
+    /// Only meaningful if `alignedToTargetGrid` is true.
+    double alignmentShiftMillis = 0.0;
 };
 
 /// Copy cue points, beat grid/BPM, key and the descriptive metadata from
 /// `source` onto `target`, replacing whatever `target` had. Sample rate
 /// differences between the two files are compensated for.
+///
+/// If `target` has a beat grid of its own at a compatible tempo, that grid is
+/// kept and the imported cue positions are corrected by the offset between the
+/// two grids, which cancels out the stem file's codec delay.
 ImportResult importFromOriginal(Track& target, const Track& source);
 
 } // namespace stemoriginal

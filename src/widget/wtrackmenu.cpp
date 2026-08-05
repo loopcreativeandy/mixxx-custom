@@ -1543,11 +1543,24 @@ namespace {
 /// track. The originals are resolved up front (they need database queries and
 /// a confirmation dialog), so the operation only has to look them up by the
 /// stem file's location.
+/// What the import did to the cue positions, collected across the selection so
+/// that it can be reported once at the end.
+struct ImportFromOriginalSummary {
+    int alignedCount = 0;
+    double minShiftMillis = 0.0;
+    double maxShiftMillis = 0.0;
+    /// Stem tracks without a usable beat grid of their own: their cues could
+    /// not be corrected for the stem file's codec delay.
+    QStringList unalignedTracks;
+};
+
 class ImportFromOriginalTrackPointerOperation : public mixxx::TrackPointerOperation {
   public:
-    explicit ImportFromOriginalTrackPointerOperation(
-            QHash<QString, TrackPointer> originalsByStemLocation)
-            : m_originalsByStemLocation(std::move(originalsByStemLocation)) {
+    ImportFromOriginalTrackPointerOperation(
+            QHash<QString, TrackPointer> originalsByStemLocation,
+            std::shared_ptr<ImportFromOriginalSummary> pSummary)
+            : m_originalsByStemLocation(std::move(originalsByStemLocation)),
+              m_pSummary(std::move(pSummary)) {
     }
 
   private:
@@ -1561,10 +1574,29 @@ class ImportFromOriginalTrackPointerOperation : public mixxx::TrackPointerOperat
             // Not a stem track, or no original was found for it.
             return;
         }
-        mixxx::stemoriginal::importFromOriginal(*pTrack, *it.value());
+        const mixxx::stemoriginal::ImportResult result =
+                mixxx::stemoriginal::importFromOriginal(*pTrack, *it.value());
+        if (!m_pSummary) {
+            return;
+        }
+        if (result.alignedToTargetGrid) {
+            if (m_pSummary->alignedCount == 0) {
+                m_pSummary->minShiftMillis = result.alignmentShiftMillis;
+                m_pSummary->maxShiftMillis = result.alignmentShiftMillis;
+            } else {
+                m_pSummary->minShiftMillis = std::min(
+                        m_pSummary->minShiftMillis, result.alignmentShiftMillis);
+                m_pSummary->maxShiftMillis = std::max(
+                        m_pSummary->maxShiftMillis, result.alignmentShiftMillis);
+            }
+            m_pSummary->alignedCount++;
+        } else {
+            m_pSummary->unalignedTracks.append(pTrack->getInfo());
+        }
     }
 
     const QHash<QString, TrackPointer> m_originalsByStemLocation;
+    const std::shared_ptr<ImportFromOriginalSummary> m_pSummary;
 };
 
 /// Joins at most `maxCount` track descriptions into a bullet list for a
@@ -1644,7 +1676,9 @@ void WTrackMenu::slotImportFromOriginalTrack() {
                 overwrittenTracks.size()));
         msgBox.setInformativeText(
                 tr("Importing from the original track will replace them, "
-                   "together with the beat grid, BPM, key and tags.") +
+                   "together with the key and tags. A beat grid that the stem "
+                   "track already has is kept: it is what the imported cue "
+                   "positions are corrected against.") +
                 QStringLiteral("\n\n") + formatTrackList(overwrittenTracks));
         QPushButton* pOverwriteButton =
                 msgBox.addButton(tr("Overwrite"), QMessageBox::AcceptRole);
@@ -1660,8 +1694,9 @@ void WTrackMenu::slotImportFromOriginalTrack() {
             tr("Importing %n stem track(s) from their original track",
                     "",
                     originalsByStemLocation.size());
+    const auto pSummary = std::make_shared<ImportFromOriginalSummary>();
     const auto trackOperator =
-            ImportFromOriginalTrackPointerOperation(originalsByStemLocation);
+            ImportFromOriginalTrackPointerOperation(originalsByStemLocation, pSummary);
     applyTrackPointerOperation(
             progressLabelText,
             &trackOperator,
@@ -1670,11 +1705,39 @@ void WTrackMenu::slotImportFromOriginalTrack() {
             // cache.
             mixxx::ModalTrackBatchOperationProcessor::Mode::ApplyAndSave);
 
+    QStringList report;
+    if (pSummary->alignedCount > 0) {
+        const QString shiftText = qFuzzyCompare(
+                                          pSummary->minShiftMillis + 1.0,
+                                          pSummary->maxShiftMillis + 1.0)
+                ? tr("%1 ms").arg(pSummary->minShiftMillis, 0, 'f', 1)
+                : tr("%1 to %2 ms")
+                          .arg(pSummary->minShiftMillis, 0, 'f', 1)
+                          .arg(pSummary->maxShiftMillis, 0, 'f', 1);
+        report.append(tr("%n track(s): cue positions were corrected by %1 to "
+                         "match the stem file's own beat grid.",
+                "",
+                pSummary->alignedCount)
+                              .arg(shiftText));
+    }
+    if (!pSummary->unalignedTracks.isEmpty()) {
+        report.append(tr("%n track(s) have no beat grid of their own, so their "
+                         "cue positions could not be corrected and will be a "
+                         "few tens of milliseconds early. Analyze them and "
+                         "import again:",
+                              "",
+                              pSummary->unalignedTracks.size()) +
+                QStringLiteral("\n") + formatTrackList(pSummary->unalignedTracks));
+    }
     if (!missingOriginals.isEmpty()) {
+        report.append(
+                tr("No matching non-stem track was found in the library for:") +
+                QStringLiteral("\n") + formatTrackList(missingOriginals));
+    }
+    if (!report.isEmpty()) {
         QMessageBox::information(this,
                 tr("Import From Original Track"),
-                tr("No matching non-stem track was found in the library for:") +
-                        QStringLiteral("\n\n") + formatTrackList(missingOriginals));
+                report.join(QStringLiteral("\n\n")));
     }
 }
 
