@@ -8,6 +8,7 @@
 #include <QUrl>
 #include <QVariant>
 
+#include "library/stemoriginal.h"
 #include "library/trackset/baseplaylistfeature.h"
 #include "preferences/usersettings.h"
 #include "util/parented_ptr.h"
@@ -52,6 +53,9 @@ class PlaylistFeature : public BasePlaylistFeature {
     void slotOpenInSidePane();
     void slotMarkAllTracksPlayed();
     void slotMarkAllTracksUnplayed();
+    // Swap a whole playlist between stem files and their originals
+    void slotSwapToStemTracks();
+    void slotSwapToOriginalTracks();
     void slotUnlockAllPlaylists();
     void slotDeleteAllUnlockedPlaylists();
     void slotRenameFolder();
@@ -88,10 +92,17 @@ class PlaylistFeature : public BasePlaylistFeature {
     // played/unplayed" context-menu actions.
     void setAllTracksPlayedStatus(bool played);
 
+    // Replace every entry of the right-clicked playlist with its
+    // stem/non-stem counterpart, keeping the position. Entries
+    // without a counterpart in the library are left alone.
+    void swapPlaylistTracks(mixxx::stemoriginal::Counterpart counterpart);
+
     parented_ptr<QAction> m_pShufflePlaylistAction;
     parented_ptr<QAction> m_pOpenInSidePaneAction;
     parented_ptr<QAction> m_pMarkAllPlayedAction;
     parented_ptr<QAction> m_pMarkAllUnplayedAction;
+    parented_ptr<QAction> m_pSwapToStemsAction;
+    parented_ptr<QAction> m_pSwapToOriginalsAction;
     parented_ptr<QAction> m_pUnlockPlaylistsAction;
     parented_ptr<QAction> m_pDeleteAllUnlockedPlaylistsAction;
     parented_ptr<QAction> m_pRenameFolderAction;

@@ -28,14 +28,31 @@ bool isStemFileLocation(const QString& location);
 /// Returns an empty string if the location is not a stem file.
 QString stemBaseName(const QString& location);
 
-/// Look up the library track that a stem track was generated from.
+/// Which half of a stem/non-stem pair to look for.
+enum class Counterpart {
+    /// The ordinary track a stem file was generated from.
+    Original,
+    /// The stem file that was generated from an ordinary track.
+    Stem,
+};
+
+/// Look up the other half of a stem/non-stem pair.
 ///
 /// Matches on the file base name first (the reliable signal: the stem
 /// extractor keeps the name), then falls back to an exact artist+title match.
-/// Stem files are never returned. If several candidates match, one that
-/// already has a beat grid wins.
+/// The result is always of the requested kind, and never the track that was
+/// passed in. If several candidates match, one that already has a beat grid
+/// wins.
 ///
-/// Returns an invalid TrackId if nothing was found.
+/// Returns an invalid TrackId if nothing was found, or if `track` is already
+/// of the requested kind.
+TrackId findCounterpartTrackId(
+        const QSqlDatabase& database,
+        const Track& track,
+        Counterpart counterpart);
+
+/// Look up the library track that a stem track was generated from.
+/// Shorthand for `findCounterpartTrackId(..., Counterpart::Original)`.
 TrackId findOriginalTrackId(
         const QSqlDatabase& database,
         const Track& stemTrack);

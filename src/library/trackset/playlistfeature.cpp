@@ -9,6 +9,7 @@
 
 #include "library/library.h"
 #include "library/parser.h"
+#include "library/stemoriginal.h"
 #include "library/playlisttablemodel.h"
 #include "library/queryutil.h"
 #include "library/trackcollection.h"
@@ -73,6 +74,23 @@ PlaylistFeature::PlaylistFeature(Library* pLibrary, UserSettingsPointer pConfig)
             &QAction::triggered,
             this,
             &PlaylistFeature::slotMarkAllTracksUnplayed);
+
+    // Andy keeps a stem file next to most of his tracks. These two swap a
+    // whole playlist from one to the other so a playlist only has to be built
+    // once.
+    m_pSwapToStemsAction =
+            make_parented<QAction>(tr("Replace Tracks With Stem Versions"), this);
+    connect(m_pSwapToStemsAction,
+            &QAction::triggered,
+            this,
+            &PlaylistFeature::slotSwapToStemTracks);
+
+    m_pSwapToOriginalsAction =
+            make_parented<QAction>(tr("Replace Stem Tracks With Originals"), this);
+    connect(m_pSwapToOriginalsAction,
+            &QAction::triggered,
+            this,
+            &PlaylistFeature::slotSwapToOriginalTracks);
 
     m_pUnlockPlaylistsAction =
             make_parented<QAction>(tr("Unlock all playlists"), this);
@@ -167,6 +185,11 @@ void PlaylistFeature::onRightClickChild(
     menu.addAction(m_pShufflePlaylistAction);
     menu.addAction(m_pMarkAllPlayedAction);
     menu.addAction(m_pMarkAllUnplayedAction);
+    menu.addSeparator();
+    m_pSwapToStemsAction->setEnabled(!locked);
+    m_pSwapToOriginalsAction->setEnabled(!locked);
+    menu.addAction(m_pSwapToStemsAction);
+    menu.addAction(m_pSwapToOriginalsAction);
     menu.addSeparator();
     menu.addAction(m_pRenamePlaylistAction);
     // Move a playlist between sidebar folders by renaming it per the
@@ -421,6 +444,75 @@ void PlaylistFeature::setAllTracksPlayedStatus(bool played) {
             }
         }
     }
+}
+
+void PlaylistFeature::slotSwapToStemTracks() {
+    swapPlaylistTracks(mixxx::stemoriginal::Counterpart::Stem);
+}
+
+void PlaylistFeature::slotSwapToOriginalTracks() {
+    swapPlaylistTracks(mixxx::stemoriginal::Counterpart::Original);
+}
+
+void PlaylistFeature::swapPlaylistTracks(
+        mixxx::stemoriginal::Counterpart counterpart) {
+    const int playlistId = playlistIdFromIndex(m_lastRightClickedIndex);
+    if (playlistId == kInvalidPlaylistId) {
+        return;
+    }
+    if (m_playlistDao.isPlaylistLocked(playlistId)) {
+        return;
+    }
+    const bool toStems = counterpart == mixxx::stemoriginal::Counterpart::Stem;
+
+    auto* pTrackCollectionManager = m_pLibrary->trackCollectionManager();
+    const QSqlDatabase database =
+            pTrackCollectionManager->internalCollection()->database();
+    const QList<TrackId> trackIds =
+            m_playlistDao.getTrackIdsInPlaylistOrder(playlistId);
+
+    int replacedCount = 0;
+    int keptCount = 0;
+    for (int i = 0; i < trackIds.size(); ++i) {
+        // Playlist positions are 1-based
+        const int position = i + 1;
+        const TrackPointer pTrack =
+                pTrackCollectionManager->getTrackById(trackIds.at(i));
+        if (!pTrack) {
+            keptCount++;
+            continue;
+        }
+        const TrackId counterpartId = mixxx::stemoriginal::findCounterpartTrackId(
+                database, *pTrack, counterpart);
+        if (!counterpartId.isValid()) {
+            // No counterpart in the library, or already the right kind.
+            // Leave the entry alone, as requested.
+            keptCount++;
+            continue;
+        }
+        // Insert first, remove second: if the insert fails for any reason the
+        // playlist entry is still there. The insert pushes the old entry down
+        // to `position + 1`.
+        if (!m_playlistDao.insertTrackIntoPlaylist(counterpartId, playlistId, position)) {
+            keptCount++;
+            continue;
+        }
+        m_playlistDao.removeTrackFromPlaylist(playlistId, position + 1);
+        replacedCount++;
+    }
+
+    QMessageBox::information(m_pSidebarWidget,
+            toStems ? tr("Replace Tracks With Stem Versions")
+                    : tr("Replace Stem Tracks With Originals"),
+            tr("Replaced %n track(s).", "", replacedCount) + QChar(' ') +
+                    (toStems ? tr("%n track(s) have no stem file in the "
+                                  "library and were left alone.",
+                                       "",
+                                       keptCount)
+                             : tr("%n track(s) have no original file in the "
+                                  "library and were left alone.",
+                                       "",
+                                       keptCount)));
 }
 
 void PlaylistFeature::slotUnlockAllPlaylists() {

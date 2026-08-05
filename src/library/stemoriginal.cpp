@@ -76,14 +76,30 @@ QString stemBaseName(const QString& location) {
     return QString();
 }
 
-TrackId findOriginalTrackId(
+TrackId findCounterpartTrackId(
         const QSqlDatabase& database,
-        const Track& stemTrack) {
-    const QString stemLocation = stemTrack.getLocation();
-    const QString baseName = stemBaseName(stemLocation);
+        const Track& track,
+        Counterpart counterpart) {
+    const QString ownLocation = track.getLocation();
+    const bool ownIsStem = isStemFileLocation(ownLocation);
+    const bool wantStem = counterpart == Counterpart::Stem;
+    if (ownIsStem == wantStem) {
+        // Already the kind that was asked for, so there is nothing to find.
+        return {};
+    }
+
+    // The base name is what the two files have in common: the stem extractor
+    // keeps the name and only appends ".stem.<ext>".
+    const QString baseName = ownIsStem
+            ? stemBaseName(ownLocation)
+            : fileBaseName(QFileInfo(ownLocation).fileName());
     if (baseName.isEmpty()) {
         return {};
     }
+    // Looking for the stem file means looking for "<base>.stem.<ext>".
+    const QString namePattern = wantStem
+            ? baseName + QStringLiteral(".stem.%")
+            : baseName + QStringLiteral(".%");
 
     // Candidates are ordered so that a track with a beat grid wins over one
     // without: Andy keeps backup copies of some files, and the copy he
@@ -105,18 +121,21 @@ TrackId findOriginalTrackId(
                               "AND track_locations.fs_deleted = 0 "
                               "AND track_locations.filename LIKE :namePattern") +
                 orderBy);
-        query.bindValue(":namePattern", QString(baseName + QStringLiteral(".%")));
+        query.bindValue(":namePattern", namePattern);
         if (!query.exec()) {
-            kLogger.warning() << "Failed to look up the original of"
-                              << stemLocation << query.lastError();
+            kLogger.warning() << "Failed to look up the counterpart of"
+                              << ownLocation << query.lastError();
         } else {
             while (query.next()) {
                 const QString location = query.value(1).toString();
-                if (location == stemLocation || isStemFileLocation(location)) {
+                if (location == ownLocation ||
+                        isStemFileLocation(location) != wantStem) {
                     continue;
                 }
-                if (fileBaseName(QFileInfo(location).fileName())
-                                .compare(baseName, Qt::CaseInsensitive) != 0) {
+                const QString candidateBaseName = wantStem
+                        ? stemBaseName(location)
+                        : fileBaseName(QFileInfo(location).fileName());
+                if (candidateBaseName.compare(baseName, Qt::CaseInsensitive) != 0) {
                     continue;
                 }
                 return TrackId(query.value(0));
@@ -124,10 +143,10 @@ TrackId findOriginalTrackId(
         }
     }
 
-    // Pass 2: exact artist + title. Catches an original that was renamed after
-    // the stems were extracted.
-    const QString artist = stemTrack.getArtist();
-    const QString title = stemTrack.getTitle();
+    // Pass 2: exact artist + title. Catches a file that was renamed after the
+    // stems had been extracted.
+    const QString artist = track.getArtist();
+    const QString title = track.getTitle();
     if (artist.isEmpty() && title.isEmpty()) {
         return {};
     }
@@ -145,18 +164,24 @@ TrackId findOriginalTrackId(
     query.bindValue(":artist", artist);
     query.bindValue(":title", title);
     if (!query.exec()) {
-        kLogger.warning() << "Failed to look up the original of"
-                          << stemLocation << query.lastError();
+        kLogger.warning() << "Failed to look up the counterpart of"
+                          << ownLocation << query.lastError();
         return {};
     }
     while (query.next()) {
         const QString location = query.value(1).toString();
-        if (location == stemLocation || isStemFileLocation(location)) {
+        if (location == ownLocation || isStemFileLocation(location) != wantStem) {
             continue;
         }
         return TrackId(query.value(0));
     }
     return {};
+}
+
+TrackId findOriginalTrackId(
+        const QSqlDatabase& database,
+        const Track& stemTrack) {
+    return findCounterpartTrackId(database, stemTrack, Counterpart::Original);
 }
 
 bool hasUserCueData(const Track& track) {

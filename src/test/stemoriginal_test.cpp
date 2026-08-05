@@ -380,6 +380,66 @@ TEST_F(StemOriginalDbTest, returnsNothingForANonStemTrack) {
     EXPECT_FALSE(findOriginalOf(*regular.pTrack).isValid());
 }
 
+TEST_F(StemOriginalDbTest, findsTheStemOfARegularTrack) {
+    const LibraryEntry regular = addTrack(
+            QStringLiteral("library"), QStringLiteral("Artist - Title.mp3"));
+    const LibraryEntry stem = addTrack(
+            QStringLiteral("stems"), QStringLiteral("Artist - Title.stem.m4a"));
+    // A stem file of a different track must not be picked
+    addTrack(QStringLiteral("stems"), QStringLiteral("Artist - Other.stem.m4a"));
+
+    EXPECT_EQ(stem.trackId,
+            mixxx::stemoriginal::findCounterpartTrackId(dbConnection(),
+                    *regular.pTrack,
+                    mixxx::stemoriginal::Counterpart::Stem));
+}
+
+TEST_F(StemOriginalDbTest, findsTheStemByArtistAndTitle) {
+    const LibraryEntry regular = addTrack(QStringLiteral("library"),
+            QStringLiteral("01 - renamed.mp3"),
+            QStringLiteral("Ayra Starr"),
+            QStringLiteral("Commas"));
+    const LibraryEntry stem = addTrack(QStringLiteral("stems"),
+            QStringLiteral("Ayra Starr - Commas.stem.m4a"),
+            QStringLiteral("Ayra Starr"),
+            QStringLiteral("Commas"));
+
+    EXPECT_EQ(stem.trackId,
+            mixxx::stemoriginal::findCounterpartTrackId(dbConnection(),
+                    *regular.pTrack,
+                    mixxx::stemoriginal::Counterpart::Stem));
+}
+
+TEST_F(StemOriginalDbTest, aTrackIsNeverItsOwnCounterpart) {
+    // Asking a stem file for a stem file (or a regular file for a regular
+    // file) must come up empty instead of returning a same-named sibling.
+    const LibraryEntry stem = addTrack(
+            QStringLiteral("stems"), QStringLiteral("Artist - Title.stem.m4a"));
+    const LibraryEntry regular = addTrack(
+            QStringLiteral("library"), QStringLiteral("Artist - Title.mp3"));
+
+    EXPECT_FALSE(mixxx::stemoriginal::findCounterpartTrackId(dbConnection(),
+            *stem.pTrack,
+            mixxx::stemoriginal::Counterpart::Stem)
+                         .isValid());
+    EXPECT_FALSE(mixxx::stemoriginal::findCounterpartTrackId(dbConnection(),
+            *regular.pTrack,
+            mixxx::stemoriginal::Counterpart::Original)
+                         .isValid());
+}
+
+TEST_F(StemOriginalDbTest, returnsNothingWhenTheStemIsMissing) {
+    const LibraryEntry regular = addTrack(QStringLiteral("library"),
+            QStringLiteral("Nobody - Nothing.mp3"),
+            QStringLiteral("Nobody"),
+            QStringLiteral("Nothing"));
+
+    EXPECT_FALSE(mixxx::stemoriginal::findCounterpartTrackId(dbConnection(),
+            *regular.pTrack,
+            mixxx::stemoriginal::Counterpart::Stem)
+                         .isValid());
+}
+
 TEST_F(StemOriginalDbTest, returnsNothingWhenTheOriginalIsMissing) {
     const LibraryEntry stem = addTrack(QStringLiteral("stems"),
             QStringLiteral("Nobody - Nothing.stem.m4a"),
