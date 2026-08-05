@@ -423,6 +423,19 @@ void WLibrarySidebar::selectChildIndex(const QModelIndex& index, bool selectItem
     scrollTo(translated, EnsureVisible);
 }
 
+/// Expands a child index from a feature without changing the selection
+void WLibrarySidebar::expandChildIndex(const QModelIndex& index) {
+    SidebarModel* pSidebarModel = qobject_cast<SidebarModel*>(model());
+    VERIFY_OR_DEBUG_ASSERT(pSidebarModel) {
+        qDebug() << "model() is not SidebarModel";
+        return;
+    }
+    QModelIndex translated = pSidebarModel->translateChildIndex(index);
+    if (translated.isValid()) {
+        expand(translated);
+    }
+}
+
 QModelIndex WLibrarySidebar::selectedIndex() {
     QModelIndexList selectedIndices = selectionModel()->selectedRows();
     if (selectedIndices.isEmpty()) {

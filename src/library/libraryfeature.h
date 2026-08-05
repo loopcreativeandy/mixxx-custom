@@ -134,6 +134,11 @@ class LibraryFeature : public QObject {
     virtual void onLazyChildExpandation(const QModelIndex& index) {
         Q_UNUSED(index);
     }
+    // Called when a child item is collapsed in the sidebar. Counterpart of
+    // onLazyChildExpandation for features that track expansion state.
+    virtual void onChildCollapse(const QModelIndex& index) {
+        Q_UNUSED(index);
+    }
   signals:
     void showTrackModel(QAbstractItemModel* model, bool restoreState = true);
     void switchToView(const QString& view);

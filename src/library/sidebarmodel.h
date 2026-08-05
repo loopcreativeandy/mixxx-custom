@@ -54,6 +54,7 @@ class SidebarModel : public QAbstractItemModel {
     void pressed(const QModelIndex& index);
     void clicked(const QModelIndex& index);
     void doubleClicked(const QModelIndex& index);
+    void collapsed(const QModelIndex& index);
     void rightClicked(const QPoint& globalPos, const QModelIndex& index);
     void renameItem(const QModelIndex& index);
     void deleteItem(const QModelIndex& index);

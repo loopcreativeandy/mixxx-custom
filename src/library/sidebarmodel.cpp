@@ -396,6 +396,21 @@ void SidebarModel::doubleClicked(const QModelIndex& index) {
     }
 }
 
+/// Invoked when the sidebar tree view collapses a child node
+void SidebarModel::collapsed(const QModelIndex& index) {
+    if (index.isValid()) {
+        if (index.internalPointer() == this) {
+            return;
+        }
+        TreeItem* pTreeItem = static_cast<TreeItem*>(index.internalPointer());
+        if (pTreeItem) {
+            LibraryFeature* pFeature = pTreeItem->feature();
+            DEBUG_ASSERT(pFeature);
+            pFeature->onChildCollapse(index);
+        }
+    }
+}
+
 void SidebarModel::rightClicked(const QPoint& globalPos, const QModelIndex& index) {
     stopPressedUntilClickedTimer();
     if (index.isValid()) {

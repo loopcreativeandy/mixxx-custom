@@ -363,6 +363,11 @@ void Library::bindSidebarWidget(WLibrarySidebar* pSidebarWidget) {
             &WLibrarySidebar::expanded,
             m_pSidebarModel,
             &SidebarModel::doubleClicked);
+    // Let features track their expansion state
+    connect(pSidebarWidget,
+            &WLibrarySidebar::collapsed,
+            m_pSidebarModel,
+            &SidebarModel::collapsed);
 
     connect(pSidebarWidget,
             &WLibrarySidebar::rightClicked,

@@ -1,7 +1,9 @@
 #include "library/trackset/playlistfeature.h"
 
 #include <QHash>
+#include <QInputDialog>
 #include <QMenu>
+#include <QMessageBox>
 #include <QSqlTableModel>
 #include <QtDebug>
 
@@ -31,6 +33,17 @@ PlaylistFeature::PlaylistFeature(Library* pLibrary, UserSettingsPointer pConfig)
                   QStringLiteral("PLAYLISTHOME"),
                   QStringLiteral("playlist"),
                   QStringLiteral("PlaylistsCountsDurations")) {
+    // Restore which sidebar folders were expanded. Folder names cannot
+    // contain '/' (it is the folder separator inside playlist names), so
+    // it doubles as a safe list separator here.
+    const QString expandedFolders = m_pConfig->getValueString(
+            ConfigKey("[PlaylistFeature]", "ExpandedFolders"));
+    if (!expandedFolders.isEmpty()) {
+        const QStringList folders =
+                expandedFolders.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+        m_expandedFolders = QSet<QString>(folders.begin(), folders.end());
+    }
+
     // construct child model
     std::unique_ptr<TreeItem> pRootItem = TreeItem::newRoot(this);
     m_pSidebarModel->setRootItem(std::move(pRootItem));
@@ -74,6 +87,19 @@ PlaylistFeature::PlaylistFeature(Library* pLibrary, UserSettingsPointer pConfig)
             &QAction::triggered,
             this,
             &PlaylistFeature::slotDeleteAllUnlockedPlaylists);
+
+    m_pRenameFolderAction = make_parented<QAction>(tr("Rename Folder"), this);
+    connect(m_pRenameFolderAction,
+            &QAction::triggered,
+            this,
+            &PlaylistFeature::slotRenameFolder);
+}
+
+void PlaylistFeature::bindSidebarWidget(WLibrarySidebar* pSidebarWidget) {
+    BasePlaylistFeature::bindSidebarWidget(pSidebarWidget);
+    // The child model was constructed before the sidebar widget existed;
+    // apply the persisted folder expansion now.
+    restoreExpandedFolders();
 }
 
 void PlaylistFeature::slotOpenInSidePane() {
@@ -112,9 +138,14 @@ void PlaylistFeature::onRightClickChild(
     m_lastRightClickedIndex = index;
     int playlistId = playlistIdFromIndex(index);
     if (playlistId == kInvalidPlaylistId) {
-        // Folder node: none of the per-playlist actions apply, offer the
-        // same menu as the feature root.
-        onRightClick(globalPos);
+        // Folder node: none of the per-playlist actions apply. Offer the
+        // folder actions plus the root create/import actions.
+        QMenu menu(m_pSidebarWidget);
+        menu.addAction(m_pRenameFolderAction);
+        menu.addSeparator();
+        menu.addAction(m_pCreatePlaylistAction);
+        menu.addAction(m_pCreateImportPlaylistAction);
+        menu.exec(globalPos);
         return;
     }
 
@@ -138,6 +169,42 @@ void PlaylistFeature::onRightClickChild(
     menu.addAction(m_pMarkAllUnplayedAction);
     menu.addSeparator();
     menu.addAction(m_pRenamePlaylistAction);
+    // Move a playlist between sidebar folders by renaming it per the
+    // "Folder/Playlist" naming convention.
+    QMenu* pMoveToFolderMenu = menu.addMenu(tr("Move to Folder"));
+    pMoveToFolderMenu->setEnabled(!locked);
+    if (!locked) {
+        const QString currentFolder =
+                sidebarFolderOfName(m_playlistDao.getPlaylistName(playlistId));
+        const QStringList folders = currentFolders();
+        for (const QString& folder : folders) {
+            QAction* pFolderAction = pMoveToFolderMenu->addAction(folder);
+            if (folder == currentFolder) {
+                pFolderAction->setCheckable(true);
+                pFolderAction->setChecked(true);
+                pFolderAction->setEnabled(false);
+            } else {
+                connect(pFolderAction, &QAction::triggered, this, [this, folder] {
+                    slotMoveToFolder(folder);
+                });
+            }
+        }
+        if (!folders.isEmpty()) {
+            pMoveToFolderMenu->addSeparator();
+        }
+        QAction* pNewFolderAction = pMoveToFolderMenu->addAction(tr("New Folder..."));
+        connect(pNewFolderAction,
+                &QAction::triggered,
+                this,
+                &PlaylistFeature::slotMoveToNewFolder);
+        if (!currentFolder.isEmpty()) {
+            QAction* pRemoveAction =
+                    pMoveToFolderMenu->addAction(tr("Remove from Folder"));
+            connect(pRemoveAction, &QAction::triggered, this, [this] {
+                slotMoveToFolder(QString());
+            });
+        }
+    }
     menu.addAction(m_pDuplicatePlaylistAction);
     menu.addAction(m_pDeletePlaylistAction);
     menu.addAction(m_pLockPlaylistAction);
@@ -425,6 +492,231 @@ QString PlaylistFeature::createPlaylistLabel(
     return BasePlaylistFeature::createPlaylistLabel(name, count, duration);
 }
 
+bool PlaylistFeature::isFolderIndex(const QModelIndex& index) const {
+    if (!index.isValid()) {
+        return false;
+    }
+    TreeItem* pItem = static_cast<TreeItem*>(index.internalPointer());
+    return pItem != nullptr && pItem->hasChildren() &&
+            playlistIdFromIndex(index) == kInvalidPlaylistId;
+}
+
+QStringList PlaylistFeature::currentFolders() const {
+    QStringList folders;
+    TreeItem* pRootItem = m_pSidebarModel->getRootItem();
+    if (pRootItem == nullptr) {
+        return folders;
+    }
+    for (int row = 0; row < pRootItem->childRows(); ++row) {
+        TreeItem* pChild = pRootItem->child(row);
+        if (pChild->hasChildren()) {
+            folders.append(pChild->getLabel());
+        }
+    }
+    folders.sort(Qt::CaseInsensitive);
+    return folders;
+}
+
+void PlaylistFeature::onLazyChildExpandation(const QModelIndex& index) {
+    // The sidebar routes QTreeView::expanded here; record expanded folder
+    // nodes so their state survives rebuilds and restarts.
+    if (!isFolderIndex(index)) {
+        return;
+    }
+    TreeItem* pItem = static_cast<TreeItem*>(index.internalPointer());
+    const QString folder = pItem->getLabel();
+    if (folder.isEmpty() || m_expandedFolders.contains(folder)) {
+        return;
+    }
+    m_expandedFolders.insert(folder);
+    saveExpandedFolders();
+}
+
+void PlaylistFeature::onChildCollapse(const QModelIndex& index) {
+    if (m_rebuildingChildModel || !isFolderIndex(index)) {
+        return;
+    }
+    TreeItem* pItem = static_cast<TreeItem*>(index.internalPointer());
+    if (m_expandedFolders.remove(pItem->getLabel())) {
+        saveExpandedFolders();
+    }
+}
+
+void PlaylistFeature::renameItem(const QModelIndex& index) {
+    if (isFolderIndex(index)) {
+        m_lastRightClickedIndex = index;
+        slotRenameFolder();
+        return;
+    }
+    BasePlaylistFeature::renameItem(index);
+}
+
+void PlaylistFeature::slotRenameFolder() {
+    if (!isFolderIndex(m_lastRightClickedIndex)) {
+        return;
+    }
+    TreeItem* pItem =
+            static_cast<TreeItem*>(m_lastRightClickedIndex.internalPointer());
+    const QString oldFolder = pItem->getLabel();
+
+    QString newFolder;
+    while (true) {
+        bool ok = false;
+        newFolder = QInputDialog::getText(nullptr,
+                tr("Rename Folder"),
+                tr("Enter new name for folder:"),
+                QLineEdit::Normal,
+                oldFolder,
+                &ok)
+                            .trimmed();
+        if (!ok || newFolder == oldFolder) {
+            return;
+        }
+        if (newFolder.isEmpty()) {
+            QMessageBox::warning(nullptr,
+                    tr("Renaming Folder Failed"),
+                    tr("A folder cannot have a blank name."));
+        } else if (newFolder.contains(QLatin1Char('/'))) {
+            QMessageBox::warning(nullptr,
+                    tr("Renaming Folder Failed"),
+                    tr("A folder name cannot contain '/'."));
+        } else {
+            break;
+        }
+    }
+    renameFolderMembers(oldFolder, newFolder);
+}
+
+void PlaylistFeature::renameFolderMembers(
+        const QString& oldFolder, const QString& newFolder) {
+    // Collect the members first and check every rename before applying any,
+    // so a conflict cannot split the folder halfway through.
+    QList<QPair<int, QString>> renames;
+    const QList<IdAndLabel> playlistLabels = createPlaylistLabels();
+    for (const auto& idAndLabel : playlistLabels) {
+        if (sidebarFolderOfName(idAndLabel.name) != oldFolder) {
+            continue;
+        }
+        const QString leaf =
+                idAndLabel.name.mid(idAndLabel.name.indexOf(QLatin1Char('/')) + 1)
+                        .trimmed();
+        const QString newName = newFolder + QLatin1Char('/') + leaf;
+        if (m_playlistDao.isPlaylistLocked(idAndLabel.id)) {
+            QMessageBox::warning(nullptr,
+                    tr("Renaming Folder Failed"),
+                    tr("The folder contains the locked playlist \"%1\". "
+                       "Unlock it first.")
+                            .arg(leaf));
+            return;
+        }
+        const int existingId = m_playlistDao.getPlaylistIdFromName(newName);
+        if (existingId != kInvalidPlaylistId && existingId != idAndLabel.id) {
+            QMessageBox::warning(nullptr,
+                    tr("Renaming Folder Failed"),
+                    tr("A playlist named \"%1\" already exists.").arg(newName));
+            return;
+        }
+        renames.append(qMakePair(idAndLabel.id, newName));
+    }
+    if (renames.isEmpty()) {
+        return;
+    }
+
+    // Keep the expansion state with the renamed folder.
+    if (m_expandedFolders.remove(oldFolder)) {
+        m_expandedFolders.insert(newFolder);
+        saveExpandedFolders();
+    }
+    for (const auto& [playlistId, newName] : std::as_const(renames)) {
+        m_playlistDao.renamePlaylist(playlistId, newName);
+    }
+}
+
+void PlaylistFeature::slotMoveToFolder(const QString& folder) {
+    const int playlistId = playlistIdFromIndex(m_lastRightClickedIndex);
+    if (playlistId == kInvalidPlaylistId ||
+            m_playlistDao.isPlaylistLocked(playlistId)) {
+        return;
+    }
+    const QString name = m_playlistDao.getPlaylistName(playlistId);
+    QString leaf = name;
+    if (!sidebarFolderOfName(name).isEmpty()) {
+        leaf = name.mid(name.indexOf(QLatin1Char('/')) + 1).trimmed();
+    }
+    const QString newName =
+            folder.isEmpty() ? leaf : folder + QLatin1Char('/') + leaf;
+    if (newName == name) {
+        return;
+    }
+    const int existingId = m_playlistDao.getPlaylistIdFromName(newName);
+    if (existingId != kInvalidPlaylistId && existingId != playlistId) {
+        QMessageBox::warning(nullptr,
+                tr("Moving Playlist Failed"),
+                tr("A playlist named \"%1\" already exists.").arg(newName));
+        return;
+    }
+    // Expand the target folder so the moved playlist stays visible.
+    if (!folder.isEmpty() && !m_expandedFolders.contains(folder)) {
+        m_expandedFolders.insert(folder);
+        saveExpandedFolders();
+    }
+    m_playlistDao.renamePlaylist(playlistId, newName);
+}
+
+void PlaylistFeature::slotMoveToNewFolder() {
+    QString folder;
+    while (true) {
+        bool ok = false;
+        folder = QInputDialog::getText(nullptr,
+                tr("New Folder"),
+                tr("Enter name for the new folder:"),
+                QLineEdit::Normal,
+                QString(),
+                &ok)
+                         .trimmed();
+        if (!ok) {
+            return;
+        }
+        if (folder.isEmpty()) {
+            QMessageBox::warning(nullptr,
+                    tr("Creating Folder Failed"),
+                    tr("A folder cannot have a blank name."));
+        } else if (folder.contains(QLatin1Char('/'))) {
+            QMessageBox::warning(nullptr,
+                    tr("Creating Folder Failed"),
+                    tr("A folder name cannot contain '/'."));
+        } else {
+            break;
+        }
+    }
+    slotMoveToFolder(folder);
+}
+
+void PlaylistFeature::restoreExpandedFolders() {
+    if (!m_pSidebarWidget || m_expandedFolders.isEmpty()) {
+        return;
+    }
+    TreeItem* pRootItem = m_pSidebarModel->getRootItem();
+    if (pRootItem == nullptr) {
+        return;
+    }
+    for (int row = 0; row < pRootItem->childRows(); ++row) {
+        TreeItem* pChild = pRootItem->child(row);
+        if (pChild->hasChildren() &&
+                m_expandedFolders.contains(pChild->getLabel())) {
+            m_pSidebarWidget->expandChildIndex(m_pSidebarModel->index(row, 0));
+        }
+    }
+}
+
+void PlaylistFeature::saveExpandedFolders() {
+    QStringList folders(m_expandedFolders.begin(), m_expandedFolders.end());
+    folders.sort(Qt::CaseInsensitive);
+    // Folder names cannot contain '/', so it is a safe list separator.
+    m_pConfig->setValue(ConfigKey("[PlaylistFeature]", "ExpandedFolders"),
+            folders.join(QLatin1Char('/')));
+}
+
 QModelIndex PlaylistFeature::constructChildModel(int selectedId) {
     // qDebug() << "PlaylistFeature::constructChildModel() id:" << selectedId;
     std::vector<std::unique_ptr<TreeItem>> childrenToAdd;
@@ -461,6 +753,8 @@ QModelIndex PlaylistFeature::constructChildModel(int selectedId) {
 
     // Append all the newly created TreeItems in a dynamic way to the childmodel
     m_pSidebarModel->insertTreeItemRows(std::move(childrenToAdd), 0);
+    // The rebuild collapsed all folder nodes; re-apply the stored state.
+    restoreExpandedFolders();
     return indexFromPlaylistId(selectedId);
 }
 
@@ -494,8 +788,12 @@ void PlaylistFeature::slotPlaylistTableChanged(int playlistId) {
         }
     }
 
+    // Collapse events fired while rows are torn down must not clear the
+    // stored folder expansion state.
+    m_rebuildingChildModel = true;
     clearChildModel();
     QModelIndex newIndex = constructChildModel(selectedPlaylistId);
+    m_rebuildingChildModel = false;
     if (selectedPlaylistId != kInvalidPlaylistId && newIndex.isValid()) {
         // If a child index was selected and we got a new valid index select that.
         // Else (root item was selected or for some reason no index could be created)
