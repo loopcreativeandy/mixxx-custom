@@ -1,103 +1,42 @@
 <Template>
   <SetVariable name="StemGroup">[Channel<Variable name="ChanNum"/>_Stem<Variable name="StemNum"/>]</SetVariable>
 
+  <!-- andy-custom CP47: one stem row = one *cell*. In split-lane waveform mode
+       the caller passes StemCellPolicy "min,me", so the four cells share the
+       waveform's height equally and each row sits in the vertical centre of
+       its cell - i.e. exactly on the centre line of the matching stem lane
+       (waveformrendererstem.cpp: lane i spans i*breadth/4 .. (i+1)*breadth/4).
+       In overlapping mode the caller passes "min,min" and the spacers collapse
+       to 0, so the four rows stay packed as before. -->
   <WidgetGroup>
-    <ObjectName>StemChannel_ControlContainer</ObjectName>
-    <Layout>horizontal</Layout>
-    <SizePolicy>min,min</SizePolicy>
+    <ObjectName>StemChannel_Cell</ObjectName>
+    <Layout>vertical</Layout>
+    <SizePolicy><Variable name="StemCellPolicy"/></SizePolicy>
     <Children>
+      <WidgetGroup><Size>0min,0me</Size></WidgetGroup>
 
-      <!-- andy-custom CP16: single-letter stem labels (Bass -> B, Drums -> D,
-           Other -> O, Vocals -> V). The stems are colour-coded, so the letter
-           plus the colour identifies them; the full name is the tooltip.
-           50f -> 16f is most of what makes the strip compact again. -->
-      <StemLabel>
-        <TooltipId>StemLabel</TooltipId>
-        <ObjectName>StemLabel</ObjectName>
-        <Group><Variable name="Group"/></Group>
-        <StemNum><Variable name="StemNum"/></StemNum>
-        <ShortLabel>true</ShortLabel>
-        <Alignment>center</Alignment>
-        <Size>16f,22f</Size>
-        <Text></Text>
-      </StemLabel>
-
-      <PushButton>
-        <TooltipId>StemMuteButton</TooltipId>
-        <ObjectName>StemMuteButton</ObjectName>
-        <Size>16f,16f</Size>
-        <NumberStates>2</NumberStates>
-        <State>
-          <Number>0</Number>
-          <Unpressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_<Variable name="BtnType"/>_eqkill.svg</Unpressed>
-          <Pressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_<Variable name="BtnType"/>_eqkill_active.svg</Pressed>
-        </State>
-        <State>
-          <Number>1</Number>
-          <Unpressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_<Variable name="BtnType"/>_eqkill_active.svg</Unpressed>
-          <Pressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_<Variable name="BtnType"/>_eqkill_active.svg</Pressed>
-        </State>
-        <Connection>
-          <ButtonState>LeftButton</ButtonState>
-          <ConfigKey><Variable name="StemGroup"/>,mute_toggle</ConfigKey>
-          <Transform>
-            <Not/>
-          </Transform>
-        </Connection>
-        <Connection>
-          <ButtonState>LeftButton</ButtonState>
-          <ConfigKey><Variable name="StemGroup"/>,mute</ConfigKey>
-            <ConnectValueFromWidget>true</ConnectValueFromWidget>
-          <Transform>
-            <Not/>
-          </Transform>
-        </Connection>
-      </PushButton>
-
-      <KnobComposed>
-        <TooltipId>StemVolumeKnob</TooltipId>
-        <Size>22f,22f</Size>
-        <Knob>skins:LateNight/<Variable name="KnobScheme"/>/knobs/knob_indicator_<Variable name="KnobIndicator"/>_orange.svg</Knob>
-        <BackPath>skins:LateNight/<Variable name="KnobScheme"/>/knobs/knob_bg_fx.svg</BackPath>
-        <MinAngle><Variable name="PotiMinAngle"/></MinAngle>
-        <MaxAngle><Variable name="PotiMaxAngle"/></MaxAngle>
-        <ArcUnipolar>true</ArcUnipolar>
-        <!-- andy-custom CP19: ArcRadius is absolute pixels (NOT scaled to the
-             widget, see WKnobComposed::resizeEvent) and the arc is clipped by
-             the widget rect. LateNight's ArcRadiusSmall (12) + thickness needs
-             a >=26px box; in this compact 22px box the orange ring was cut off
-             square on all sides. 9.6 + 1.6/2 = 10.4 < 11 shows the full circle
-             with a little air, at roughly LateNight's arc/knob proportions. -->
-        <ArcRadius>9.6</ArcRadius>
-        <ArcColor><Variable name="ArcColorGain"/></ArcColor>
-        <ArcThickness>1.6</ArcThickness>
-        <ArcRoundCaps><Variable name="ArcRoundCaps"/></ArcRoundCaps>
-        <!-- <KnobCenterYOffset>1.998</KnobCenterYOffset> -->
-        <Connection>
-          <ConfigKey><Variable name="StemGroup"/>,volume</ConfigKey>
-        </Connection>
-      </KnobComposed>
-
-      <!-- andy-custom CP15: Andy only wants label + mute + volume on the
-           stem strip; the QuickEffect selector/enable/knob follow the FX rack
-           toggle, which AndyVideo keeps off. -->
       <WidgetGroup>
+        <ObjectName>StemChannel_ControlContainer</ObjectName>
         <Layout>horizontal</Layout>
         <SizePolicy>min,min</SizePolicy>
         <Children>
-          <WidgetGroup><Size>4f,0min</Size></WidgetGroup>
 
-          <EffectChainPresetSelector>
-            <ObjectName>StemQuickEffectSelector</ObjectName>
-            <Size>85f,18f</Size>
-            <EffectUnitGroup>[QuickEffectRack1_<Variable name="StemGroup"/>]</EffectUnitGroup>
-          </EffectChainPresetSelector>
+          <!-- andy-custom CP47: the single-letter label (CP16) is gone - Andy
+               knows the stems by their fixed top-to-bottom order, and with the
+               knobs aligned to the lanes the waveform itself identifies them.
+               The <ShortLabel> C++ support stays in place for other skins. -->
 
-          <WidgetGroup><Size>2f,0min</Size></WidgetGroup>
+          <!-- Mute sits in its own full-height box so it stays centred next to
+               the taller knob instead of being pinned to the top of the row. -->
+          <WidgetGroup>
+            <Layout>vertical</Layout>
+            <Size>18f,34f</Size>
+            <Children>
+              <WidgetGroup><Size>0min,0me</Size></WidgetGroup>
 
           <PushButton>
-            <TooltipId>QuickEffectRack_enabled</TooltipId>
-            <ObjectName>QuickEffectButton</ObjectName>
+            <TooltipId>StemMuteButton</TooltipId>
+            <ObjectName>StemMuteButton</ObjectName>
             <Size>18f,18f</Size>
             <NumberStates>2</NumberStates>
             <State>
@@ -111,36 +50,118 @@
               <Pressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_<Variable name="BtnType"/>_eqkill_active.svg</Pressed>
             </State>
             <Connection>
-              <ConfigKey>[QuickEffectRack1_<Variable name="StemGroup"/>],enabled</ConfigKey>
               <ButtonState>LeftButton</ButtonState>
+              <ConfigKey><Variable name="StemGroup"/>,mute_toggle</ConfigKey>
+              <Transform>
+                <Not/>
+              </Transform>
+            </Connection>
+            <Connection>
+              <ButtonState>LeftButton</ButtonState>
+              <ConfigKey><Variable name="StemGroup"/>,mute</ConfigKey>
+                <ConnectValueFromWidget>true</ConnectValueFromWidget>
+              <Transform>
+                <Not/>
+              </Transform>
             </Connection>
           </PushButton>
 
-          <WidgetGroup><Size>2f,0min</Size></WidgetGroup>
+              <WidgetGroup><Size>0min,0me</Size></WidgetGroup>
+            </Children>
+          </WidgetGroup>
 
           <KnobComposed>
-            <TooltipId>QuickEffectRack_super1</TooltipId>
-            <Size>26f,26f</Size>
-            <Knob>skins:LateNight/<Variable name="KnobScheme"/>/knobs/knob_indicator_<Variable name="KnobIndicator"/>_<Variable name="KnobColorQuickEffect"/>.svg</Knob>
+            <TooltipId>StemVolumeKnob</TooltipId>
+            <!-- andy-custom CP47: 22f -> 34f, the same box height as the mixer's
+                 EQ knobs (LateNight/mixer/eq_knob_*.xml uses 40f,34f). -->
+            <Size>34f,34f</Size>
+            <Knob>skins:LateNight/<Variable name="KnobScheme"/>/knobs/knob_indicator_<Variable name="KnobIndicator"/>_orange.svg</Knob>
             <BackPath>skins:LateNight/<Variable name="KnobScheme"/>/knobs/knob_bg_fx.svg</BackPath>
             <MinAngle><Variable name="PotiMinAngle"/></MinAngle>
             <MaxAngle><Variable name="PotiMaxAngle"/></MaxAngle>
-            <ArcRadius><Variable name="ArcRadiusSmall"/></ArcRadius>
-            <ArcUnipolar>false</ArcUnipolar>
-            <ArcColor><Variable name="ArcColorFx12Quick"/></ArcColor>
-            <ArcThickness><Variable name="ArcThickness"/></ArcThickness>
+            <ArcUnipolar>true</ArcUnipolar>
+            <!-- andy-custom CP19: ArcRadius is absolute pixels (NOT scaled to the
+                 widget, see WKnobComposed::resizeEvent) and the arc is clipped by
+                 the widget rect - the 22px box needed 9.6/1.6 to keep the ring
+                 round. CP47: with a 34px box the standard big arc fits again,
+                 14.5 + 2/2 = 15.5 < 17, so the ring still draws complete. -->
+            <ArcRadius><Variable name="ArcRadiusBig"/></ArcRadius>
+            <ArcColor><Variable name="ArcColorGain"/></ArcColor>
+            <ArcThickness><Variable name="ArcThicknessBig"/></ArcThickness>
             <ArcRoundCaps><Variable name="ArcRoundCaps"/></ArcRoundCaps>
+            <!-- <KnobCenterYOffset>1.998</KnobCenterYOffset> -->
             <Connection>
-              <ConfigKey>[QuickEffectRack1_<Variable name="StemGroup"/>],super1</ConfigKey>
+              <ConfigKey><Variable name="StemGroup"/>,volume</ConfigKey>
             </Connection>
           </KnobComposed>
+
+          <!-- andy-custom CP15: Andy only wants label + mute + volume on the
+               stem strip; the QuickEffect selector/enable/knob follow the FX rack
+               toggle, which AndyVideo keeps off. -->
+          <WidgetGroup>
+            <Layout>horizontal</Layout>
+            <SizePolicy>min,min</SizePolicy>
+            <Children>
+              <WidgetGroup><Size>4f,0min</Size></WidgetGroup>
+
+              <EffectChainPresetSelector>
+                <ObjectName>StemQuickEffectSelector</ObjectName>
+                <Size>85f,18f</Size>
+                <EffectUnitGroup>[QuickEffectRack1_<Variable name="StemGroup"/>]</EffectUnitGroup>
+              </EffectChainPresetSelector>
+
+              <WidgetGroup><Size>2f,0min</Size></WidgetGroup>
+
+              <PushButton>
+                <TooltipId>QuickEffectRack_enabled</TooltipId>
+                <ObjectName>QuickEffectButton</ObjectName>
+                <Size>18f,18f</Size>
+                <NumberStates>2</NumberStates>
+                <State>
+                  <Number>0</Number>
+                  <Unpressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_<Variable name="BtnType"/>_eqkill.svg</Unpressed>
+                  <Pressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_<Variable name="BtnType"/>_eqkill_active.svg</Pressed>
+                </State>
+                <State>
+                  <Number>1</Number>
+                  <Unpressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_<Variable name="BtnType"/>_eqkill_active.svg</Unpressed>
+                  <Pressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_<Variable name="BtnType"/>_eqkill_active.svg</Pressed>
+                </State>
+                <Connection>
+                  <ConfigKey>[QuickEffectRack1_<Variable name="StemGroup"/>],enabled</ConfigKey>
+                  <ButtonState>LeftButton</ButtonState>
+                </Connection>
+              </PushButton>
+
+              <WidgetGroup><Size>2f,0min</Size></WidgetGroup>
+
+              <KnobComposed>
+                <TooltipId>QuickEffectRack_super1</TooltipId>
+                <Size>26f,26f</Size>
+                <Knob>skins:LateNight/<Variable name="KnobScheme"/>/knobs/knob_indicator_<Variable name="KnobIndicator"/>_<Variable name="KnobColorQuickEffect"/>.svg</Knob>
+                <BackPath>skins:LateNight/<Variable name="KnobScheme"/>/knobs/knob_bg_fx.svg</BackPath>
+                <MinAngle><Variable name="PotiMinAngle"/></MinAngle>
+                <MaxAngle><Variable name="PotiMaxAngle"/></MaxAngle>
+                <ArcRadius><Variable name="ArcRadiusSmall"/></ArcRadius>
+                <ArcUnipolar>false</ArcUnipolar>
+                <ArcColor><Variable name="ArcColorFx12Quick"/></ArcColor>
+                <ArcThickness><Variable name="ArcThickness"/></ArcThickness>
+                <ArcRoundCaps><Variable name="ArcRoundCaps"/></ArcRoundCaps>
+                <Connection>
+                  <ConfigKey>[QuickEffectRack1_<Variable name="StemGroup"/>],super1</ConfigKey>
+                </Connection>
+              </KnobComposed>
+            </Children>
+            <Connection>
+              <ConfigKey persist="false">[Skin],show_effectrack</ConfigKey>
+              <BindProperty>visible</BindProperty>
+            </Connection>
+          </WidgetGroup>
+
         </Children>
-        <Connection>
-          <ConfigKey persist="false">[Skin],show_effectrack</ConfigKey>
-          <BindProperty>visible</BindProperty>
-        </Connection>
       </WidgetGroup>
 
+      <WidgetGroup><Size>0min,0me</Size></WidgetGroup>
     </Children>
   </WidgetGroup>
 </Template>

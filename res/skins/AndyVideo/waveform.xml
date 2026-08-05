@@ -36,33 +36,89 @@
         <Layout>vertical</Layout>
         <SizePolicy>min,me</SizePolicy>
         <Children>
-          <WidgetGroup><Size>0min,1me</Size></WidgetGroup>
-
+          <!-- andy-custom CP47: two layouts of the same four stem rows, one
+               per waveform mode, switched live by [Waveform],stem_split_tracks
+               (the CP17 control). Only one is ever visible, so the hidden one
+               costs no space.
+                 split  : four equal expanding cells over the full waveform
+                          height -> each knob lands on its own stem lane.
+                 overlap: the old packed block, vertically centred. -->
           <WidgetGroup>
-            <ObjectName>StemControlsInner</ObjectName>
             <Layout>vertical</Layout>
-            <SizePolicy>min,min</SizePolicy>
+            <SizePolicy>min,me</SizePolicy>
             <Children>
-              <Template src="skins:AndyVideo/stem_channel.xml">
-                <SetVariable name="StemNum">1</SetVariable>
-              </Template>
-              <Template src="skins:AndyVideo/stem_channel.xml">
-                <SetVariable name="StemNum">2</SetVariable>
-              </Template>
-              <Template src="skins:AndyVideo/stem_channel.xml">
-                <SetVariable name="StemNum">3</SetVariable>
-              </Template>
-              <Template src="skins:AndyVideo/stem_channel.xml">
-                <SetVariable name="StemNum">4</SetVariable>
-              </Template>
+
+              <WidgetGroup>
+                <ObjectName>StemControlsInner</ObjectName>
+                <Layout>vertical</Layout>
+                <SizePolicy>min,me</SizePolicy>
+                <Children>
+                  <Template src="skins:AndyVideo/stem_channel.xml">
+                    <SetVariable name="StemNum">1</SetVariable>
+                    <SetVariable name="StemCellPolicy">min,me</SetVariable>
+                  </Template>
+                  <Template src="skins:AndyVideo/stem_channel.xml">
+                    <SetVariable name="StemNum">2</SetVariable>
+                    <SetVariable name="StemCellPolicy">min,me</SetVariable>
+                  </Template>
+                  <Template src="skins:AndyVideo/stem_channel.xml">
+                    <SetVariable name="StemNum">3</SetVariable>
+                    <SetVariable name="StemCellPolicy">min,me</SetVariable>
+                  </Template>
+                  <Template src="skins:AndyVideo/stem_channel.xml">
+                    <SetVariable name="StemNum">4</SetVariable>
+                    <SetVariable name="StemCellPolicy">min,me</SetVariable>
+                  </Template>
+                </Children>
+                <Connection>
+                  <ConfigKey>[Waveform],stem_split_tracks</ConfigKey>
+                  <BindProperty>visible</BindProperty>
+                </Connection>
+              </WidgetGroup>
+
+              <WidgetGroup>
+                <Layout>vertical</Layout>
+                <SizePolicy>min,me</SizePolicy>
+                <Children>
+                  <WidgetGroup><Size>0min,1me</Size></WidgetGroup>
+                  <WidgetGroup>
+                    <ObjectName>StemControlsInner</ObjectName>
+                    <Layout>vertical</Layout>
+                    <SizePolicy>min,min</SizePolicy>
+                    <Children>
+                      <Template src="skins:AndyVideo/stem_channel.xml">
+                        <SetVariable name="StemNum">1</SetVariable>
+                        <SetVariable name="StemCellPolicy">min,min</SetVariable>
+                      </Template>
+                      <Template src="skins:AndyVideo/stem_channel.xml">
+                        <SetVariable name="StemNum">2</SetVariable>
+                        <SetVariable name="StemCellPolicy">min,min</SetVariable>
+                      </Template>
+                      <Template src="skins:AndyVideo/stem_channel.xml">
+                        <SetVariable name="StemNum">3</SetVariable>
+                        <SetVariable name="StemCellPolicy">min,min</SetVariable>
+                      </Template>
+                      <Template src="skins:AndyVideo/stem_channel.xml">
+                        <SetVariable name="StemNum">4</SetVariable>
+                        <SetVariable name="StemCellPolicy">min,min</SetVariable>
+                      </Template>
+                    </Children>
+                  </WidgetGroup>
+                  <WidgetGroup><Size>0min,1me</Size></WidgetGroup>
+                </Children>
+                <Connection>
+                  <ConfigKey>[Waveform],stem_split_tracks</ConfigKey>
+                  <BindProperty>visible</BindProperty>
+                  <Transform><Not/></Transform>
+                </Connection>
+              </WidgetGroup>
+
             </Children>
             <Connection>
               <ConfigKey persist="true"><Variable name="Group"/>,stem_count</ConfigKey>
               <BindProperty>visible</BindProperty>
             </Connection>
           </WidgetGroup>
-
-          <WidgetGroup><Size>0min,1me</Size></WidgetGroup>
         </Children>
         <Connection>
           <ConfigKey persist="true">[Skin],show_stem_controls</ConfigKey>

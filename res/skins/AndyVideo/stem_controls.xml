@@ -30,15 +30,19 @@
         <SizePolicy>min,max</SizePolicy>
         <Children>
           <Template src="skins:AndyVideo/stem_channel.xml">
+            <SetVariable name="StemCellPolicy">min,min</SetVariable>
             <SetVariable name="StemNum">1</SetVariable>
           </Template>
           <Template src="skins:AndyVideo/stem_channel.xml">
+            <SetVariable name="StemCellPolicy">min,min</SetVariable>
             <SetVariable name="StemNum">2</SetVariable>
           </Template>
           <Template src="skins:AndyVideo/stem_channel.xml">
+            <SetVariable name="StemCellPolicy">min,min</SetVariable>
             <SetVariable name="StemNum">3</SetVariable>
           </Template>
           <Template src="skins:AndyVideo/stem_channel.xml">
+            <SetVariable name="StemCellPolicy">min,min</SetVariable>
             <SetVariable name="StemNum">4</SetVariable>
           </Template>
         </Children>
