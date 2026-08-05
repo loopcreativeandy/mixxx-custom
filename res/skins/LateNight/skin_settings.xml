@@ -307,6 +307,18 @@ Description:
             <SetVariable name="Width">190me</SetVariable>
           </Template>
 
+          <!-- Andy CP48: only AndyVideo has two layouts. OFF (default) = the
+               presenter column with the stacked decks; ON = a plain
+               LateNight-style layout (decks 1-4 beside the mixer, full-width
+               library, the side playlist pane as a strip below it).
+               Inert in every other skin. -->
+          <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
+            <SetVariable name="Text">Classic Layout</SetVariable>
+            <SetVariable name="Setting">[Skin],andy_classic_layout</SetVariable>
+            <SetVariable name="TooltipId"></SetVariable>
+            <SetVariable name="Width">190me</SetVariable>
+          </Template>
+
           <WidgetGroup>
             <ObjectName>SkinSettingsSeparator</ObjectName>
             <Size>1min,12f</Size>
