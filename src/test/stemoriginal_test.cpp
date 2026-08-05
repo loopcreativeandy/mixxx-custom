@@ -245,6 +245,9 @@ TEST_F(StemOriginalTest, copiesDescriptiveMetadata) {
 
     m_pStem->setGrouping(QStringLiteral("stale"));
     m_pStem->setRating(1);
+    // Not kStemLocation: Track normalizes the path, which on Windows prepends
+    // the drive letter of the working directory.
+    const QString stemLocation = m_pStem->getLocation();
 
     mixxx::stemoriginal::importFromOriginal(*m_pStem, *m_pOriginal);
 
@@ -263,7 +266,7 @@ TEST_F(StemOriginalTest, copiesDescriptiveMetadata) {
     EXPECT_EQ(4, m_pStem->getRating());
 
     // The stem file keeps its own location
-    EXPECT_EQ(QString(kStemLocation), m_pStem->getLocation());
+    EXPECT_EQ(stemLocation, m_pStem->getLocation());
 }
 
 } // anonymous namespace
