@@ -207,10 +207,6 @@ bool WaveformRendererStem::preprocessInner() {
     const double maxSamplingRange = visualIncrementPerPixel / 2.0;
 
     for (int visualIdx = 0; visualIdx < stripLength; visualIdx++) {
-        // Position of the stem in the drawing order; only used for the lane
-        // offset in the overlapping mode (in split mode the lane is fixed to
-        // the manifest index so lanes don't reshuffle on stem changes).
-        int stemLayer = 0;
         for (int stemIdx : std::as_const(m_stackOrder)) {
             // m_stackOrder always spans kMaxSupportedStems entries; a track
             // whose manifest declares fewer stems must not index past its
@@ -329,7 +325,6 @@ bool WaveformRendererStem::preprocessInner() {
                                         : yIndex * stemBreadth + halfBreadth + height},
                         {color_r, color_g, color_b, color_a});
             }
-            stemLayer++;
         }
 
         xVisualFrame += visualIncrementPerPixel;
