@@ -2,10 +2,14 @@
 
 #include <QCheckBox>
 #include <QDialogButtonBox>
+#include <QHash>
 #include <QInputDialog>
 #include <QList>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QModelIndex>
+#include <QPushButton>
+#include <QSqlDatabase>
 #include <QVBoxLayout>
 
 #include "analyzer/analyzerscheduledtrack.h"
@@ -20,6 +24,7 @@
 #include "library/dlgtrackmetadataexport.h"
 #include "library/externaltrackcollection.h"
 #include "library/library.h"
+#include "library/stemoriginal.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "library/trackmodel.h"
@@ -407,6 +412,16 @@ void WTrackMenu::createActions() {
                 this,
                 &WTrackMenu::slotImportMetadataFromFileTags);
 
+        m_pImportFromOriginalTrackAct =
+                make_parented<QAction>(tr("Import From Original Track"), m_pMetadataMenu);
+        m_pImportFromOriginalTrackAct->setToolTip(
+                tr("Copy hot cues, loops, beat grid, BPM, key and tags from the "
+                   "non-stem track this stem file was made from"));
+        connect(m_pImportFromOriginalTrackAct,
+                &QAction::triggered,
+                this,
+                &WTrackMenu::slotImportFromOriginalTrack);
+
         m_pImportMetadataFromMusicBrainzAct =
                 make_parented<QAction>(tr("Import From MusicBrainz"), m_pMetadataMenu);
         connect(m_pImportMetadataFromMusicBrainzAct,
@@ -699,6 +714,7 @@ void WTrackMenu::setupActions() {
 
     if (featureIsEnabled(Feature::Metadata)) {
         m_pMetadataMenu->addAction(m_pImportMetadataFromFileAct);
+        m_pMetadataMenu->addAction(m_pImportFromOriginalTrackAct);
         m_pMetadataMenu->addAction(m_pImportMetadataFromMusicBrainzAct);
         m_pMetadataMenu->addAction(m_pExportMetadataAct);
 
@@ -1130,6 +1146,18 @@ void WTrackMenu::updateMenus() {
     if (featureIsEnabled(Feature::Metadata)) {
         m_pImportMetadataFromMusicBrainzAct->setEnabled(singleTrackSelected);
 
+        // Only offer the stem import if the selection actually contains stem
+        // files. Checked on the track refs so no track has to be loaded.
+        bool anyStemSelected = false;
+        const QList<TrackRef> trackRefs = getTrackRefs();
+        for (const auto& trackRef : trackRefs) {
+            if (mixxx::stemoriginal::isStemFileLocation(trackRef.getLocation())) {
+                anyStemSelected = true;
+                break;
+            }
+        }
+        m_pImportFromOriginalTrackAct->setEnabled(anyStemSelected);
+
         // We use the last selected track for the cover art context to be
         // consistent with selectionChanged above.
         m_pCoverMenu->setCoverArt(getCoverInfoOfLastTrack());
@@ -1507,6 +1535,147 @@ void WTrackMenu::slotImportMetadataFromFileTags() {
             // crucial for additional metadata like custom tags that are
             // directly fetched from the database for certain use cases!
             mixxx::ModalTrackBatchOperationProcessor::Mode::ApplyAndSave);
+}
+
+namespace {
+
+/// Copies the DJ state of a stem track's non-stem original onto the stem
+/// track. The originals are resolved up front (they need database queries and
+/// a confirmation dialog), so the operation only has to look them up by the
+/// stem file's location.
+class ImportFromOriginalTrackPointerOperation : public mixxx::TrackPointerOperation {
+  public:
+    explicit ImportFromOriginalTrackPointerOperation(
+            QHash<QString, TrackPointer> originalsByStemLocation)
+            : m_originalsByStemLocation(std::move(originalsByStemLocation)) {
+    }
+
+  private:
+    void doApply(
+            const TrackPointer& pTrack) const override {
+        VERIFY_OR_DEBUG_ASSERT(pTrack) {
+            return;
+        }
+        const auto it = m_originalsByStemLocation.constFind(pTrack->getLocation());
+        if (it == m_originalsByStemLocation.constEnd() || !it.value()) {
+            // Not a stem track, or no original was found for it.
+            return;
+        }
+        mixxx::stemoriginal::importFromOriginal(*pTrack, *it.value());
+    }
+
+    const QHash<QString, TrackPointer> m_originalsByStemLocation;
+};
+
+/// Joins at most `maxCount` track descriptions into a bullet list for a
+/// message box.
+QString formatTrackList(const QStringList& trackInfos, int maxCount = 10) {
+    QStringList lines;
+    for (const auto& trackInfo : trackInfos) {
+        if (lines.size() >= maxCount) {
+            lines.append(QObject::tr("... and %n more", "", trackInfos.size() - maxCount));
+            break;
+        }
+        lines.append(QStringLiteral("\xE2\x80\xA2 ") + trackInfo);
+    }
+    return lines.join(QChar('\n'));
+}
+
+} // anonymous namespace
+
+void WTrackMenu::slotImportFromOriginalTrack() {
+    auto* pTrackCollectionManager = m_pLibrary->trackCollectionManager();
+    VERIFY_OR_DEBUG_ASSERT(pTrackCollectionManager) {
+        return;
+    }
+    const QSqlDatabase database =
+            pTrackCollectionManager->internalCollection()->database();
+
+    QHash<QString, TrackPointer> originalsByStemLocation;
+    QStringList missingOriginals;
+    QStringList overwrittenTracks;
+    const TrackPointerList trackPointers = getTrackPointers();
+    for (const auto& pTrack : trackPointers) {
+        if (!pTrack) {
+            continue;
+        }
+        const QString location = pTrack->getLocation();
+        if (!mixxx::stemoriginal::isStemFileLocation(location)) {
+            // Silently skipped: a mixed selection is a normal way to use this.
+            continue;
+        }
+        const TrackId originalTrackId =
+                mixxx::stemoriginal::findOriginalTrackId(database, *pTrack);
+        TrackPointer pOriginalTrack;
+        if (originalTrackId.isValid()) {
+            pOriginalTrack = pTrackCollectionManager->getTrackById(originalTrackId);
+        }
+        if (!pOriginalTrack) {
+            missingOriginals.append(pTrack->getInfo());
+            continue;
+        }
+        if (mixxx::stemoriginal::hasUserCueData(*pTrack)) {
+            overwrittenTracks.append(pTrack->getInfo());
+        }
+        originalsByStemLocation.insert(location, pOriginalTrack);
+    }
+
+    if (originalsByStemLocation.isEmpty()) {
+        QMessageBox::information(this,
+                tr("Import From Original Track"),
+                missingOriginals.isEmpty()
+                        ? tr("No stem tracks are selected.")
+                        : tr("No matching non-stem track was found in the "
+                             "library for:") +
+                                QStringLiteral("\n\n") +
+                                formatTrackList(missingOriginals));
+        return;
+    }
+
+    // Safety net: never silently destroy cue work that was done on the stem
+    // track itself.
+    if (!overwrittenTracks.isEmpty()) {
+        QMessageBox msgBox(this);
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.setWindowTitle(tr("Import From Original Track"));
+        msgBox.setText(tr("%n of the selected stem track(s) already have hot "
+                          "cues or loops.",
+                "",
+                overwrittenTracks.size()));
+        msgBox.setInformativeText(
+                tr("Importing from the original track will replace them, "
+                   "together with the beat grid, BPM, key and tags.") +
+                QStringLiteral("\n\n") + formatTrackList(overwrittenTracks));
+        QPushButton* pOverwriteButton =
+                msgBox.addButton(tr("Overwrite"), QMessageBox::AcceptRole);
+        msgBox.addButton(QMessageBox::Cancel);
+        msgBox.setDefaultButton(QMessageBox::Cancel);
+        msgBox.exec();
+        if (msgBox.clickedButton() != pOverwriteButton) {
+            return;
+        }
+    }
+
+    const auto progressLabelText =
+            tr("Importing %n stem track(s) from their original track",
+                    "",
+                    originalsByStemLocation.size());
+    const auto trackOperator =
+            ImportFromOriginalTrackPointerOperation(originalsByStemLocation);
+    applyTrackPointerOperation(
+            progressLabelText,
+            &trackOperator,
+            // Write the imported cues/beats/metadata to the database right
+            // away instead of waiting for the tracks to be evicted from the
+            // cache.
+            mixxx::ModalTrackBatchOperationProcessor::Mode::ApplyAndSave);
+
+    if (!missingOriginals.isEmpty()) {
+        QMessageBox::information(this,
+                tr("Import From Original Track"),
+                tr("No matching non-stem track was found in the library for:") +
+                        QStringLiteral("\n\n") + formatTrackList(missingOriginals));
+    }
 }
 
 namespace {

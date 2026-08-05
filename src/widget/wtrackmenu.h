@@ -141,6 +141,10 @@ class WTrackMenu : public QMenu {
     // Row color
     void slotColorPicked(const mixxx::RgbColor::optional_t& color);
 
+    // Stem tracks: adopt cues/beats/BPM/key/tags from the non-stem track the
+    // stem file was generated from
+    void slotImportFromOriginalTrack();
+
     // Played status (Andy: mark a selection played/unplayed like the
     // playlist-level actions, but per track)
     void slotMarkAsPlayed();
@@ -313,6 +317,9 @@ class WTrackMenu : public QMenu {
     // Reload Track Metadata Action:
     parented_ptr<QAction> m_pImportMetadataFromFileAct;
     parented_ptr<QAction> m_pImportMetadataFromMusicBrainzAct;
+
+    // Import a stem track's DJ state from its non-stem original
+    parented_ptr<QAction> m_pImportFromOriginalTrackAct;
 
     // Save Track Metadata Action:
     parented_ptr<QAction> m_pExportMetadataAct;
