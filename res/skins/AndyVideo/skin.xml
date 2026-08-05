@@ -519,6 +519,24 @@
       </Children>
     </SingletonDefinition>
 
+    <!-- CP49: the spectrum meter exists in BOTH layouts, so it has to be a
+         singleton too - two <SpectrumMeter>s would mean two widgets
+         registering with EngineSpectrum. Note the show_spectrum binding is
+         NOT on the meter itself but repeated at every placement (same
+         SingletonContainer-shows-its-child trap as the racks above); that
+         binding is what unregisters the meter from EngineSpectrum, so "off"
+         still means zero spectrum CPU in either layout. -->
+    <SingletonDefinition>
+      <ObjectName>SpectrumSingleton</ObjectName>
+      <Children>
+        <SpectrumMeter>
+          <ObjectName>AndySpectrum</ObjectName>
+          <SizePolicy>me,me</SizePolicy>
+          <MinimumSize>150,60</MinimumSize>
+        </SpectrumMeter>
+      </Children>
+    </SingletonDefinition>
+
     <SingletonDefinition>
       <ObjectName>SamplerSettingsSingleton</ObjectName>
       <Children>
@@ -711,11 +729,9 @@
                                         <Layout>vertical</Layout>
                                         <SizePolicy>me,me</SizePolicy>
                                         <Children>
-                                          <SpectrumMeter>
-                                            <ObjectName>AndySpectrum</ObjectName>
-                                            <SizePolicy>me,me</SizePolicy>
-                                            <MinimumSize>150,60</MinimumSize>
-                                          </SpectrumMeter>
+                                          <SingletonContainer>
+                                            <ObjectName>SpectrumSingleton</ObjectName>
+                                          </SingletonContainer>
                                         </Children>
                                         <Connection>
                                           <ConfigKey persist="true">[Skin],show_spectrum</ConfigKey>
@@ -869,9 +885,40 @@
                               <SizePolicy>me,max</SizePolicy>
                               <Children>
                                 <Template src="skins:LateNight/decks/decks_left.xml"/>
-                                <SingletonContainer>
-                                  <ObjectName>MixerSingleton</ObjectName>
-                                </SingletonContainer>
+                                <!-- CP49: mixer + spectrum share one column here too, so
+                                     the meter has a home in the classic layout instead of
+                                     disappearing with the presenter column. The meter takes
+                                     the height the mixer does not need; with it hidden the
+                                     column collapses back to the plain mixer. -->
+                                <WidgetGroup>
+                                  <ObjectName>ClassicMixerSpectrumColumn</ObjectName>
+                                  <Layout>vertical</Layout>
+                                  <SizePolicy>max,me</SizePolicy>
+                                  <Children>
+                                    <WidgetGroup>
+                                      <Layout>vertical</Layout>
+                                      <SizePolicy>me,max</SizePolicy>
+                                      <Children>
+                                        <SingletonContainer>
+                                          <ObjectName>MixerSingleton</ObjectName>
+                                        </SingletonContainer>
+                                      </Children>
+                                    </WidgetGroup>
+                                    <WidgetGroup>
+                                      <Layout>vertical</Layout>
+                                      <SizePolicy>me,me</SizePolicy>
+                                      <Children>
+                                        <SingletonContainer>
+                                          <ObjectName>SpectrumSingleton</ObjectName>
+                                        </SingletonContainer>
+                                      </Children>
+                                      <Connection>
+                                        <ConfigKey persist="true">[Skin],show_spectrum</ConfigKey>
+                                        <BindProperty>visible</BindProperty>
+                                      </Connection>
+                                    </WidgetGroup>
+                                  </Children>
+                                </WidgetGroup>
                                 <Template src="skins:LateNight/decks/decks_right.xml"/>
                               </Children>
                             </WidgetGroup>
