@@ -2349,6 +2349,19 @@ void LegacySkinParser::setupSize(const QDomNode& node, QWidget* pWidget) {
             pWidget->setSizePolicy(sizePolicy);
         }
     }
+
+    // andy-custom CP52: a layout normally drops a hidden widget and closes the
+    // gap. <RetainSizeWhenHidden>true</RetainSizeWhenHidden> keeps the space
+    // reserved instead, so that two rows which differ only by an optional
+    // widget still start at the same x - which is what makes the play position
+    // markers of two waveforms line up when only one of the decks has stems.
+    QString retainSize;
+    if (m_pContext->hasNodeSelectString(node, "RetainSizeWhenHidden", &retainSize) &&
+            retainSize.compare(QLatin1String("true"), Qt::CaseInsensitive) == 0) {
+        QSizePolicy sizePolicy = pWidget->sizePolicy();
+        sizePolicy.setRetainSizeWhenHidden(true);
+        pWidget->setSizePolicy(sizePolicy);
+    }
 }
 
 //static

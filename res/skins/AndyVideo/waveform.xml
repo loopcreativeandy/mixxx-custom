@@ -46,6 +46,12 @@
           <WidgetGroup>
             <Layout>vertical</Layout>
             <SizePolicy>min,me</SizePolicy>
+            <!-- andy-custom CP52: a deck without stems hides this block, and
+                 without this tag the layout would close the gap and start its
+                 waveform further left than a stem deck's - so the two play
+                 position markers, which sit in the middle of their waveform,
+                 would no longer be above each other. Keep the space. -->
+            <RetainSizeWhenHidden>true</RetainSizeWhenHidden>
             <Children>
 
               <WidgetGroup>
