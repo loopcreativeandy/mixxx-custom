@@ -83,6 +83,9 @@ MixxxLibraryFeature::MixxxLibraryFeature(Library* pLibrary,
             LIBRARYTABLE_COMMENT,
             LIBRARYTABLE_TITLE,
             LIBRARYTABLE_GENRE,
+            // Andy: the track number holds the 🦞prog chord token, so plain
+            // text search has to cover it too (CP58).
+            LIBRARYTABLE_TRACKNUMBER,
             LIBRARYTABLE_CRATE};
 
     QStringList qualifiedTableColumns;

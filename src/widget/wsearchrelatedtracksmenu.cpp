@@ -296,16 +296,14 @@ void WSearchRelatedTracksMenu::addActionsForTrack(
         }
     }
     {
-        // Andy: filter by the same track number (he uses it as a grouping id).
-        // "track" is a numeric filter field, so the query is only expressible
-        // when the value actually is a number.
+        // Andy: filter by the same track number (he uses it as a grouping id
+        // holding the 🦞prog chord token). CP58: search the raw value as plain
+        // text instead of the numeric "track:" filter, so the token is matched
+        // everywhere it occurs, not only in the track number field.
         const auto trackNumber = track.getTrackNumber().trimmed();
-        bool isNumeric = false;
-        trackNumber.toDouble(&isNumeric);
-        if (isNumeric) {
+        if (!trackNumber.isEmpty()) {
             const QString searchQuery =
-                    QStringLiteral("track:") +
-                    trackNumber;
+                    quoteSearchQueryText(trackNumber);
             addTriggerSearchAction(
                     &addSeparatorBeforeNextAction,
                     searchQuery,

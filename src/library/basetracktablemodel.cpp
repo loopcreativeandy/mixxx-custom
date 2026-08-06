@@ -889,7 +889,8 @@ QVariant BaseTrackTableModel::roleValue(
         case ColumnCache::COLUMN_LIBRARYTABLE_BPM:
         case ColumnCache::COLUMN_LIBRARYTABLE_DURATION:
         case ColumnCache::COLUMN_LIBRARYTABLE_BITRATE:
-        case ColumnCache::COLUMN_LIBRARYTABLE_TRACKNUMBER:
+        // Andy: the track number carries the 🦞prog chord token, not digits, so
+        // it is left-aligned like every other text column (CP58).
         case ColumnCache::COLUMN_LIBRARYTABLE_REPLAYGAIN: {
             // We need to cast to int due to a bug similar to
             // https://bugreports.qt.io/browse/QTBUG-67582
