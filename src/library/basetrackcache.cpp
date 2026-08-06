@@ -677,8 +677,9 @@ int BaseTrackCache::compareColumnValues(int sortColumn,
         const QVariant& val2) const {
     int result = 0;
 
+    // The track number is deliberately missing here: it is sorted as text,
+    // see ColumnCache::setColumns(). Both sort paths have to agree.
     if (sortColumn == fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_YEAR) ||
-            sortColumn == fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_TRACKNUMBER) ||
             sortColumn == fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_DURATION) ||
             sortColumn == fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_BITRATE) ||
             sortColumn == fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_BPM) ||

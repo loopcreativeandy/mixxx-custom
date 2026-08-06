@@ -234,7 +234,10 @@ void ColumnCache::setColumns(QStringList columns) {
     insertColumnSortByEnum(COLUMN_LIBRARYTABLE_GENRE, kSortNoCaseLex);
     insertColumnSortByEnum(COLUMN_LIBRARYTABLE_COMPOSER, kSortNoCaseLex);
     insertColumnSortByEnum(COLUMN_LIBRARYTABLE_GROUPING, kSortNoCaseLex);
-    insertColumnSortByEnum(COLUMN_LIBRARYTABLE_TRACKNUMBER, kSortInt);
+    // Andy's library keeps chord-progression tokens in the track number field
+    // (TAG_SCHEMA.md §5), so sort it as text - a numeric cast collapses every
+    // token to 0 and the order becomes arbitrary.
+    insertColumnSortByEnum(COLUMN_LIBRARYTABLE_TRACKNUMBER, kSortNoCaseLex);
     insertColumnSortByEnum(COLUMN_LIBRARYTABLE_FILETYPE, kSortNoCase);
     insertColumnSortByEnum(COLUMN_LIBRARYTABLE_COMMENT, kSortNoCaseLex);
     insertColumnSortByEnum(COLUMN_LIBRARYTABLE_BITRATE, kSortInt);
