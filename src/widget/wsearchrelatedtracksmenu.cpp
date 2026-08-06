@@ -296,6 +296,24 @@ void WSearchRelatedTracksMenu::addActionsForTrack(
         }
     }
     {
+        // Andy: filter by the same track number (he uses it as a grouping id).
+        // "track" is a numeric filter field, so the query is only expressible
+        // when the value actually is a number.
+        const auto trackNumber = track.getTrackNumber().trimmed();
+        bool isNumeric = false;
+        trackNumber.toDouble(&isNumeric);
+        if (isNumeric) {
+            const QString searchQuery =
+                    QStringLiteral("track:") +
+                    trackNumber;
+            addTriggerSearchAction(
+                    &addSeparatorBeforeNextAction,
+                    searchQuery,
+                    tr("Track Number"),
+                    trackNumber);
+        }
+    }
+    {
         const auto grouping = track.getGrouping();
         if (!grouping.isEmpty()) {
             const QString searchQuery =
