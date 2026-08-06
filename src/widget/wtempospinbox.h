@@ -8,11 +8,13 @@
 class QDomNode;
 class SkinContext;
 
-/// Deck BPM readout that can be edited: double-click, type a BPM, Enter, and
+/// Deck BPM readout that can be edited: right-click, type a BPM, Enter, and
 /// the playback rate moves so the loaded track plays at that tempo (it sets
 /// the [ChannelN],bpm control, the same path a MIDI BPM knob uses).
-/// While not editing it behaves like the old display: a left click taps
-/// tempo_tap, a right click taps bpm_tap.
+/// Left click is untouched and still taps tempo_tap, exactly like the
+/// invisible tap button the skin used to stack on top of the number —
+/// that is the primary way this readout is used, editing is the exception.
+/// The BPM is always shown with a decimal point, never a locale comma.
 class WTempoSpinBox : public QDoubleSpinBox, public WBaseWidget {
     Q_OBJECT
   public:
@@ -24,6 +26,7 @@ class WTempoSpinBox : public QDoubleSpinBox, public WBaseWidget {
     void slotControlValueChanged(double newValue);
 
   private:
+    void setLineEditClickThrough(bool clickThrough);
     void beginEdit();
     void finishEdit(bool tookFocus);
     void commitEdit();
@@ -35,10 +38,11 @@ class WTempoSpinBox : public QDoubleSpinBox, public WBaseWidget {
     void mouseDoubleClickEvent(QMouseEvent* pEvent) override;
     void wheelEvent(QWheelEvent* pEvent) override;
     void focusOutEvent(QFocusEvent* pEvent) override;
+    QValidator::State validate(QString& input, int& pos) const override;
+    double valueFromText(const QString& text) const override;
 
     ControlProxy m_bpmControl;
     ControlProxy m_tempoTapControl;
-    ControlProxy m_bpmTapControl;
     bool m_editing;
     double m_scaleFactor;
 };

@@ -31,9 +31,9 @@
                 <Layout>vertical</Layout>
                 <Size>57f,-1me</Size>
                 <Children>
-                  <!-- Andy: editable BPM. Double-click, type, Enter sets the
-                       playback rate; single/right click still tap
-                       tempo_tap/bpm_tap like the old overlay button. -->
+                  <!-- Andy: editable BPM. Left click still taps tempo_tap
+                       like the old overlay button; right click opens the
+                       editor, type a BPM + Enter to set the playback rate. -->
                   <TempoSpinBox>
                     <ObjectName>BpmText</ObjectName>
                     <TooltipId>visual_bpm</TooltipId>
