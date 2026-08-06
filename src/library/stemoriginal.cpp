@@ -21,6 +21,17 @@ const QStringList kStemFileSuffixes = {
         QStringLiteral(".stem.mp4"),
         QStringLiteral(".stem.m4a")};
 
+/// Sub-version stamped on every beat grid this import hands to a stem track.
+///
+/// It has to be non-empty. AnalyzerBeats::shouldAnalyze() treats a grid with an
+/// *empty* sub version whose first beat sits at frame 0 as "this came from the
+/// metadata BPM tag, don't trust it" and re-analyzes the track on every single
+/// load. Most of Andy's originals carry exactly such a grid, so copying one
+/// onto a stem track - which is what this file does when the two grids cannot
+/// be aligned - used to hand the stem that same permanent re-analysis. A grid
+/// that was deliberately imported is authoritative, so mark it as imported.
+const QString kStemImportSubVersion = QStringLiteral("stem_original_import");
+
 /// File name without its (last) extension, e.g. "Artist - Title.mp3" ->
 /// "Artist - Title".
 QString fileBaseName(const QString& fileName) {
@@ -388,7 +399,7 @@ BeatsPointer retempoedTargetBeats(
     return Beats::fromConstTempo(targetRate,
             audio::FramePos(std::round(anchorFrames)),
             sourceBpm,
-            targetBeats.getSubVersion());
+            kStemImportSubVersion);
 }
 
 } // anonymous namespace
@@ -480,35 +491,48 @@ ImportResult importFromOriginal(Track& target, const Track& source) {
             }
         }
     } else if (pSourceBeats) {
-        mixxx::BeatsPointer pTargetBeats;
-        if (sourceRate == targetRate) {
-            pTargetBeats = pSourceBeats;
-        } else {
-            // Same tempo in wall clock time, different frames per second.
-            const double frameRatio =
-                    static_cast<double>(targetRate) / static_cast<double>(sourceRate);
-            std::vector<mixxx::BeatMarker> markers;
-            markers.reserve(pSourceBeats->getMarkers().size());
-            for (const auto& marker : pSourceBeats->getMarkers()) {
-                markers.emplace_back(
-                        mixxx::audio::FramePos(
-                                std::round(marker.position().value() * frameRatio)),
-                        marker.beatsTillNextMarker());
-            }
-            pTargetBeats = mixxx::Beats::fromBeatMarkers(targetRate,
-                    markers,
+        // Same tempo in wall clock time, possibly a different frames per
+        // second. The grid is rebuilt even when the rates match, because it
+        // has to be re-stamped with kStemImportSubVersion - the original's own
+        // sub version is typically empty, which would make the analyzer
+        // re-analyze the stem track on every load.
+        const double frameRatio = sourceRate == targetRate
+                ? 1.0
+                : static_cast<double>(targetRate) / static_cast<double>(sourceRate);
+        std::vector<mixxx::BeatMarker> markers;
+        markers.reserve(pSourceBeats->getMarkers().size());
+        for (const auto& marker : pSourceBeats->getMarkers()) {
+            markers.emplace_back(
                     mixxx::audio::FramePos(
-                            std::round(pSourceBeats->getLastMarkerPosition().value() *
-                                    frameRatio)),
-                    pSourceBeats->getLastMarkerBpm(),
-                    pSourceBeats->getSubVersion());
+                            std::round(marker.position().value() * frameRatio)),
+                    marker.beatsTillNextMarker());
         }
+        mixxx::BeatsPointer pTargetBeats = mixxx::Beats::fromBeatMarkers(targetRate,
+                markers,
+                mixxx::audio::FramePos(
+                        std::round(pSourceBeats->getLastMarkerPosition().value() *
+                                frameRatio)),
+                pSourceBeats->getLastMarkerBpm(),
+                kStemImportSubVersion);
         result.beatsCopied = target.trySetBeats(pTargetBeats);
         result.bpmCopied = result.beatsCopied;
     } else {
+        // The original has no grid at all, only a tempo number. Track::trySetBpm
+        // would build the grid with an *empty* sub version, and a constant grid
+        // always has a beat within the first beat length of the start, so it
+        // would regularly land on frame 0 - the shape the analyzer re-analyzes
+        // on every load. Build the same grid it would, but stamped.
         const double sourceBpm = source.getBpm();
-        if (sourceBpm > 0) {
-            result.bpmCopied = target.trySetBpm(sourceBpm);
+        if (sourceBpm > 0 && targetRate.isValid()) {
+            auto anchor = target.getMainCuePosition();
+            if (!anchor.isValid()) {
+                anchor = mixxx::audio::kStartFramePos;
+            }
+            result.bpmCopied = target.trySetBeats(
+                    mixxx::Beats::fromConstTempo(targetRate,
+                            anchor,
+                            mixxx::Bpm(sourceBpm),
+                            kStemImportSubVersion));
         }
     }
     target.setBpmLocked(sourceBpmLocked);

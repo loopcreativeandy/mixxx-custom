@@ -227,6 +227,42 @@ TEST_F(StemOriginalTest, copiesBpmWithoutABeatGrid) {
     EXPECT_DOUBLE_EQ(96, m_pStem->getBpm());
 }
 
+// AnalyzerBeats::shouldAnalyze() re-analyzes any grid whose sub version is
+// empty and whose first beat sits at frame 0 - that is its "this came from the
+// metadata BPM tag" heuristic. Most of Andy's originals carry exactly that
+// grid, so an import that passes it straight through gives the stem track a
+// re-analysis on every single load.
+TEST_F(StemOriginalTest, theImportedGridIsNotReanalyzedOnEveryLoad) {
+    const auto pBeats = mixxx::Beats::fromConstTempo(
+            mixxx::audio::SampleRate(44100),
+            mixxx::audio::kStartFramePos,
+            mixxx::Bpm(84));
+    ASSERT_TRUE(pBeats->getSubVersion().isEmpty());
+    ASSERT_TRUE(m_pOriginal->trySetBeats(pBeats));
+
+    mixxx::stemoriginal::importFromOriginal(*m_pStem, *m_pOriginal);
+
+    const mixxx::BeatsPointer pStemBeats = m_pStem->getBeats();
+    ASSERT_NE(nullptr, pStemBeats);
+    EXPECT_FALSE(pStemBeats->getSubVersion().isEmpty());
+    EXPECT_DOUBLE_EQ(84, m_pStem->getBpm());
+}
+
+// Same trap on the path that only has a tempo number to go on. A constant grid
+// always has a beat within the first beat length of the start, so the first
+// beat cannot be kept off frame 0 - the sub version is what defuses the
+// heuristic.
+TEST_F(StemOriginalTest, theCopiedBpmAloneIsNotReanalyzedOnEveryLoad) {
+    ASSERT_TRUE(m_pOriginal->trySetBpm(mixxx::Bpm(96)));
+
+    mixxx::stemoriginal::importFromOriginal(*m_pStem, *m_pOriginal);
+
+    const mixxx::BeatsPointer pStemBeats = m_pStem->getBeats();
+    ASSERT_NE(nullptr, pStemBeats);
+    EXPECT_FALSE(pStemBeats->getSubVersion().isEmpty());
+    EXPECT_DOUBLE_EQ(96, m_pStem->getBpm());
+}
+
 // --- Codec delay compensation -------------------------------------------
 //
 // A stem file is decoded from its original and re-encoded, which puts a codec
