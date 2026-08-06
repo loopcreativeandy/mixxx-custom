@@ -63,6 +63,16 @@ WTrackTableView::WTrackTableView(QWidget* pParent,
     // Connect slots and signals to make the world go 'round.
     connect(this, &WTrackTableView::doubleClicked, this, &WTrackTableView::slotMouseDoubleClicked);
 
+    // Follow the "edit metadata after clicking selected track" preference in
+    // every track table, not just the one Library binds in bindLibraryWidget().
+    if (m_pLibrary) {
+        connect(m_pLibrary,
+                &Library::setSelectedClick,
+                this,
+                &WTrackTableView::setSelectedClick,
+                Qt::UniqueConnection);
+    }
+
     m_pCOTGuiTick = new ControlProxy(
             QStringLiteral("[App]"), QStringLiteral("gui_tick_50ms_period_s"), this);
     m_pCOTGuiTick->connectValueChanged(this, &WTrackTableView::slotGuiTick50ms);

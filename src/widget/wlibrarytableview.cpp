@@ -8,6 +8,7 @@
 #include <QScrollBar>
 #include <QToolTip>
 
+#include "library/library_prefs.h"
 #include "moc_wlibrarytableview.cpp"
 #include "util/layoutconfig.h"
 #include "util/math.h"
@@ -29,8 +30,17 @@ WLibraryTableView::WLibraryTableView(QWidget* parent,
           m_modelStateCache(kModelCacheSize) {
     // Setup properties for table
 
-    // Editing starts when clicking on an already selected item.
-    setEditTriggers(QAbstractItemView::SelectedClicked|QAbstractItemView::EditKeyPressed);
+    // Editing starts when clicking on an already selected item -- but only if
+    // the user asked for it. Library only wires its setSelectedClick signal to
+    // the *main* library table, so every other track table (Auto DJ, Andy's
+    // side panes, Missing/Hidden/Recording) used to keep SelectedClicked on
+    // regardless of the preference and pop up an inline title/artist editor on
+    // a slow double click. Read the preference here so all of them start out
+    // consistent with it.
+    setSelectedClick(pConfig &&
+            pConfig->getValue(
+                    mixxx::library::prefs::kEditMetadataSelectedClickConfigKey,
+                    mixxx::library::prefs::kEditMetadataSelectedClickDefault));
 
     //Enable selection by rows and extended selection (ctrl/shift click)
     setSelectionBehavior(QAbstractItemView::SelectRows);
