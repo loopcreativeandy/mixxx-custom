@@ -38,6 +38,7 @@
 #include "widget/wbasewidget.h"
 #include "widget/wbattery.h"
 #include "widget/wbeatspinbox.h"
+#include "widget/wtempospinbox.h"
 #include "widget/wcombobox.h"
 #include "widget/wcoverart.h"
 #include "widget/wcuebutton.h"
@@ -572,6 +573,8 @@ QList<QWidget*> LegacySkinParser::parseNode(const QDomElement& node) {
         result = wrapWidget(parseStandardWidget<WDisplay>(node));
     } else if (nodeName == "BeatSpinBox") {
         result = wrapWidget(parseBeatSpinBox(node));
+    } else if (nodeName == "TempoSpinBox") {
+        result = wrapWidget(parseTempoSpinBox(node));
     } else if (nodeName == "NumberRate") {
         result = wrapWidget(parseNumberRate(node));
     } else if (nodeName == "RateRange") {
@@ -1365,6 +1368,14 @@ QWidget* LegacySkinParser::parseBeatSpinBox(const QDomElement& node) {
     commonWidgetSetup(node, pSpinbox);
     pSpinbox->setup(node, *m_pContext);
 
+    return pSpinbox;
+}
+
+QWidget* LegacySkinParser::parseTempoSpinBox(const QDomElement& node) {
+    QString group = lookupNodeGroup(node);
+    WTempoSpinBox* pSpinbox = new WTempoSpinBox(m_pParent, group);
+    commonWidgetSetup(node, pSpinbox);
+    pSpinbox->setup(node, *m_pContext);
     return pSpinbox;
 }
 

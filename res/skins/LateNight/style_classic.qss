@@ -2833,3 +2833,19 @@ WSearchLineEdit::indicator:unchecked:selected {
 }
 /************** common styles for WEffectSelector ******************************
 *************** QSpinBox, QMenu, QToolTip *************************************/
+
+/* Andy: editable deck BPM readout follows the deck label colors.
+   (#Deck.. #BpmText id selectors would also match, but classic colors deck
+   labels via "#Deck1 WLabel" class rules that skip the spinbox.) */
+#Deck1 WTempoSpinBox, #DeckCompact1 WTempoSpinBox,
+#Deck2 WTempoSpinBox, #DeckCompact2 WTempoSpinBox,
+#Deck1 WTempoSpinBox QLineEdit, #DeckCompact1 WTempoSpinBox QLineEdit,
+#Deck2 WTempoSpinBox QLineEdit, #DeckCompact2 WTempoSpinBox QLineEdit {
+  color: #f0bb2b;
+}
+#Deck3 WTempoSpinBox, #DeckCompact3 WTempoSpinBox,
+#Deck4 WTempoSpinBox, #DeckCompact4 WTempoSpinBox,
+#Deck3 WTempoSpinBox QLineEdit, #DeckCompact3 WTempoSpinBox QLineEdit,
+#Deck4 WTempoSpinBox QLineEdit, #DeckCompact4 WTempoSpinBox QLineEdit {
+  color: #0bd9d1;
+}

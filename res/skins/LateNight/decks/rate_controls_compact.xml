@@ -22,47 +22,52 @@
 
           <WidgetGroup><!-- BPM + rate + Tap overlay-->
             <ObjectName>BpmTapContainer</ObjectName>
-            <Layout>stacked</Layout>
+            <Layout>vertical</Layout>
             <Size>60f,40f</Size>
             <Children>
-              <!-- invisible Tempo/BPM tap button on top of BPM display -->
-              <PushButton>
-                <TooltipId>tempo_tap_bpm_tap_visual_bpm</TooltipId>
-                <ObjectName>BpmTap</ObjectName>
-                <SizePolicy>me,me</SizePolicy>
-                <NumberStates>1</NumberStates>
-                  <Connection>
-                    <ConfigKey><Variable name="Group"/>,tempo_tap</ConfigKey>
-                  </Connection>
-                  <Connection>
-                    <ConfigKey><Variable name="Group"/>,bpm_tap</ConfigKey>
-                    <ButtonState>RightButton</ButtonState>
-                  </Connection>
-              </PushButton>
-              <WidgetGroup><!-- BPM + rate -->
-                <ObjectName>AlignCenter</ObjectName>
-                <Layout>vertical</Layout>
+              <!-- Andy: editable BPM. Double-click, type, Enter sets the
+                   playback rate; single/right click still tap
+                   tempo_tap/bpm_tap like the old overlay button. -->
+              <TempoSpinBox>
+                <ObjectName>BpmText</ObjectName>
+                <TooltipId>visual_bpm</TooltipId>
+                <Size>-1me,22f</Size>
+                <Group><Variable name="Group"/></Group>
+              </TempoSpinBox>
+              <WidgetGroup>
+                <Layout>stacked</Layout>
                 <SizePolicy>me,me</SizePolicy>
                 <Children>
-                  <Number>
-                    <ObjectName>BpmText</ObjectName>
-                    <TooltipId>visual_bpm</TooltipId>
-                    <Size>-1me,22f</Size>
-                    <Alignment>center</Alignment>
-                    <NumberOfDigits>2</NumberOfDigits>
-                    <Connection>
-                      <ConfigKey><Variable name="Group"/>,visual_bpm</ConfigKey>
-                    </Connection>
-                  </Number>
-                  <NumberRate>
-                    <TooltipId>rate_display</TooltipId>
-                    <ObjectName>RateText</ObjectName>
-                    <Channel><Variable name="ChanNum" /></Channel>
-                    <Alignment>center</Alignment>
-                    <NumberOfDigits>2</NumberOfDigits>
-                  </NumberRate>
+                  <!-- invisible Tempo/BPM tap button on top of the rate display -->
+                  <PushButton>
+                    <TooltipId>tempo_tap_bpm_tap_visual_bpm</TooltipId>
+                    <ObjectName>BpmTap</ObjectName>
+                    <SizePolicy>me,me</SizePolicy>
+                    <NumberStates>1</NumberStates>
+                      <Connection>
+                        <ConfigKey><Variable name="Group"/>,tempo_tap</ConfigKey>
+                      </Connection>
+                      <Connection>
+                        <ConfigKey><Variable name="Group"/>,bpm_tap</ConfigKey>
+                        <ButtonState>RightButton</ButtonState>
+                      </Connection>
+                  </PushButton>
+                  <WidgetGroup><!-- rate -->
+                    <ObjectName>AlignCenter</ObjectName>
+                    <Layout>vertical</Layout>
+                    <SizePolicy>me,me</SizePolicy>
+                    <Children>
+                      <NumberRate>
+                        <TooltipId>rate_display</TooltipId>
+                        <ObjectName>RateText</ObjectName>
+                        <Channel><Variable name="ChanNum" /></Channel>
+                        <Alignment>center</Alignment>
+                        <NumberOfDigits>2</NumberOfDigits>
+                      </NumberRate>
+                    </Children>
+                  </WidgetGroup>
                 </Children>
-              </WidgetGroup><!-- BpmContainer + Tap overlay -->
+              </WidgetGroup>
             </Children>
           </WidgetGroup><!-- BpmContainer -->
 

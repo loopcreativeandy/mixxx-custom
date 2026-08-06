@@ -13,6 +13,7 @@ WTrackProperty,
 WRecordingDuration,
 QSpinBox,
 WBeatSpinBox,
+WTempoSpinBox,
 WCueMenuPopup,
 WCueMenuPopup QLabel,
 WCueMenuPopup QLineEdit,
@@ -307,6 +308,19 @@ WRecordingDuration {
   #spinBoxTransition {
     qproperty-alignment: 'AlignHCenter';
   }
+
+/* Andy: editable deck BPM readout (WTempoSpinBox) styled like the old
+   BpmText label; the dark background only appears while editing. */
+WTempoSpinBox,
+WTempoSpinBox QLineEdit {
+  background: transparent;
+  border: none;
+  color: #f0bb2b; /* fallback; palette qss overrides via #Deck.. selectors */
+}
+WTempoSpinBox:focus,
+WTempoSpinBox:focus QLineEdit {
+  background-color: #000;
+}
 
 #SamplerBpm,
 #SamplerBpmMini {
