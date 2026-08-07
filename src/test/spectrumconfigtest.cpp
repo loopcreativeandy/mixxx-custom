@@ -85,6 +85,8 @@ TEST_F(SpectrumConfigTest, UninitializedReturnsUsableDefaults) {
     EXPECT_GT(config.frameIntervalMs, 0);
     EXPECT_GT(config.attack, 0.0);
     EXPECT_LE(config.attack, 1.0);
+    // Hot reload defaults to on: that is what the config file exists for.
+    EXPECT_TRUE(config.hotReload);
 }
 
 // Repeated calls are cached and must stay stable — the widget calls this from
@@ -95,6 +97,7 @@ TEST_F(SpectrumConfigTest, RepeatedCallsAreStable) {
 
     EXPECT_EQ(first.bands, second.bands);
     EXPECT_EQ(first.frameIntervalMs, second.frameIntervalMs);
+    EXPECT_EQ(first.hotReload, second.hotReload);
     EXPECT_DOUBLE_EQ(first.fallInitialSpeed, second.fallInitialSpeed);
     EXPECT_DOUBLE_EQ(first.peakHoldMs, second.peakHoldMs);
 }

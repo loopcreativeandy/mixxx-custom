@@ -42,6 +42,8 @@ SpectrumConfig defaultConfig() {
     // 1/3-octave RTA layout every hardware analyzer uses. 16 was only ever a
     // bar-width compromise for the narrow presenter column.
     config.bands = 32;
+    // Keep the live-editing loop on by default: that is what the file is for.
+    config.hotReload = true;
     return config;
 }
 
@@ -55,7 +57,9 @@ void writeTemplateFile(const QString& filePath) {
     QTextStream out(&file);
     out << "# Andy's Mixxx spectrum analyzer - edit freely, no recompile "
            "needed.\n"
-        << "# Changes are picked up within ~2 seconds while Mixxx runs.\n"
+        << "# Changes are picked up within ~2 seconds while Mixxx runs, as "
+           "long as\n"
+        << "# hot_reload is 1 (see below).\n"
         << "# Delete a line (or this whole file) to fall back to the built-in "
            "default.\n"
         << "#\n"
@@ -92,6 +96,16 @@ void writeTemplateFile(const QString& filePath) {
         << "#\n"
         << "# Animation frame interval in ms (16 = 60 fps).\n"
         << "frame_interval_ms=" << config.frameIntervalMs << "\n"
+        << "#\n"
+        << "# hot_reload=1 re-reads this file every ~2 s while Mixxx runs, so "
+           "you can\n"
+        << "# tune the values above with Mixxx open. Set it to 0 once you are "
+           "happy:\n"
+        << "# the file is then read once at startup and never checked again.\n"
+        << "# NOTE: turning it back ON needs a RESTART - with hot reload off, "
+           "nothing\n"
+        << "# re-reads the file to notice the change.\n"
+        << "hot_reload=" << (config.hotReload ? 1 : 0) << "\n"
         << "#\n"
         << "# Number of bars, spread logarithmically over 40 Hz - 16 kHz "
            "(range "
@@ -149,6 +163,8 @@ SpectrumConfig parseConfigFile(const QString& filePath) {
         } else if (key == QLatin1String("frame_interval_ms")) {
             config.frameIntervalMs =
                     static_cast<int>(qBound(8.0, number, 200.0));
+        } else if (key == QLatin1String("hot_reload")) {
+            config.hotReload = number != 0;
         } else if (key == QLatin1String("bands")) {
             config.bands = static_cast<int>(
                     qBound(static_cast<double>(SpectrumConfig::kMinBands),
@@ -201,9 +217,15 @@ SpectrumConfig SpectrumConfig::current() {
         // path is final. Built-in defaults, no file I/O.
         return pCache->config;
     }
-    if (pCache->checkedOnce &&
-            pCache->sinceCheck.elapsed() < kRecheckIntervalMs) {
-        return pCache->config;
+    if (pCache->checkedOnce) {
+        // hot_reload=0: read once at startup, then never look at the file
+        // again — no stat() from the paint path at all.
+        if (!pCache->config.hotReload) {
+            return pCache->config;
+        }
+        if (pCache->sinceCheck.elapsed() < kRecheckIntervalMs) {
+            return pCache->config;
+        }
     }
     pCache->checkedOnce = true;
     pCache->sinceCheck.restart();

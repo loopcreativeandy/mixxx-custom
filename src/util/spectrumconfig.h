@@ -35,6 +35,12 @@ struct SpectrumConfig {
     /// allocates its filter bank and the skin builds the widget from it), so
     /// changing it needs a Mixxx restart.
     int bands;
+    /// Re-read this file while Mixxx runs so edits to the values above apply
+    /// within ~2 s. Set to 0 once the motion is dialed in: the file is then
+    /// read once at startup and never stat()ed again, so the paint path stops
+    /// touching the filesystem entirely. Like `bands`, changing this one back
+    /// on needs a restart — with hot reload off nothing re-reads the file.
+    bool hotReload;
 
     /// Hard limits for `bands`, shared by the engine and the widget.
     static constexpr int kMinBands = 4;
