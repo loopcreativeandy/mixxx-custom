@@ -57,6 +57,7 @@
 #include "util/font.h"
 #include "util/logger.h"
 #include "util/screensavermanager.h"
+#include "util/spectrumconfig.h"
 #include "util/statsmanager.h"
 #include "util/time.h"
 #include "util/translations.h"
@@ -466,6 +467,12 @@ void CoreServices::initializeSettings() {
     }
 
     m_pSettingsManager = std::make_unique<SettingsManager>(settingsPath);
+
+    // andy-custom: now that the settings path is final, point the spectrum
+    // analyzer's config at it and create the template if it is missing. Before
+    // this call SpectrumConfig does no file I/O, which keeps it out of the
+    // engine constructor's way in the test binary.
+    SpectrumConfig::initialize(m_pSettingsManager->settings()->getSettingsPath());
 }
 
 void CoreServices::initializeLogging() {

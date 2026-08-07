@@ -2804,6 +2804,7 @@ if(BUILD_TESTING)
     src/test/softtakeover_test.cpp
     src/test/soundproxy_test.cpp
     src/test/soundsourceproviderregistrytest.cpp
+    src/test/spectrumconfigtest.cpp
     src/test/sqliteliketest.cpp
     src/test/stemoriginal_test.cpp
     src/test/synccontroltest.cpp

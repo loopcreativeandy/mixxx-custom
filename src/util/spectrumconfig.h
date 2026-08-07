@@ -1,5 +1,7 @@
 #pragma once
 
+class QString;
+
 namespace mixxx {
 
 /// User-editable tuning for the spectrum analyzer (andy-custom), loaded from
@@ -38,8 +40,22 @@ struct SpectrumConfig {
     static constexpr int kMinBands = 4;
     static constexpr int kMaxBands = 64;
 
+    /// Point the config at the resolved settings directory and create the
+    /// template file there if it is missing. Must be called once at startup,
+    /// after the settings path is final.
+    ///
+    /// Until this has run, current() returns the built-in defaults and touches
+    /// no files at all. That matters: current() is called from EngineSpectrum's
+    /// constructor, and in the test binary the settings path resolves to the
+    /// AppData root (QStandardPaths needs an application name), so the old
+    /// read-and-create-on-demand behavior wrote andys_spectrum.ini into the
+    /// user's AppData and crashed the Windows ARM64 test job. See
+    /// mixxx-build/STATUS.md, 2026-08-07.
+    static void initialize(const QString& settingsPath);
+
     /// Thread-safe cached snapshot; re-parses the file when its modification
-    /// time changes, throttled so paint-path callers stay cheap.
+    /// time changes, throttled so paint-path callers stay cheap. Never creates
+    /// or writes the file — initialize() owns creation.
     static SpectrumConfig current();
 };
 
