@@ -231,6 +231,11 @@ bool hasUserCueData(const Track& track) {
     return false;
 }
 
+bool isImplausibleAlignmentShift(double shiftMillis) {
+    return shiftMillis < kMinPlausibleShiftMillis ||
+            shiftMillis > kMaxPlausibleShiftMillis;
+}
+
 double beatPeriodSecondsAt(const Beats& beats, double timeSeconds) {
     const auto sampleRate = beats.getSampleRate();
     if (!sampleRate.isValid()) {

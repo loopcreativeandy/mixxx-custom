@@ -770,3 +770,27 @@ TEST_F(StemOriginalDbTest, returnsNothingWhenTheOriginalIsMissing) {
 
     EXPECT_FALSE(findOriginalOf(*stem.pTrack).isValid());
 }
+
+// The stem extractor only ever pads silence at the front, so the correction a
+// codec delay produces is always a small positive shift. Anything negative, or
+// far past the usual 50-100 ms, means the grids were matched on the wrong beat
+// - Andy asked to be warned about exactly that (2026-08-07).
+TEST_F(StemOriginalTest, implausibleAlignmentShiftFlagsNegativeAndOversizedOffsets) {
+    using mixxx::stemoriginal::isImplausibleAlignmentShift;
+
+    // The normal band Andy sees on a healthy stem/original pair.
+    EXPECT_FALSE(isImplausibleAlignmentShift(50.0));
+    EXPECT_FALSE(isImplausibleAlignmentShift(100.0));
+    EXPECT_FALSE(isImplausibleAlignmentShift(0.0));
+    EXPECT_FALSE(isImplausibleAlignmentShift(
+            mixxx::stemoriginal::kMaxPlausibleShiftMillis));
+
+    // Negative: the stem's audio cannot start earlier than the original's.
+    EXPECT_TRUE(isImplausibleAlignmentShift(-0.5));
+    EXPECT_TRUE(isImplausibleAlignmentShift(-60.0));
+
+    // Too large to be a codec delay.
+    EXPECT_TRUE(isImplausibleAlignmentShift(
+            mixxx::stemoriginal::kMaxPlausibleShiftMillis + 0.5));
+    EXPECT_TRUE(isImplausibleAlignmentShift(250.0));
+}

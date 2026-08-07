@@ -94,6 +94,23 @@ std::optional<double> beatGridTimeOffsetSeconds(
         const Beats& targetBeats,
         double timeSeconds);
 
+/// Cue corrections outside this range cannot be explained by the stem file's
+/// codec delay.
+///
+/// A stem file is re-encoded from its original and picks up a delay on the way,
+/// so its audio is always *later* than the original's - the extractor pads
+/// silence at the front, it never removes audio. The correction is therefore
+/// always a small positive shift, in practice 50 to 100 ms. A negative one, or
+/// one far past that band, means the two grids were matched on the wrong beat
+/// or the stem's grid is simply wrong.
+constexpr double kMinPlausibleShiftMillis = 0.0;
+constexpr double kMaxPlausibleShiftMillis = 120.0;
+
+/// True if `shiftMillis` (an ImportResult::alignmentShiftMillis) is outside the
+/// band a codec delay can produce, i.e. the stem track's beat grid should be
+/// checked by hand. Only meaningful when the cues were actually aligned.
+bool isImplausibleAlignmentShift(double shiftMillis);
+
 struct ImportResult {
     int cuesCopied = 0;
     bool beatsCopied = false;

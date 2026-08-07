@@ -1555,6 +1555,10 @@ struct ImportFromOriginalSummary {
     /// Stem tracks without a usable beat grid of their own: their cues could
     /// not be corrected for the stem file's codec delay.
     QStringList unalignedTracks;
+    /// Stem tracks whose correction was negative or far larger than a codec
+    /// delay can be - a strong hint that their beat grid is wrong. Each entry
+    /// carries the offending shift so it can be reported without a lookup.
+    QStringList implausibleShiftTracks;
 };
 
 class ImportFromOriginalTrackPointerOperation : public mixxx::TrackPointerOperation {
@@ -1595,6 +1599,13 @@ class ImportFromOriginalTrackPointerOperation : public mixxx::TrackPointerOperat
             m_pSummary->alignedCount++;
             if (result.bpmAdopted > 0) {
                 m_pSummary->bpmAdoptedCount++;
+            }
+            if (mixxx::stemoriginal::isImplausibleAlignmentShift(
+                        result.alignmentShiftMillis)) {
+                m_pSummary->implausibleShiftTracks.append(
+                        QStringLiteral("%1  (%2 ms)")
+                                .arg(pTrack->getInfo())
+                                .arg(result.alignmentShiftMillis, 0, 'f', 1));
             }
         } else {
             m_pSummary->unalignedTracks.append(pTrack->getInfo());
@@ -1725,6 +1736,22 @@ void WTrackMenu::slotImportFromOriginalTrack() {
                 "",
                 pSummary->alignedCount)
                               .arg(shiftText));
+    }
+    if (!pSummary->implausibleShiftTracks.isEmpty()) {
+        report.append(
+                tr("CHECK THE BEAT GRID of %n track(s). Their cue positions "
+                   "needed a correction that a stem file's codec delay cannot "
+                   "produce: that delay only ever pushes the stem's audio "
+                   "later, by roughly %1 to %2 ms. A negative correction, or "
+                   "one well past that, means the two beat grids were matched "
+                   "on the wrong beat or the stem's grid is off. Fix the grid "
+                   "and import again:",
+                        "",
+                        pSummary->implausibleShiftTracks.size())
+                        .arg(mixxx::stemoriginal::kMinPlausibleShiftMillis, 0, 'f', 0)
+                        .arg(mixxx::stemoriginal::kMaxPlausibleShiftMillis, 0, 'f', 0) +
+                QStringLiteral("\n") +
+                formatTrackList(pSummary->implausibleShiftTracks));
     }
     if (pSummary->bpmAdoptedCount > 0) {
         report.append(tr("%n track(s): the beat grid keeps the stem file's own "
