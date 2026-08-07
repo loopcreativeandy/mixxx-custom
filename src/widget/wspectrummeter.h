@@ -30,6 +30,7 @@ class WSpectrumMeter : public WWidget {
 
   private slots:
     void bandChanged(double value);
+    void hotReloadChanged(double value);
 
   private:
     // Bar count from andys_spectrum.ini, matching EngineSpectrum: both read
@@ -39,6 +40,10 @@ class WSpectrumMeter : public WWidget {
     int m_numBands;
 
     std::vector<std::unique_ptr<ControlProxy>> m_bands;
+    // "Spectrum Live Reload" tick box in the skin settings. Owned here rather
+    // than by SpectrumConfig because a ControlProxy must live and die on one
+    // thread; this widget pushes the value into SpectrumConfig instead.
+    std::unique_ptr<ControlProxy> m_pHotReload;
     std::vector<double> m_values;
     // Displayed bar heights fall under gravity instead of tracking the
     // control value directly (CP11 T6).

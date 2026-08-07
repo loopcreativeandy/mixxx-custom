@@ -38,8 +38,11 @@ struct SpectrumConfig {
     /// Re-read this file while Mixxx runs so edits to the values above apply
     /// within ~2 s. Set to 0 once the motion is dialed in: the file is then
     /// read once at startup and never stat()ed again, so the paint path stops
-    /// touching the filesystem entirely. Like `bands`, changing this one back
-    /// on needs a restart — with hot reload off nothing re-reads the file.
+    /// touching the filesystem entirely.
+    ///
+    /// Overridden by the "Spectrum Live Reload" tick box in the skin settings
+    /// whenever a skin that has it is loaded — see setHotReloadOverride().
+    /// This key is the fallback for skins without the tick box.
     bool hotReload;
 
     /// Hard limits for `bands`, shared by the engine and the widget.
@@ -58,6 +61,17 @@ struct SpectrumConfig {
     /// user's AppData and crashed the Windows ARM64 test job. See
     /// mixxx-build/STATUS.md, 2026-08-07.
     static void initialize(const QString& settingsPath);
+
+    /// Live override for `hotReload`, driven by the "Spectrum Live Reload"
+    /// tick box in the skin settings ([Skin],spectrum_hot_reload). Takes
+    /// precedence over the file's hot_reload key for the rest of the session
+    /// once a skin has set it.
+    ///
+    /// WSpectrumMeter owns that control and pushes changes in here.
+    /// SpectrumConfig deliberately holds no ControlProxy of its own: a proxy
+    /// has to be created and destroyed on the same thread, and this is a
+    /// process-wide singleton reached from both the engine and the GUI.
+    static void setHotReloadOverride(bool enabled);
 
     /// Thread-safe cached snapshot; re-parses the file when its modification
     /// time changes, throttled so paint-path callers stay cheap. Never creates

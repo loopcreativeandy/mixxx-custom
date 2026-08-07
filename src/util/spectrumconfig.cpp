@@ -102,9 +102,13 @@ void writeTemplateFile(const QString& filePath) {
         << "# tune the values above with Mixxx open. Set it to 0 once you are "
            "happy:\n"
         << "# the file is then read once at startup and never checked again.\n"
-        << "# NOTE: turning it back ON needs a RESTART - with hot reload off, "
-           "nothing\n"
-        << "# re-reads the file to notice the change.\n"
+        << "# NOTE: the 'Spectrum Live Reload' tick box in the skin settings "
+           "(wrench\n"
+        << "# panel, right under 'Spectrum Analyzer') overrides this line "
+           "whenever a\n"
+        << "# skin that has it is loaded - which is the easier place to flip "
+           "it. This\n"
+        << "# key is the fallback for skins without the tick box.\n"
         << "hot_reload=" << (config.hotReload ? 1 : 0) << "\n"
         << "#\n"
         << "# Number of bars, spread logarithmically over 40 Hz - 16 kHz "
@@ -186,6 +190,10 @@ struct Cache {
     /// Empty until initialize() has run. While empty, current() does no
     /// filesystem access whatsoever.
     QString filePath;
+    /// Set once a skin with the "Spectrum Live Reload" tick box is loaded;
+    /// overrides the file's hot_reload key from then on.
+    bool hotReloadOverride = true;
+    bool hasHotReloadOverride = false;
 };
 
 Q_GLOBAL_STATIC(Cache, s_cache)
@@ -209,6 +217,19 @@ void SpectrumConfig::initialize(const QString& settingsPath) {
 }
 
 // static
+void SpectrumConfig::setHotReloadOverride(bool enabled) {
+    Cache* pCache = s_cache();
+    const QMutexLocker locker(&pCache->mutex);
+    pCache->hotReloadOverride = enabled;
+    pCache->hasHotReloadOverride = true;
+    if (enabled) {
+        // Re-enabled from the tick box: make the very next current() look at
+        // the file again instead of waiting out a stale throttle window.
+        pCache->checkedOnce = false;
+    }
+}
+
+// static
 SpectrumConfig SpectrumConfig::current() {
     Cache* pCache = s_cache();
     const QMutexLocker locker(&pCache->mutex);
@@ -218,9 +239,13 @@ SpectrumConfig SpectrumConfig::current() {
         return pCache->config;
     }
     if (pCache->checkedOnce) {
-        // hot_reload=0: read once at startup, then never look at the file
-        // again — no stat() from the paint path at all.
-        if (!pCache->config.hotReload) {
+        // Hot reload off: read once at startup, then never look at the file
+        // again — no stat() from the paint path at all. The skin's tick box
+        // wins over the file's hot_reload key once a skin has set it.
+        const bool hotReload = pCache->hasHotReloadOverride
+                ? pCache->hotReloadOverride
+                : pCache->config.hotReload;
+        if (!hotReload) {
             return pCache->config;
         }
         if (pCache->sinceCheck.elapsed() < kRecheckIntervalMs) {

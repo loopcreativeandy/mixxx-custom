@@ -72,6 +72,17 @@ WSpectrumMeter::WSpectrumMeter(QWidget* pParent)
         pBand->connectValueChanged(this, &WSpectrumMeter::bandChanged);
         m_bands.push_back(std::move(pBand));
     }
+    // AllowMissingOrInvalid: skins without the tick box simply leave the file's
+    // hot_reload key in charge.
+    m_pHotReload = std::make_unique<ControlProxy>(QStringLiteral("[Skin]"),
+            QStringLiteral("spectrum_hot_reload"),
+            this,
+            ControlFlag::AllowMissingOrInvalid);
+    if (m_pHotReload->valid()) {
+        mixxx::SpectrumConfig::setHotReloadOverride(m_pHotReload->toBool());
+        m_pHotReload->connectValueChanged(this, &WSpectrumMeter::hotReloadChanged);
+    }
+
     m_numBands = static_cast<int>(m_bands.size());
     m_values.assign(m_numBands, 0);
     m_displayed.assign(m_numBands, 0);
@@ -115,6 +126,10 @@ void WSpectrumMeter::setup(const QDomNode& node, const SkinContext& context) {
     Q_UNUSED(node);
     Q_UNUSED(context);
     setAttribute(Qt::WA_OpaquePaintEvent);
+}
+
+void WSpectrumMeter::hotReloadChanged(double value) {
+    mixxx::SpectrumConfig::setHotReloadOverride(value != 0);
 }
 
 void WSpectrumMeter::bandChanged(double value) {

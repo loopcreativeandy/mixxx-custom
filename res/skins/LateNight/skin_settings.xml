@@ -307,6 +307,16 @@ Description:
             <SetVariable name="Width">190me</SetVariable>
           </Template>
 
+          <!-- Andy: re-read andys_spectrum.ini every ~2 s so the bar motion can
+               be tuned with Mixxx open. Off = read once at startup, which keeps
+               the meter's paint path off the filesystem entirely. -->
+          <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
+            <SetVariable name="Text">Spectrum Live Reload</SetVariable>
+            <SetVariable name="Setting">[Skin],spectrum_hot_reload</SetVariable>
+            <SetVariable name="TooltipId"></SetVariable>
+            <SetVariable name="Width">190me</SetVariable>
+          </Template>
+
           <!-- Andy CP48: only AndyVideo has two layouts. OFF (default) = the
                presenter column with the stacked decks; ON = a plain
                LateNight-style layout (decks 1-4 beside the mixer, full-width

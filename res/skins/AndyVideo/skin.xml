@@ -44,6 +44,9 @@
       <attribute persist="true" config_key="[Skin],timing_shift_buttons">0</attribute>
       <!-- Andy: spectrum analyzer default ON; user choice persists. -->
       <attribute persist="true" config_key="[Skin],show_spectrum">1</attribute>
+      <!-- Andy: re-read andys_spectrum.ini every ~2 s (default ON). Off keeps
+           the meter's paint path off the filesystem. -->
+      <attribute persist="true" config_key="[Skin],spectrum_hot_reload">1</attribute>
       <!-- CP48: 0 = presenter layout (default), 1 = classic LateNight-style
            layout. Toggled from the wrench panel ("Classic Layout"). -->
       <attribute persist="true" config_key="[Skin],andy_classic_layout">0</attribute>
