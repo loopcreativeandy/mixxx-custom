@@ -329,6 +329,18 @@ Description:
             <SetVariable name="Width">190me</SetVariable>
           </Template>
 
+          <!-- Andy CP65: Classic layout only. OFF (default) = Auto DJ beside
+               the library table, playlist pane full-width below (today's
+               arrangement). ON = swapped: playlist beside the table, Auto DJ
+               below. Purely visual position, same widgets either way.
+               Inert on the Presenter page and in every other skin. -->
+          <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
+            <SetVariable name="Text">AutoDJ At Bottom</SetVariable>
+            <SetVariable name="Setting">[AndyVideo],classic_autodj_bottom</SetVariable>
+            <SetVariable name="TooltipId"></SetVariable>
+            <SetVariable name="Width">190me</SetVariable>
+          </Template>
+
           <WidgetGroup>
             <ObjectName>SkinSettingsSeparator</ObjectName>
             <Size>1min,12f</Size>

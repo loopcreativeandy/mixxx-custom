@@ -1746,6 +1746,15 @@ QWidget* LegacySkinParser::parseSpectrumMeter(const QDomElement& node) {
 }
 
 QWidget* LegacySkinParser::parseAndysAutoDJPane(const QDomElement& node) {
+    // Optional <Enabled>: same mechanism as parseAndysPlaylistPane below, lets
+    // a skin that repositions this pane itself switch off the inline copy.
+    // Anything but an explicit "false"/"0" (including an undefined variable,
+    // which resolves to an empty string) keeps the pane.
+    const QString enabled = m_pContext->selectString(node, "Enabled").trimmed();
+    if (enabled.compare(QLatin1String("false"), Qt::CaseInsensitive) == 0 ||
+            enabled == QLatin1String("0")) {
+        return nullptr;
+    }
     const double backgroundColorOpacity = math_clamp(
             m_pContext->selectDouble(node,
                     "TrackTableBackgroundColorOpacity",

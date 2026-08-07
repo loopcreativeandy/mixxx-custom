@@ -133,10 +133,16 @@
 
               <!-- CP20 swap: Auto DJ now lives in the right column beside the
                    main track table (it needs little width, so the right side
-                   suits it). Drag the splitter handle fully right to collapse. -->
+                   suits it). Drag the splitter handle fully right to collapse.
+                   CP65: optional <Enabled> lets a skin that repositions this
+                   pane itself (AndyVideo's classic_autodj_bottom toggle)
+                   switch off the inline copy, same mechanism as
+                   AndysPlaylistPane's ShowLibrarySidePane below. Undefined
+                   variable (every other skin) keeps it shown. -->
               <AndysAutoDJPane>
                 <ShowButtonText>false</ShowButtonText>
                 <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
+                <Enabled><Variable name="ShowAutoDJPaneInline"/></Enabled>
               </AndysAutoDJPane>
 
             </Children>

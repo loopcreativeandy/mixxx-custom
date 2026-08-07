@@ -50,6 +50,12 @@
       <!-- CP48: 0 = presenter layout (default), 1 = classic LateNight-style
            layout. Toggled from the wrench panel ("Classic Layout"). -->
       <attribute persist="true" config_key="[Skin],andy_classic_layout">0</attribute>
+      <!-- CP65: Classic layout only. 0 (default, today's arrangement) = Auto
+           DJ beside the library table, Andy's playlist pane full-width below.
+           1 = swapped: playlist beside the table, Auto DJ below. Toggled from
+           the wrench panel ("AutoDJ At Bottom"). Inert on the Presenter page
+           and in every other skin. -->
+      <attribute persist="true" config_key="[AndyVideo],classic_autodj_bottom">0</attribute>
 
     <!-- Decks -->
       <!-- general -->
@@ -453,12 +459,20 @@
       <Children>
         <!-- These skins already have their own side pane in the
              PresenterZone, so the one inside the library template is
-             switched off — otherwise the skin shows two. -->
+             switched off — otherwise the skin shows two.
+             CP65: the inline Auto DJ pane (right of the library table) is
+             ALSO switched off here — Classic layout now places it itself via
+             AndysAutoDJSingleton so classic_autodj_bottom can swap it with
+             the playlist pane. Side effect: Presenter's library block loses
+             that inline sliver too, since this definition is shared by both
+             layout pages (Presenter never had a way to reposition it anyway;
+             ask Andy before restoring it there if he wants it back). -->
         <Template src="skins:LateNight/library.xml">
           <SetVariable name="ShowLibrarySidePane">false</SetVariable>
           <SetVariable name="LibraryVSplitSizes">1</SetVariable>
           <SetVariable name="LibraryVSplitSizesKey">library_splitsize_cp9v_nopane</SetVariable>
           <SetVariable name="LibraryVSplitCollapsible">0</SetVariable>
+          <SetVariable name="ShowAutoDJPaneInline">false</SetVariable>
         </Template>
       </Children>
     </SingletonDefinition>
@@ -519,6 +533,22 @@
           <Id>presenter</Id>
           <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
         </AndysPlaylistPane>
+      </Children>
+    </SingletonDefinition>
+
+    <!-- CP65: only one WAndysAutoDJPane may exist app-wide (it binds itself as
+         THE Auto DJ pane view in AutoDJFeature), so - same as the library
+         table/decks/racks above - it has to be a singleton moved between
+         pages/slots rather than instantiated twice. Only placed by the
+         Classic layout (see classic_autodj_bottom below); the inline copy
+         library.xml would otherwise draw is switched off on LibrarySingleton. -->
+    <SingletonDefinition>
+      <ObjectName>AndysAutoDJSingleton</ObjectName>
+      <Children>
+        <AndysAutoDJPane>
+          <ShowButtonText>false</ShowButtonText>
+          <TrackTableBackgroundColorOpacity>0.175</TrackTableBackgroundColorOpacity>
+        </AndysAutoDJPane>
       </Children>
     </SingletonDefinition>
 
@@ -967,7 +997,16 @@
                             </WidgetGroup>
 
                             <!-- Andy's side pane as a strip below the library. Collapsible=0,1
-                                 so it can be dragged shut but the library never can. -->
+                                 so it can be dragged shut but the library never can.
+                                 CP65: both slots below are WidgetStacks bound to the SAME
+                                 classic_autodj_bottom control, so they swap in lockstep -
+                                 page 0 (default, today's arrangement) = Auto DJ beside the
+                                 table / playlist below; page 1 = swapped. Same
+                                 singleton-moves-between-pages mechanism CP48 uses for the
+                                 whole Presenter/Classic layout switch, just one level
+                                 deeper. Neither AndysAutoDJSingleton nor AndysPaneSingleton
+                                 is ever referenced twice at once, so there is still exactly
+                                 one instance of each. -->
                             <Splitter>
                               <ObjectName>ClassicLibrarySplitter</ObjectName>
                               <Orientation>vertical</Orientation>
@@ -976,12 +1015,41 @@
                               <SplitSizesConfigKey>[AndyVideo],classicLibrary_splitSize_v1</SplitSizesConfigKey>
                               <Collapsible>0,1</Collapsible>
                               <Children>
-                                <SingletonContainer>
-                                  <ObjectName>LibrarySingleton</ObjectName>
-                                </SingletonContainer>
-                                <SingletonContainer>
-                                  <ObjectName>AndysPaneSingleton</ObjectName>
-                                </SingletonContainer>
+
+                                <Splitter>
+                                  <ObjectName>ClassicLibraryRow</ObjectName>
+                                  <SizePolicy>me,me</SizePolicy>
+                                  <SplitSizes>16,5</SplitSizes>
+                                  <SplitSizesConfigKey>[AndyVideo],classicLibraryRow_splitSize_v1</SplitSizesConfigKey>
+                                  <Collapsible>0,1</Collapsible>
+                                  <Children>
+                                    <SingletonContainer>
+                                      <ObjectName>LibrarySingleton</ObjectName>
+                                    </SingletonContainer>
+                                    <WidgetStack currentpage="[AndyVideo],classic_autodj_bottom">
+                                      <Children>
+                                        <SingletonContainer>
+                                          <ObjectName>AndysAutoDJSingleton</ObjectName>
+                                        </SingletonContainer>
+                                        <SingletonContainer>
+                                          <ObjectName>AndysPaneSingleton</ObjectName>
+                                        </SingletonContainer>
+                                      </Children>
+                                    </WidgetStack>
+                                  </Children>
+                                </Splitter>
+
+                                <WidgetStack currentpage="[AndyVideo],classic_autodj_bottom">
+                                  <Children>
+                                    <SingletonContainer>
+                                      <ObjectName>AndysPaneSingleton</ObjectName>
+                                    </SingletonContainer>
+                                    <SingletonContainer>
+                                      <ObjectName>AndysAutoDJSingleton</ObjectName>
+                                    </SingletonContainer>
+                                  </Children>
+                                </WidgetStack>
+
                               </Children>
                             </Splitter>
 
