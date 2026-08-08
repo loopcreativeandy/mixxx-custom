@@ -68,7 +68,7 @@ QString normalizeTitle(const QString& title);
 QSet<QString> artistTokens(const QString& artist);
 
 /// True if two normalized titles are close enough to be the same song. Exact
-/// for short titles, tolerating one or two typos as they get longer.
+/// up to eight characters, then tolerating one typo, and two past fourteen.
 bool normalizedTitlesMatch(const QString& lhs, const QString& rhs);
 
 /// True if the two artist/title pairs describe the same song under the fuzzy

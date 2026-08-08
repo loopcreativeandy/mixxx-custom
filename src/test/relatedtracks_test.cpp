@@ -81,6 +81,9 @@ TEST_F(RelatedTracksTest, TitlesToleratePartialTypos) {
     // Short titles have to be exact - one edit away is a different song.
     EXPECT_FALSE(normalizedTitlesMatch(QStringLiteral("mine"), QStringLiteral("mind")));
     EXPECT_FALSE(normalizedTitlesMatch(QStringLiteral("bella"), QStringLiteral("bello")));
+    // Both of these are really in Andy's library, by different artists.
+    EXPECT_FALSE(normalizedTitlesMatch(
+            QStringLiteral("missing"), QStringLiteral("kissing")));
     // Two edits are only allowed once a title is properly long.
     EXPECT_TRUE(normalizedTitlesMatch(
             QStringLiteral("nao vou desistir"), QStringLiteral("nao vou desistr")));
