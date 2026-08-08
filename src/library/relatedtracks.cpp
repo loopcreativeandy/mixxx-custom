@@ -375,16 +375,18 @@ QSet<QString> artistTokens(const QString& artist) {
             QStringLiteral(R"([&,;/|+×])"));
     const QStringList sections =
             removeBracketedSections(artist).split(punctuationSeparators);
+    // Declared outside the loop: flush() leaves it empty, so reusing it keeps
+    // the allocated capacity instead of re-allocating for every section.
+    QStringList current;
+    const auto flush = [&tokens, &current]() {
+        if (!current.isEmpty()) {
+            tokens.insert(current.join(QChar(' ')));
+            current.clear();
+        }
+    };
     for (const QString& section : sections) {
         const QStringList words =
                 normalizeText(section).split(QChar(' '), Qt::SkipEmptyParts);
-        QStringList current;
-        const auto flush = [&tokens, &current]() {
-            if (!current.isEmpty()) {
-                tokens.insert(current.join(QChar(' ')));
-                current.clear();
-            }
-        };
         for (const QString& word : words) {
             if (kFeatureWords.contains(word) || kArtistSeparatorWords.contains(word)) {
                 flush();
