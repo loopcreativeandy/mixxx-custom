@@ -1415,6 +1415,7 @@ add_library(
   src/library/serato/seratoplaylistmodel.cpp
   src/library/sidebarmodel.cpp
   src/library/starrating.cpp
+  src/library/relatedtracks.cpp
   src/library/stemoriginal.cpp
   src/library/tabledelegates/bpmdelegate.cpp
   src/library/tabledelegates/checkboxdelegate.cpp
@@ -2806,6 +2807,7 @@ if(BUILD_TESTING)
     src/test/soundsourceproviderregistrytest.cpp
     src/test/spectrumconfigtest.cpp
     src/test/sqliteliketest.cpp
+    src/test/relatedtracks_test.cpp
     src/test/stemoriginal_test.cpp
     src/test/synccontroltest.cpp
     src/test/synctrackmetadatatest.cpp

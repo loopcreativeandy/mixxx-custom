@@ -48,6 +48,13 @@ class TrackCollectionManager: public QObject,
         return m_externalCollections;
     }
 
+    /// The user settings this collection was created with. Lets code that is
+    /// handed only a collection (table models, for one) read preferences
+    /// without threading a UserSettingsPointer through its own constructor.
+    const UserSettingsPointer& config() const {
+        return m_pConfig;
+    }
+
     TrackPointer getTrackById(
             TrackId trackId) const;
     TrackPointer getTrackByRef(

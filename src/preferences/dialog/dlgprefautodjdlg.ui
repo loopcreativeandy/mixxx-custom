@@ -323,6 +323,119 @@
     </widget>
    </item>
 
+   <!-- Andy CP66 / IDEA-09: marking one copy of a song played marks the others too. -->
+   <item>
+    <widget class="QGroupBox" name="RelatedTracksOptions">
+      <property name="title">
+       <string>Mark Related Tracks Played</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+      </property>
+      <layout class="QGridLayout" name="RelatedTracksLayout">
+
+        <item row="0" column="0">
+          <widget class="QLabel" name="RelatedStemLabel">
+            <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+              </sizepolicy>
+            </property>
+            <property name="toolTip">
+              <string>Playing a stem track also marks the track it was made from, and the other way around.</string>
+            </property>
+            <property name="text">
+              <string>Also mark the stem / original counterpart</string>
+            </property>
+            <property name="buddy">
+              <cstring>RelatedStemCheckBox</cstring>
+            </property>
+          </widget>
+        </item>
+
+        <item row="0" column="1">
+          <widget class="QCheckBox" name="RelatedStemCheckBox">
+            <property name="toolTip">
+              <string>Playing a stem track also marks the track it was made from, and the other way around.</string>
+            </property>
+          </widget>
+        </item>
+
+        <item row="1" column="0">
+          <widget class="QLabel" name="RelatedSameSongLabel">
+            <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+              </sizepolicy>
+            </property>
+            <property name="toolTip">
+              <string>Marks every other track with the same artist and title, including remixes, edits and slightly differently spelled copies.</string>
+            </property>
+            <property name="text">
+              <string>Also mark other versions of the same song</string>
+            </property>
+            <property name="buddy">
+              <cstring>RelatedSameSongCheckBox</cstring>
+            </property>
+          </widget>
+        </item>
+
+        <item row="1" column="1">
+          <widget class="QCheckBox" name="RelatedSameSongCheckBox">
+            <property name="toolTip">
+              <string>Marks every other track with the same artist and title, including remixes, edits and slightly differently spelled copies.</string>
+            </property>
+          </widget>
+        </item>
+
+        <item row="2" column="0">
+          <widget class="QLabel" name="RelatedPlayCountLabel">
+            <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+              </sizepolicy>
+            </property>
+            <property name="toolTip">
+              <string>Off: related tracks only count as played for this session. On: their play count and last played date are updated as well.</string>
+            </property>
+            <property name="text">
+              <string>Count related tracks as really played (play count and history)</string>
+            </property>
+            <property name="buddy">
+              <cstring>RelatedPlayCountCheckBox</cstring>
+            </property>
+          </widget>
+        </item>
+
+        <item row="2" column="1">
+          <widget class="QCheckBox" name="RelatedPlayCountCheckBox">
+            <property name="toolTip">
+              <string>Off: related tracks only count as played for this session. On: their play count and last played date are updated as well.</string>
+            </property>
+          </widget>
+        </item>
+
+        <item row="0" column="2" rowspan="3">
+          <spacer name="horizontalSpacerRelatedTracks">
+            <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizePolicy">
+              <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+                <horstretch>1</horstretch>
+                <verstretch>0</verstretch>
+              </sizepolicy>
+            </property>
+          </spacer>
+        </item>
+
+      </layout>
+    </widget>
+   </item>
+
    <item>
     <spacer name="verticalSpacer">
      <property name="orientation">

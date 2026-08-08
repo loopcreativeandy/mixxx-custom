@@ -6,6 +6,7 @@
 
 #include "library/dao/trackschema.h"
 #include "library/queryutil.h"
+#include "library/relatedtracks.h"
 #include "library/starrating.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
@@ -736,6 +737,12 @@ bool BaseSqlTableModel::setTrackValueForColumn(
     } else if (fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_PLAYED) == column) {
         // Update both the played flag and the number of times played
         pTrack->updatePlayCounter(value.toBool());
+        // Andy (IDEA-09): ticking the Played box by hand propagates to the
+        // other copies of the same song, exactly like Auto DJ playing it does.
+        mixxx::relatedtracks::propagatePlayedState(m_pTrackCollectionManager,
+                m_pTrackCollectionManager->config(),
+                *pTrack,
+                value.toBool());
     } else if (fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_TIMESPLAYED) == column) {
         const int timesPlayed = value.toInt();
         if (0 < timesPlayed) {

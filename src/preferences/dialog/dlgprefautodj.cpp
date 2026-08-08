@@ -4,6 +4,7 @@
 #include <QTimeZone>
 #endif
 
+#include "library/relatedtracks.h"
 #include "moc_dlgprefautodj.cpp"
 
 DlgPrefAutoDJ::DlgPrefAutoDJ(QWidget* pParent,
@@ -80,6 +81,13 @@ void DlgPrefAutoDJ::slotUpdate() {
     // Re-center the crossfader instantly when AutoDJ is disabled
     CenterXfaderCheckBox->setChecked(m_pConfig->getValue(
             ConfigKey("[Auto DJ]", "center_xfader_when_disabling"), false));
+
+    // Andy IDEA-09: propagate the played mark to other copies of the same song
+    const mixxx::relatedtracks::Options relatedOptions =
+            mixxx::relatedtracks::optionsFromConfig(m_pConfig);
+    RelatedStemCheckBox->setChecked(relatedOptions.stemCounterpart);
+    RelatedSameSongCheckBox->setChecked(relatedOptions.sameArtistTitle);
+    RelatedPlayCountCheckBox->setChecked(relatedOptions.updatePlayCount);
 }
 
 void DlgPrefAutoDJ::slotApply() {
@@ -100,6 +108,13 @@ void DlgPrefAutoDJ::slotApply() {
 
     m_pConfig->setValue(ConfigKey("[Auto DJ]", "center_xfader_when_disabling"),
             CenterXfaderCheckBox->isChecked());
+
+    m_pConfig->setValue(mixxx::relatedtracks::kMarkRelatedStemConfigKey,
+            RelatedStemCheckBox->isChecked());
+    m_pConfig->setValue(mixxx::relatedtracks::kMarkRelatedSameSongConfigKey,
+            RelatedSameSongCheckBox->isChecked());
+    m_pConfig->setValue(mixxx::relatedtracks::kMarkRelatedPlayCountConfigKey,
+            RelatedPlayCountCheckBox->isChecked());
 }
 
 void DlgPrefAutoDJ::slotResetToDefaults() {
@@ -115,6 +130,10 @@ void DlgPrefAutoDJ::slotResetToDefaults() {
     RandomQueueMinimumSpinBox->setValue(5);
 
     CenterXfaderCheckBox->setChecked(false);
+
+    RelatedStemCheckBox->setChecked(true);
+    RelatedSameSongCheckBox->setChecked(true);
+    RelatedPlayCountCheckBox->setChecked(false);
 }
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)

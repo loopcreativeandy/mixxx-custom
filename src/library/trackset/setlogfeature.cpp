@@ -8,6 +8,7 @@
 #include "library/library_prefs.h"
 #include "library/playlisttablemodel.h"
 #include "library/queryutil.h"
+#include "library/relatedtracks.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "library/treeitem.h"
@@ -627,6 +628,15 @@ void SetlogFeature::slotPlayingTrackChanged(TrackPointer currentPlayingTrack) {
     // If the track is not present in the recent tracks list, mark it
     // played and update its playcount.
     currentPlayingTrack->updatePlayCounter();
+
+    // Andy (IDEA-09): the other copies of this same song - its stem/original
+    // counterpart and any remix or re-rip carrying the same artist and title -
+    // count as played too, so Auto DJ won't serve them up again tonight.
+    mixxx::relatedtracks::propagatePlayedState(
+            m_pLibrary->trackCollectionManager(),
+            m_pConfig,
+            *currentPlayingTrack,
+            true);
 
     // We can only add tracks that are Mixxx library tracks, not external
     // sources.
