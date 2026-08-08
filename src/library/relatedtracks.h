@@ -85,17 +85,42 @@ QList<TrackId> findRelatedTrackIds(const QSqlDatabase& database,
         const Track& track,
         const Options& options);
 
+/// What the propagation should do about the play count, which depends on what
+/// happened to the track that triggered it. Mixxx marks tracks played in two
+/// different ways and the related tracks have to follow suit.
+enum class PlayCountMode {
+    /// The source track only had its session played flag set (the right-click
+    /// "Mark as played", the playlist-wide mark, joining a setlog). Related
+    /// tracks get exactly that, and the play-count switch does not apply -
+    /// nothing was counted here in the first place.
+    FlagOnly,
+    /// The source track's play count was bumped as well (Auto DJ actually
+    /// playing it, or the Played tick box in the library table). Related
+    /// tracks follow the "count related tracks as really played" switch.
+    FollowSetting,
+};
+
 /// Mark everything related to `playedTrack` as played (or as not played).
-///
-/// Sets the session played flag by default; with Options::updatePlayCount also
-/// bumps the persistent play count, mirroring what happened to `playedTrack`
-/// itself. Does nothing when both rules are switched off.
+/// Does nothing when both rules are switched off.
 ///
 /// Returns the number of related tracks that were updated.
 int propagatePlayedState(TrackCollectionManager* pTrackCollectionManager,
         const UserSettingsPointer& pConfig,
         const Track& playedTrack,
-        bool played);
+        bool played,
+        PlayCountMode playCountMode);
+
+/// Bulk form of propagatePlayedState() for the "mark this whole selection /
+/// playlist played" actions. The library is scanned once for the entire batch
+/// instead of once per track, which is the difference between marking a
+/// 100-track playlist instantly and visibly stalling.
+///
+/// Returns the number of related tracks that were updated.
+int propagatePlayedStateForTracks(TrackCollectionManager* pTrackCollectionManager,
+        const UserSettingsPointer& pConfig,
+        const QList<TrackPointer>& playedTracks,
+        bool played,
+        PlayCountMode playCountMode);
 
 } // namespace relatedtracks
 } // namespace mixxx

@@ -9,6 +9,7 @@
 
 #include "library/library.h"
 #include "library/parser.h"
+#include "library/relatedtracks.h"
 #include "library/stemoriginal.h"
 #include "library/playlisttablemodel.h"
 #include "library/queryutil.h"
@@ -434,6 +435,8 @@ void PlaylistFeature::setAllTracksPlayedStatus(bool played) {
     pPlaylistTableModel->selectPlaylist(playlistId);
     pPlaylistTableModel->select();
     const int rows = pPlaylistTableModel->rowCount();
+    QList<TrackPointer> markedTracks;
+    markedTracks.reserve(rows);
     for (int i = 0; i < rows; ++i) {
         const QModelIndex index = pPlaylistTableModel->index(i, 0);
         if (index.isValid()) {
@@ -441,9 +444,18 @@ void PlaylistFeature::setAllTracksPlayedStatus(bool played) {
             if (pTrack) {
                 // Only set played status; leave the play count untouched.
                 pTrack->updatePlayedStatusKeepPlayCount(played);
+                markedTracks.append(pTrack);
             }
         }
     }
+    // Andy (IDEA-09): the other copies of each song follow the same state.
+    // FlagOnly, because no play count was touched here either.
+    mixxx::relatedtracks::propagatePlayedStateForTracks(
+            m_pLibrary->trackCollectionManager(),
+            m_pConfig,
+            markedTracks,
+            played,
+            mixxx::relatedtracks::PlayCountMode::FlagOnly);
 }
 
 void PlaylistFeature::slotSwapToStemTracks() {

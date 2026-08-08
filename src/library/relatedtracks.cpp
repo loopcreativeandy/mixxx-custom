@@ -5,6 +5,7 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStringList>
+#include <QSqlError>
 #include <algorithm>
 #include <vector>
 
@@ -188,6 +189,144 @@ int allowedTitleDistance(int length) {
 namespace mixxx {
 namespace relatedtracks {
 
+namespace {
+
+/// The artist/title metadata of the whole library, already normalized. Loading
+/// it once and reusing it is what keeps "mark this playlist played" from
+/// re-reading every row for every track in the playlist.
+class SameSongIndex {
+  public:
+    static SameSongIndex load(const QSqlDatabase& database) {
+        SameSongIndex index;
+        QSqlQuery query(database);
+        query.setForwardOnly(true);
+        query.prepare(QStringLiteral(
+                "SELECT library.id, library.artist, library.title "
+                "FROM library "
+                "INNER JOIN track_locations "
+                "ON library.location = track_locations.id "
+                "WHERE library.mixxx_deleted = 0 "
+                "AND track_locations.fs_deleted = 0"));
+        if (!query.exec()) {
+            kLogger.warning() << "Failed to read the library for related-track"
+                              << "matching" << query.lastError();
+            return index;
+        }
+        while (query.next()) {
+            Entry entry;
+            entry.trackId = TrackId(query.value(0));
+            if (!entry.trackId.isValid()) {
+                continue;
+            }
+            entry.artists = artistTokens(query.value(1).toString());
+            if (entry.artists.isEmpty()) {
+                // Can never match: a shared performer is required.
+                continue;
+            }
+            entry.normalizedTitle = normalizeTitle(query.value(2).toString());
+            if (entry.normalizedTitle.isEmpty()) {
+                continue;
+            }
+            index.m_entries.push_back(std::move(entry));
+        }
+        index.m_loaded = true;
+        return index;
+    }
+
+    bool isLoaded() const {
+        return m_loaded;
+    }
+
+    /// Append every entry that is the same song as the given metadata, skipping
+    /// `ownTrackId` and anything already in `pRelatedTrackIds`.
+    void appendMatches(const QString& normalizedTitle,
+            const QSet<QString>& artists,
+            TrackId ownTrackId,
+            QList<TrackId>* pRelatedTrackIds) const {
+        if (normalizedTitle.isEmpty() || artists.isEmpty()) {
+            return;
+        }
+        for (const Entry& entry : m_entries) {
+            if (entry.trackId == ownTrackId ||
+                    pRelatedTrackIds->contains(entry.trackId)) {
+                continue;
+            }
+            if (!artists.intersects(entry.artists)) {
+                // Cheaper than the edit distance, so it goes first.
+                continue;
+            }
+            if (!normalizedTitlesMatch(normalizedTitle, entry.normalizedTitle)) {
+                continue;
+            }
+            pRelatedTrackIds->append(entry.trackId);
+        }
+    }
+
+  private:
+    struct Entry {
+        TrackId trackId;
+        QString normalizedTitle;
+        QSet<QString> artists;
+    };
+    std::vector<Entry> m_entries;
+    bool m_loaded = false;
+};
+
+/// Shared by the single-track and the bulk entry point.
+QList<TrackId> findRelatedTrackIds(const QSqlDatabase& database,
+        const Track& track,
+        const Options& options,
+        const SameSongIndex& index) {
+    QList<TrackId> relatedTrackIds;
+    if (!options.anyRuleEnabled()) {
+        return relatedTrackIds;
+    }
+    const TrackId ownTrackId = track.getId();
+    if (options.stemCounterpart) {
+        // Only one of the two directions can return anything: the helper
+        // refuses to look for the kind the track already is.
+        for (const auto counterpart : {stemoriginal::Counterpart::Original,
+                     stemoriginal::Counterpart::Stem}) {
+            const TrackId counterpartTrackId =
+                    stemoriginal::findCounterpartTrackId(database, track, counterpart);
+            if (counterpartTrackId.isValid() && counterpartTrackId != ownTrackId &&
+                    !relatedTrackIds.contains(counterpartTrackId)) {
+                relatedTrackIds.append(counterpartTrackId);
+            }
+        }
+    }
+    if (options.sameArtistTitle && index.isLoaded()) {
+        index.appendMatches(normalizeTitle(track.getTitle()),
+                artistTokens(track.getArtist()),
+                ownTrackId,
+                &relatedTrackIds);
+    }
+    return relatedTrackIds;
+}
+
+/// Apply the played state to one already-resolved related track. Returns true
+/// if anything changed.
+bool applyPlayedState(const TrackPointer& pRelatedTrack,
+        bool played,
+        bool alsoUpdatePlayCount) {
+    if (!pRelatedTrack) {
+        return false;
+    }
+    if (!alsoUpdatePlayCount && pRelatedTrack->getPlayCounter().isPlayed() == played) {
+        // Already in the requested state and the play count is not in play.
+        return false;
+    }
+    if (alsoUpdatePlayCount) {
+        pRelatedTrack->updatePlayCounter(played);
+    } else {
+        pRelatedTrack->updatePlayedStatusKeepPlayCount(played);
+    }
+    return true;
+}
+
+} // namespace
+
+
 const ConfigKey kMarkRelatedStemConfigKey(
         QStringLiteral("[Auto DJ]"), QStringLiteral("MarkRelatedStemPlayed"));
 const ConfigKey kMarkRelatedSameSongConfigKey(
@@ -292,79 +431,67 @@ bool isSameSong(const QString& lhsArtist,
 QList<TrackId> findRelatedTrackIds(const QSqlDatabase& database,
         const Track& track,
         const Options& options) {
-    QList<TrackId> relatedTrackIds;
-    if (!options.anyRuleEnabled()) {
-        return relatedTrackIds;
+    SameSongIndex index;
+    if (options.sameArtistTitle) {
+        index = SameSongIndex::load(database);
     }
-    const TrackId ownTrackId = track.getId();
-    const auto append = [&relatedTrackIds, &ownTrackId](TrackId trackId) {
-        if (!trackId.isValid() || trackId == ownTrackId ||
-                relatedTrackIds.contains(trackId)) {
-            return;
-        }
-        relatedTrackIds.append(trackId);
-    };
+    return findRelatedTrackIds(database, track, options, index);
+}
 
-    if (options.stemCounterpart) {
-        // Only one of the two directions can return anything: the helper
-        // refuses to look for the kind the track already is.
-        append(stemoriginal::findCounterpartTrackId(
-                database, track, stemoriginal::Counterpart::Original));
-        append(stemoriginal::findCounterpartTrackId(
-                database, track, stemoriginal::Counterpart::Stem));
+int propagatePlayedStateForTracks(TrackCollectionManager* pTrackCollectionManager,
+        const UserSettingsPointer& pConfig,
+        const QList<TrackPointer>& playedTracks,
+        bool played,
+        PlayCountMode playCountMode) {
+    VERIFY_OR_DEBUG_ASSERT(pTrackCollectionManager) {
+        return 0;
     }
+    const Options options = optionsFromConfig(pConfig);
+    if (!options.anyRuleEnabled() || playedTracks.isEmpty()) {
+        return 0;
+    }
+    // FlagOnly means the source track's own play count was left alone, so
+    // bumping the related tracks' counts would invent history that never
+    // happened. The switch only applies when a count really was incremented.
+    const bool alsoUpdatePlayCount =
+            playCountMode == PlayCountMode::FollowSetting && options.updatePlayCount;
 
-    if (!options.sameArtistTitle) {
-        return relatedTrackIds;
-    }
+    const QSqlDatabase& database =
+            pTrackCollectionManager->internalCollection()->database();
+    // One scan for the whole batch.
+    const SameSongIndex index = options.sameArtistTitle
+            ? SameSongIndex::load(database)
+            : SameSongIndex();
 
-    const QString ownTitle = normalizeTitle(track.getTitle());
-    const QSet<QString> ownArtists = artistTokens(track.getArtist());
-    if (ownTitle.isEmpty() || ownArtists.isEmpty()) {
-        return relatedTrackIds;
-    }
-
-    // The fuzzy comparison cannot be expressed in SQL, so every library row is
-    // checked in memory. Andy's library is a few thousand tracks and this runs
-    // once per track change on the GUI thread, which measures in single-digit
-    // milliseconds - cheap enough to keep the matching honest.
-    QSqlQuery query(database);
-    query.setForwardOnly(true);
-    query.prepare(QStringLiteral(
-            "SELECT library.id, library.artist, library.title "
-            "FROM library "
-            "INNER JOIN track_locations "
-            "ON library.location = track_locations.id "
-            "WHERE library.mixxx_deleted = 0 "
-            "AND track_locations.fs_deleted = 0"));
-    if (!query.exec()) {
-        kLogger.warning() << "Failed to look up tracks related to"
-                          << track.getLocation() << query.lastError();
-        return relatedTrackIds;
-    }
-    while (query.next()) {
-        const TrackId candidateTrackId(query.value(0));
-        if (!candidateTrackId.isValid() || candidateTrackId == ownTrackId ||
-                relatedTrackIds.contains(candidateTrackId)) {
+    int updatedCount = 0;
+    for (const TrackPointer& pPlayedTrack : playedTracks) {
+        if (!pPlayedTrack) {
             continue;
         }
-        const QSet<QString> candidateArtists = artistTokens(query.value(1).toString());
-        if (!ownArtists.intersects(candidateArtists)) {
-            // Cheaper than normalizing the title, so it goes first.
-            continue;
+        const QList<TrackId> relatedTrackIds =
+                findRelatedTrackIds(database, *pPlayedTrack, options, index);
+        for (const TrackId& relatedTrackId : relatedTrackIds) {
+            if (applyPlayedState(
+                        pTrackCollectionManager->getTrackById(relatedTrackId),
+                        played,
+                        alsoUpdatePlayCount)) {
+                ++updatedCount;
+            }
         }
-        if (!normalizedTitlesMatch(ownTitle, normalizeTitle(query.value(2).toString()))) {
-            continue;
-        }
-        relatedTrackIds.append(candidateTrackId);
     }
-    return relatedTrackIds;
+    if (updatedCount > 0) {
+        kLogger.debug() << "Marked" << updatedCount << "related track(s)"
+                        << (played ? "as played" : "as not played") << "for"
+                        << playedTracks.size() << "track(s)";
+    }
+    return updatedCount;
 }
 
 int propagatePlayedState(TrackCollectionManager* pTrackCollectionManager,
         const UserSettingsPointer& pConfig,
         const Track& playedTrack,
-        bool played) {
+        bool played,
+        PlayCountMode playCountMode) {
     VERIFY_OR_DEBUG_ASSERT(pTrackCollectionManager) {
         return 0;
     }
@@ -372,29 +499,22 @@ int propagatePlayedState(TrackCollectionManager* pTrackCollectionManager,
     if (!options.anyRuleEnabled()) {
         return 0;
     }
-    const QList<TrackId> relatedTrackIds = findRelatedTrackIds(
-            pTrackCollectionManager->internalCollection()->database(),
-            playedTrack,
-            options);
+    const bool alsoUpdatePlayCount =
+            playCountMode == PlayCountMode::FollowSetting && options.updatePlayCount;
+    const QSqlDatabase& database =
+            pTrackCollectionManager->internalCollection()->database();
+    const SameSongIndex index = options.sameArtistTitle
+            ? SameSongIndex::load(database)
+            : SameSongIndex();
+    const QList<TrackId> relatedTrackIds =
+            findRelatedTrackIds(database, playedTrack, options, index);
     int updatedCount = 0;
     for (const TrackId& relatedTrackId : relatedTrackIds) {
-        const TrackPointer pRelatedTrack =
-                pTrackCollectionManager->getTrackById(relatedTrackId);
-        if (!pRelatedTrack) {
-            continue;
+        if (applyPlayedState(pTrackCollectionManager->getTrackById(relatedTrackId),
+                    played,
+                    alsoUpdatePlayCount)) {
+            ++updatedCount;
         }
-        if (pRelatedTrack->getPlayCounter().isPlayed() == played &&
-                !options.updatePlayCount) {
-            // Already in the requested state, and we are not touching the
-            // play count - nothing would change.
-            continue;
-        }
-        if (options.updatePlayCount) {
-            pRelatedTrack->updatePlayCounter(played);
-        } else {
-            pRelatedTrack->updatePlayedStatusKeepPlayCount(played);
-        }
-        ++updatedCount;
     }
     if (updatedCount > 0) {
         kLogger.debug() << "Marked" << updatedCount << "track(s) related to"

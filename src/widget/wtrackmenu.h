@@ -226,6 +226,9 @@ class WTrackMenu : public QMenu {
     /// TO MODIFY the underlying m_pTrackModel during the iteration!!!
     /// This might happen not only directly but also indirectly by
     /// handling signals, e.g. TrackDAO::enforceModelUpdate().
+    void propagatePlayedStateToRelatedTracks(
+            const QList<TrackPointer>& markedTracks, bool played);
+
     int applyTrackPointerOperation(
             const QString& progressLabelText,
             const mixxx::TrackPointerOperation* pTrackPointerOperation,

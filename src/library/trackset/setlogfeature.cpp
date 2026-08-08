@@ -438,6 +438,8 @@ void SetlogFeature::slotJoinWithPrevious() {
         // mark all the Tracks in the previous Playlist as played
         pPlaylistTableModel->select();
         int rows = pPlaylistTableModel->rowCount();
+        QList<TrackPointer> markedTracks;
+        markedTracks.reserve(rows);
         for (int i = 0; i < rows; ++i) {
             QModelIndex index = pPlaylistTableModel->index(i, 0);
             if (index.isValid()) {
@@ -445,8 +447,17 @@ void SetlogFeature::slotJoinWithPrevious() {
                 DEBUG_ASSERT(pTrack != nullptr);
                 // Do not update the play count, just set played status.
                 pTrack->updatePlayedStatusKeepPlayCount(true);
+                markedTracks.append(pTrack);
             }
         }
+        // Andy (IDEA-09): the other copies of each of these songs count as
+        // played too. FlagOnly, because no play count was bumped here either.
+        mixxx::relatedtracks::propagatePlayedStateForTracks(
+                m_pLibrary->trackCollectionManager(),
+                m_pConfig,
+                markedTracks,
+                true,
+                mixxx::relatedtracks::PlayCountMode::FlagOnly);
 
         // Change current setlog
         m_currentPlaylistId = previousPlaylistId;
@@ -485,6 +496,8 @@ void SetlogFeature::slotMarkAllTracksPlayed() {
     // mark all the Tracks in the previous Playlist as played
     pPlaylistTableModel->select();
     int rows = pPlaylistTableModel->rowCount();
+    QList<TrackPointer> markedTracks;
+    markedTracks.reserve(rows);
     for (int i = 0; i < rows; ++i) {
         QModelIndex index = pPlaylistTableModel->index(i, 0);
         if (index.isValid()) {
@@ -492,8 +505,16 @@ void SetlogFeature::slotMarkAllTracksPlayed() {
             DEBUG_ASSERT(pTrack != nullptr);
             // Do not update the play count, just set played status.
             pTrack->updatePlayedStatusKeepPlayCount(true);
+            markedTracks.append(pTrack);
         }
     }
+    // Andy (IDEA-09): mark the other copies of these songs played as well.
+    mixxx::relatedtracks::propagatePlayedStateForTracks(
+            m_pLibrary->trackCollectionManager(),
+            m_pConfig,
+            markedTracks,
+            true,
+            mixxx::relatedtracks::PlayCountMode::FlagOnly);
 }
 
 void SetlogFeature::slotLockAllChildPlaylists() {
@@ -636,7 +657,8 @@ void SetlogFeature::slotPlayingTrackChanged(TrackPointer currentPlayingTrack) {
             m_pLibrary->trackCollectionManager(),
             m_pConfig,
             *currentPlayingTrack,
-            true);
+            true,
+            mixxx::relatedtracks::PlayCountMode::FollowSetting);
 
     // We can only add tracks that are Mixxx library tracks, not external
     // sources.

@@ -742,7 +742,8 @@ bool BaseSqlTableModel::setTrackValueForColumn(
         mixxx::relatedtracks::propagatePlayedState(m_pTrackCollectionManager,
                 m_pTrackCollectionManager->config(),
                 *pTrack,
-                value.toBool());
+                value.toBool(),
+                mixxx::relatedtracks::PlayCountMode::FollowSetting);
     } else if (fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_TIMESPLAYED) == column) {
         const int timesPlayed = value.toInt();
         if (0 < timesPlayed) {

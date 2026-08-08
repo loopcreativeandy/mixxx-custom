@@ -24,6 +24,7 @@
 #include "library/dlgtrackmetadataexport.h"
 #include "library/externaltrackcollection.h"
 #include "library/library.h"
+#include "library/relatedtracks.h"
 #include "library/stemoriginal.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
@@ -2334,15 +2335,26 @@ class SetPlayedStatusTrackPointerOperation : public mixxx::TrackPointerOperation
             : m_played(played) {
     }
 
+    /// The tracks this operation touched, so the caller can propagate the
+    /// played state to their related tracks in one batch afterwards rather
+    /// than re-scanning the library once per selected track (Andy, IDEA-09).
+    const QList<TrackPointer>& markedTracks() const {
+        return m_markedTracks;
+    }
+
   private:
     void doApply(
             const TrackPointer& pTrack) const override {
         // Only set the played status; leave the play count untouched
         // (same semantics as the playlist-level mark all played/unplayed).
         pTrack->updatePlayedStatusKeepPlayCount(m_played);
+        m_markedTracks.append(pTrack);
     }
 
     const bool m_played;
+    // doApply() is const by interface, and ModalTrackBatchOperationProcessor
+    // runs it synchronously on this thread, so collecting here is safe.
+    mutable QList<TrackPointer> m_markedTracks;
 };
 
 } // anonymous namespace
@@ -2355,6 +2367,7 @@ void WTrackMenu::slotMarkAsPlayed() {
     applyTrackPointerOperation(
             progressLabelText,
             &trackOperator);
+    propagatePlayedStateToRelatedTracks(trackOperator.markedTracks(), true);
 }
 
 void WTrackMenu::slotMarkAsUnplayed() {
@@ -2365,6 +2378,20 @@ void WTrackMenu::slotMarkAsUnplayed() {
     applyTrackPointerOperation(
             progressLabelText,
             &trackOperator);
+    propagatePlayedStateToRelatedTracks(trackOperator.markedTracks(), false);
+}
+
+void WTrackMenu::propagatePlayedStateToRelatedTracks(
+        const QList<TrackPointer>& markedTracks, bool played) {
+    // Andy (IDEA-09): marking tracks played by hand marks the other copies of
+    // those songs too. FlagOnly - the operation above left the play count
+    // alone, so the related tracks must not gain one either.
+    mixxx::relatedtracks::propagatePlayedStateForTracks(
+            m_pLibrary->trackCollectionManager(),
+            m_pConfig,
+            markedTracks,
+            played,
+            mixxx::relatedtracks::PlayCountMode::FlagOnly);
 }
 
 namespace {
