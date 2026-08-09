@@ -29,6 +29,7 @@ class PlaylistFeature;
 class AutoDJFeature;
 class RecordingManager;
 class SidebarModel;
+class SmartPlaylistFeature;
 class TrackCollectionManager;
 class WSearchLineEdit;
 class WLibrarySidebar;
@@ -202,6 +203,7 @@ class Library: public QObject {
     PlaylistFeature* m_pPlaylistFeature;
     AutoDJFeature* m_pAutoDJFeature;
     CrateFeature* m_pCrateFeature;
+    SmartPlaylistFeature* m_pSmartPlaylistFeature;
     AnalysisFeature* m_pAnalysisFeature;
     BrowseFeature* m_pBrowseFeature;
     QFont m_trackTableFont;

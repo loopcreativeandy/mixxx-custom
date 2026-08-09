@@ -30,6 +30,7 @@
 #include "library/trackset/crate/cratefeature.h"
 #include "library/trackset/playlistfeature.h"
 #include "library/trackset/setlogfeature.h"
+#include "library/trackset/smartplaylist/smartplaylistfeature.h"
 #include "library/traktor/traktorfeature.h"
 #include "mixer/playermanager.h"
 #include "moc_library.cpp"
@@ -130,6 +131,11 @@ Library::Library(
             &Library::exportCrate, // signal-to-signal
             Qt::DirectConnection);
 #endif
+
+    // andy-custom: saved searches that re-evaluate on open. Sits right after
+    // crates so the three track-set roots are neighbours in the sidebar.
+    m_pSmartPlaylistFeature = new SmartPlaylistFeature(this, m_pConfig);
+    addFeature(m_pSmartPlaylistFeature);
 
     m_pBrowseFeature = new BrowseFeature(
             this, m_pConfig, pRecordingManager);
