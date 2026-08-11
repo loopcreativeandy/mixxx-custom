@@ -50,12 +50,15 @@
       <!-- CP48: 0 = presenter layout (default), 1 = classic LateNight-style
            layout. Toggled from the wrench panel ("Classic Layout"). -->
       <attribute persist="true" config_key="[Skin],andy_classic_layout">0</attribute>
-      <!-- CP65: Classic layout only. 0 (default, today's arrangement) = Auto
-           DJ beside the library table, Andy's playlist pane full-width below.
-           1 = swapped: playlist beside the table, Auto DJ below. Toggled from
-           the wrench panel ("AutoDJ At Bottom"). Inert on the Presenter page
-           and in every other skin. -->
-      <attribute persist="true" config_key="[AndyVideo],classic_autodj_bottom">0</attribute>
+      <!-- CP65/CP70: Auto DJ vs playlist-pane placement, now honoured by BOTH
+           layouts (CP65's key was classic-only and is no longer read; a fresh
+           key is used so the new default actually applies).
+             1 (default, "AutoDJ At Bottom" ticked) = Auto DJ in the wide slot
+               below the library table, Andy's playlist pane in the side slot.
+             0 = the other way round: Auto DJ in the side slot (Presenter
+               column / right of the classic table), playlist pane below.
+           Toggled from the wrench panel. Inert in every other skin. -->
+      <attribute persist="true" config_key="[AndyVideo],autodj_bottom">1</attribute>
 
     <!-- Decks -->
       <!-- general -->
@@ -473,6 +476,9 @@
           <SetVariable name="LibraryVSplitSizesKey">library_splitsize_cp9v_nopane</SetVariable>
           <SetVariable name="LibraryVSplitCollapsible">0</SetVariable>
           <SetVariable name="ShowAutoDJPaneInline">false</SetVariable>
+          <!-- CP70: no size-hint floor on the sidebar/table split either, so
+               the track table can be dragged really narrow. -->
+          <SetVariable name="LibraryFreeResize">true</SetVariable>
         </Template>
       </Children>
     </SingletonDefinition>
@@ -619,6 +625,11 @@
                     <SplitSizes>470,560</SplitSizes>
                     <SplitSizesConfigKey>[AndyVideo],stackedWaveforms_splitSize_v4</SplitSizesConfigKey>
                     <Collapsible>0,0</Collapsible>
+                    <!-- CP70: the deck/mixer block below the waveforms used to
+                         stop at its own preferred height, so hiding the EQ kill
+                         buttons freed space that could not be given to the
+                         waveforms. No floor here any more. -->
+                    <FreeResize>true</FreeResize>
                     <Children>
 
                       <WidgetGroup>
@@ -660,6 +671,7 @@
                              auto_center=0 in andys_layout.ini. -->
                         <AutoCenter>MixerSpectrumColumn</AutoCenter>
                         <Collapsible>0,0</Collapsible>
+                        <FreeResize>true</FreeResize>
                         <Children>
 
                           <WidgetGroup><!-- LEFT: all the controls + library -->
@@ -817,16 +829,66 @@
                                 </Connection>
                               </WidgetGroup>
 
-                              <SingletonContainer>
-                                <ObjectName>LibrarySingleton</ObjectName>
-                              </SingletonContainer>
+                              <!-- CP70: the Presenter layout lost its Auto DJ
+                                   pane in CP65 (the inline copy inside
+                                   library.xml was switched off so the Classic
+                                   layout could position it itself, and the
+                                   Presenter page never placed one). It gets the
+                                   same two-slot arrangement Classic has: a wide
+                                   slot below the library table and the side slot
+                                   in the PresenterZone, with autodj_bottom
+                                   deciding which pane sits where. Both stacks
+                                   read the SAME control, so they swap in
+                                   lockstep and each singleton is referenced
+                                   exactly once at a time. -->
+                              <Splitter>
+                                <ObjectName>PresenterLibrarySplitter</ObjectName>
+                                <Orientation>vertical</Orientation>
+                                <SizePolicy>me,me</SizePolicy>
+                                <SplitSizes>10,4</SplitSizes>
+                                <SplitSizesConfigKey>[AndyVideo],presenterLibrary_splitSize_v1</SplitSizesConfigKey>
+                                <!-- The library itself never collapses, the
+                                     pane below can be dragged shut. -->
+                                <Collapsible>0,1</Collapsible>
+                                <FreeResize>true</FreeResize>
+                                <Children>
+                                  <SingletonContainer>
+                                    <ObjectName>LibrarySingleton</ObjectName>
+                                  </SingletonContainer>
+                                  <!-- Named LibraryContainer so LateNight's
+                                       scrollbar qss ('#LibraryContainer
+                                       QScrollBar') reaches the pane; outside
+                                       that scope Qt paints default white
+                                       scrollbars (CP11 T5, CP69). -->
+                                  <WidgetGroup>
+                                    <ObjectName>LibraryContainer</ObjectName>
+                                    <Layout>vertical</Layout>
+                                    <SizePolicy>me,me</SizePolicy>
+                                    <Children>
+                                      <WidgetStack currentpage="[AndyVideo],autodj_bottom">
+                                        <Children>
+                                          <SingletonContainer>
+                                            <ObjectName>AndysPaneSingleton</ObjectName>
+                                          </SingletonContainer>
+                                          <SingletonContainer>
+                                            <ObjectName>AndysAutoDJSingleton</ObjectName>
+                                          </SingletonContainer>
+                                        </Children>
+                                      </WidgetStack>
+                                    </Children>
+                                  </WidgetGroup>
+                                </Children>
+                              </Splitter><!-- PresenterLibrarySplitter -->
                             </Children>
                           </WidgetGroup><!-- ControlColumn -->
 
                           <WidgetGroup>
                             <ObjectName>PresenterZone</ObjectName>
                             <SizePolicy>me,me</SizePolicy>
-                            <MinimumSize>200,</MinimumSize>
+                            <!-- CP70: the 200 px floor is gone on purpose - an
+                                 explicit <MinimumSize> outranks the splitter's
+                                 <FreeResize>, and Andy wants to be able to drag
+                                 the presenter column all the way shut. -->
                             <Layout>vertical</Layout>
                             <Style>
                               /* Lifted off black on purpose: a dark silhouette
@@ -847,14 +909,25 @@
                                    default white scrollbars. The only other
                                    #LibraryContainer rules are empty/corner,
                                    so no visual side effects. -->
+                              <!-- CP70: side slot of the autodj_bottom swap -
+                                   page 0 = Auto DJ here, page 1 (default) =
+                                   Andy's playlist pane here and Auto DJ in the
+                                   wide slot under the library table. -->
                               <WidgetGroup>
                                 <ObjectName>LibraryContainer</ObjectName>
                                 <Layout>vertical</Layout>
                                 <SizePolicy>me,me</SizePolicy>
                                 <Children>
-                                  <SingletonContainer>
-                                    <ObjectName>AndysPaneSingleton</ObjectName>
-                                  </SingletonContainer>
+                                  <WidgetStack currentpage="[AndyVideo],autodj_bottom">
+                                    <Children>
+                                      <SingletonContainer>
+                                        <ObjectName>AndysAutoDJSingleton</ObjectName>
+                                      </SingletonContainer>
+                                      <SingletonContainer>
+                                        <ObjectName>AndysPaneSingleton</ObjectName>
+                                      </SingletonContainer>
+                                    </Children>
+                                  </WidgetStack>
                                 </Children>
                               </WidgetGroup>
                             </Children>
@@ -883,6 +956,7 @@
                       <SplitSizes>100,550</SplitSizes>
                       <SplitSizesConfigKey>[AndyVideo],classicWaveforms_splitSize_v1</SplitSizesConfigKey>
                       <Collapsible>0,0</Collapsible>
+                      <FreeResize>true</FreeResize>
                       <Children>
 
                         <WidgetGroup>
@@ -1014,6 +1088,12 @@
                               <SplitSizes>10,4</SplitSizes>
                               <SplitSizesConfigKey>[AndyVideo],classicLibrary_splitSize_v1</SplitSizesConfigKey>
                               <Collapsible>0,1</Collapsible>
+                              <!-- CP70: CP69 wrapped both slots in a
+                                   LibraryContainer group for the scrollbar qss,
+                                   and that group's "me" policy became a new
+                                   floor under the pane (its size hint) - which
+                                   is what made resizing WORSE, not better. -->
+                              <FreeResize>true</FreeResize>
                               <Children>
 
                                 <Splitter>
@@ -1022,6 +1102,7 @@
                                   <SplitSizes>16,5</SplitSizes>
                                   <SplitSizesConfigKey>[AndyVideo],classicLibraryRow_splitSize_v1</SplitSizesConfigKey>
                                   <Collapsible>0,1</Collapsible>
+                                  <FreeResize>true</FreeResize>
                                   <Children>
                                     <SingletonContainer>
                                       <ObjectName>LibrarySingleton</ObjectName>
@@ -1040,7 +1121,7 @@
                                       <Layout>vertical</Layout>
                                       <SizePolicy>me,me</SizePolicy>
                                       <Children>
-                                        <WidgetStack currentpage="[AndyVideo],classic_autodj_bottom">
+                                        <WidgetStack currentpage="[AndyVideo],autodj_bottom">
                                           <Children>
                                             <SingletonContainer>
                                               <ObjectName>AndysAutoDJSingleton</ObjectName>
@@ -1060,7 +1141,7 @@
                                   <Layout>vertical</Layout>
                                   <SizePolicy>me,me</SizePolicy>
                                   <Children>
-                                    <WidgetStack currentpage="[AndyVideo],classic_autodj_bottom">
+                                    <WidgetStack currentpage="[AndyVideo],autodj_bottom">
                                       <Children>
                                         <SingletonContainer>
                                           <ObjectName>AndysPaneSingleton</ObjectName>

@@ -3025,6 +3025,41 @@ WSearchLineEdit {
     #DecksMixerSplitter::handle:pressed {
       image: url(skins:LateNight/palemoon/style/splitter_handle_vertical_pressed.svg);
     }
+
+/* CP70: the CP65/CP70 AndyVideo splitters were unstyled for the same reason
+  CP11 T4 lists above - an unstyled QSplitter handle is painted by the default
+  Qt style, i.e. a white bar. Vertical splitters (horizontal handle bar):
+  ClassicLibrarySplitter (classic: library row / pane below),
+  PresenterLibrarySplitter (presenter: library / pane below).
+  Horizontal splitter (vertical handle bar): ClassicLibraryRow
+  (classic: library table / side pane). */
+#ClassicLibrarySplitter,
+#PresenterLibrarySplitter,
+#ClassicLibraryRow {
+  padding: 0px;
+  margin: 0px;
+  }
+  #ClassicLibrarySplitter::handle,
+  #PresenterLibrarySplitter::handle {
+    image: url(skins:LateNight/palemoon/style/splitter_handle_horizontal.svg);
+    background-color: #151517;
+    height: 9px;
+    }
+    #ClassicLibrarySplitter::handle:pressed,
+    #PresenterLibrarySplitter::handle:pressed {
+      image: url(skins:LateNight/palemoon/style/splitter_handle_horizontal_pressed.svg);
+    }
+  #ClassicLibraryRow::handle {
+    image: url(skins:LateNight/palemoon/style/splitter_handle_vertical.svg);
+    background-color: #151517;
+    padding: 0px;
+    margin: 0px;
+    /* 'height' works although it's actually the width of the handle */
+    height: 6px;
+    }
+    #ClassicLibraryRow::handle:pressed {
+      image: url(skins:LateNight/palemoon/style/splitter_handle_vertical_pressed.svg);
+    }
 /************ splitters ***********************/
 
 #LibraryFeatureControls QRadioButton {

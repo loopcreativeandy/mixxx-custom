@@ -30,6 +30,10 @@
             <SplitSizes><Variable name="LibraryVSplitSizes"/></SplitSizes>
             <SplitSizesConfigKey>[Skin],<Variable name="LibraryVSplitSizesKey"/></SplitSizesConfigKey>
             <Collapsible><Variable name="LibraryVSplitCollapsible"/></Collapsible>
+            <!-- CP70: opt-in per including skin (AndyVideo sets it to "true").
+                 Undefined = empty = off, so the stock skins keep the size-hint
+                 floor they have always had. See WSplitter::setup(). -->
+            <FreeResize><Variable name="LibraryFreeResize"/></FreeResize>
             <Children>
 
           <Splitter>
@@ -38,6 +42,11 @@
             <SplitSizes>4,12,5</SplitSizes>
             <SplitSizesConfigKey>[Skin],library_splitsize_cp9h</SplitSizesConfigKey>
             <Collapsible>0,0,1</Collapsible>
+            <!-- CP70: this is the splitter Andy's "I want the middle library
+                 table to get narrower" is about. LibSidebarContainer keeps its
+                 explicit 100 px floor, the table and the Auto DJ pane lose
+                 theirs. Opt-in, see LibraryVSplitter above. -->
+            <FreeResize><Variable name="LibraryFreeResize"/></FreeResize>
             <Children>
 
               <WidgetGroup>

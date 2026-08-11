@@ -1,7 +1,9 @@
 #include "widget/wsplitter.h"
 
 #include <QEvent>
+#include <QLayout>
 #include <QList>
+#include <QSizePolicy>
 #include <QTimer>
 
 #include "moc_wsplitter.cpp"
@@ -30,6 +32,48 @@ void WSplitter::setup(const QDomNode& node, const SkinContext& context) {
             setOrientation(Qt::Vertical);
         } else if (layout == "horizontal") {
             setOrientation(Qt::Horizontal);
+        }
+    }
+
+    // andy-custom CP70: <FreeResize>true</FreeResize> drops the floor the
+    // splitter would otherwise put under every child.
+    //
+    // QSplitter sizes its children through qSmartMinSize(), and for a child
+    // whose size policy has no ShrinkFlag - MinimumExpanding ("me"), which is
+    // what nearly every skin group uses - that returns
+    // max(sizeHint, minimumSizeHint). So the *preferred* size becomes a hard
+    // floor and the handle stops dead long before the pane is small, no matter
+    // what the widget itself reports as its minimum. Setting the policy along
+    // the splitter's own axis to Ignored makes qSmartMinSize() skip that axis
+    // entirely and return 0; the cross axis is left alone, so the child still
+    // behaves normally in the other direction. Same trick LateNight's
+    // library.xml already uses by hand ("me,i" so the library can shrink to
+    // zero height), just applied to every child of one splitter.
+    //
+    // An explicit <MinimumSize> in the skin still wins (qSmartMinSize applies
+    // minimumSize() last), which is deliberate: it keeps the few intentional
+    // floors like LibSidebarContainer's 100 px while removing the accidental
+    // ones. Below the child's real minimum the content simply clips - Andy
+    // asked for exactly that ("that's on me", 2026-08-11).
+    bool freeResize = false;
+    if (context.hasNodeSelectBool(node, "FreeResize", &freeResize) && freeResize) {
+        for (int i = 0; i < count(); ++i) {
+            QWidget* pChild = widget(i);
+            if (pChild == nullptr) {
+                continue;
+            }
+            QSizePolicy policy = pChild->sizePolicy();
+            if (orientation() == Qt::Vertical) {
+                policy.setVerticalPolicy(QSizePolicy::Ignored);
+            } else {
+                policy.setHorizontalPolicy(QSizePolicy::Ignored);
+            }
+            pChild->setSizePolicy(policy);
+            // A child layout left on SetDefaultConstraint can push its own
+            // minimum onto the widget, which would outrank the policy above.
+            if (pChild->layout() != nullptr) {
+                pChild->layout()->setSizeConstraint(QLayout::SetNoConstraint);
+            }
         }
     }
 
