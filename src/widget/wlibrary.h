@@ -43,6 +43,16 @@ class WLibrary : public QStackedWidget, public WBaseWidget {
     void saveCurrentViewState() const;
     void restoreCurrentViewState() const;
 
+    /// CP69: a QStackedWidget's minimum is the widest of ALL its pages, not the
+    /// visible one - so the track table inherited the floor of the widest page
+    /// (Auto DJ / Recording / Analysis, all with long button rows), several
+    /// hundred pixels. That floor is what a QSplitter honours, so the library
+    /// column could not be dragged narrow even while showing a plain table.
+    /// Report a small fixed minimum instead; wide pages just clip.
+    QSize minimumSizeHint() const override;
+
+    static constexpr int kMinimumWidthPx = 80;
+
     // Alpha value for row color background
     static constexpr double kDefaultTrackTableBackgroundColorOpacity = 0.125; // 12.5% opacity
     static constexpr double kMinTrackTableBackgroundColorOpacity = 0.0; // 0% opacity

@@ -297,49 +297,79 @@ Description:
             <Size>1min,12f</Size>
           </WidgetGroup>
 
-          <!-- Andy: spectrum analyzer on/off. Only the Andy skins contain the
-               meter; switching it off also stops the engine-side filter bank,
-               so 'off' is a true zero-cost baseline for CPU testing. -->
-          <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
-            <SetVariable name="Text">Spectrum Analyzer</SetVariable>
-            <SetVariable name="Setting">[Skin],show_spectrum</SetVariable>
-            <SetVariable name="TooltipId"></SetVariable>
-            <SetVariable name="Width">190me</SetVariable>
-          </Template>
+          <!-- Andy CP69 (2026-08-11): these four used to be four loose TOP-level
+               label buttons, which read as four unrelated categories. They are
+               all layout choices, so they now live under one "Layout" heading -
+               same controls, same config keys, same defaults, only the nesting
+               changed. Live Reload sits one level deeper still: it only means
+               anything while the meter is on, so it is dimmed with it (same
+               cover idiom as EQ Kill under EQ Knobs below). -->
+          <Label>
+            <ObjectName>CategoryLabel</ObjectName>
+            <Text>Layout</Text>
+            <Size>180min,23f</Size>
+          </Label>
 
-          <!-- Andy: re-read andys_spectrum.ini every ~2 s so the bar motion can
-               be tuned with Mixxx open. Off = read once at startup, which keeps
-               the meter's paint path off the filesystem entirely. -->
-          <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
-            <SetVariable name="Text">Spectrum Live Reload</SetVariable>
-            <SetVariable name="Setting">[Skin],spectrum_hot_reload</SetVariable>
-            <SetVariable name="TooltipId"></SetVariable>
-            <SetVariable name="Width">190me</SetVariable>
-          </Template>
+          <WidgetGroup>
+            <ObjectName>SkinSettingsCategory</ObjectName>
+            <SizePolicy>me,min</SizePolicy>
+            <Layout>vertical</Layout>
+            <Children>
 
-          <!-- Andy CP48: only AndyVideo has two layouts. OFF (default) = the
-               presenter column with the stacked decks; ON = a plain
-               LateNight-style layout (decks 1-4 beside the mixer, full-width
-               library, the side playlist pane as a strip below it).
-               Inert in every other skin. -->
-          <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
-            <SetVariable name="Text">Classic Layout</SetVariable>
-            <SetVariable name="Setting">[Skin],andy_classic_layout</SetVariable>
-            <SetVariable name="TooltipId"></SetVariable>
-            <SetVariable name="Width">190me</SetVariable>
-          </Template>
+              <!-- Andy: spectrum analyzer on/off. Only the Andy skins contain
+                   the meter; switching it off also stops the engine-side filter
+                   bank, so 'off' is a true zero-cost baseline for CPU testing. -->
+              <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
+                <SetVariable name="Text">Spectrum Analyzer</SetVariable>
+                <SetVariable name="Setting">[Skin],show_spectrum</SetVariable>
+                <SetVariable name="TooltipId"></SetVariable>
+              </Template>
 
-          <!-- Andy CP65: Classic layout only. OFF (default) = Auto DJ beside
-               the library table, playlist pane full-width below (today's
-               arrangement). ON = swapped: playlist beside the table, Auto DJ
-               below. Purely visual position, same widgets either way.
-               Inert on the Presenter page and in every other skin. -->
-          <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
-            <SetVariable name="Text">AutoDJ At Bottom</SetVariable>
-            <SetVariable name="Setting">[AndyVideo],classic_autodj_bottom</SetVariable>
-            <SetVariable name="TooltipId"></SetVariable>
-            <SetVariable name="Width">190me</SetVariable>
-          </Template>
+              <!-- Andy: re-read andys_spectrum.ini every ~2 s so the bar motion
+                   can be tuned with Mixxx open. Off = read once at startup,
+                   which keeps the meter's paint path off the filesystem
+                   entirely. -->
+              <WidgetGroup><!-- Spectrum Live Reload -->
+                <ObjectName>SkinSettingsSubMenu</ObjectName>
+                <Layout>stacked</Layout>
+                <Size>180min,18f</Size>
+                <Children>
+                  <!-- translucent cover while the spectrum meter is off -->
+                  <Template src="skins:LateNight/helpers/skin_settings_cover_inverted.xml">
+                    <SetVariable name="Setting">[Skin],show_spectrum</SetVariable>
+                  </Template>
+                  <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
+                    <SetVariable name="Text">Spectrum Live Reload</SetVariable>
+                    <SetVariable name="Setting">[Skin],spectrum_hot_reload</SetVariable>
+                    <SetVariable name="TooltipId"></SetVariable>
+                  </Template>
+                </Children>
+              </WidgetGroup><!-- /Spectrum Live Reload -->
+
+              <!-- Andy CP48: only AndyVideo has two layouts. OFF (default) = the
+                   presenter column with the stacked decks; ON = a plain
+                   LateNight-style layout (decks 1-4 beside the mixer, full-width
+                   library, the side playlist pane as a strip below it).
+                   Inert in every other skin. -->
+              <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
+                <SetVariable name="Text">Classic Layout</SetVariable>
+                <SetVariable name="Setting">[Skin],andy_classic_layout</SetVariable>
+                <SetVariable name="TooltipId"></SetVariable>
+              </Template>
+
+              <!-- Andy CP65: Classic layout only. OFF (default) = Auto DJ beside
+                   the library table, playlist pane full-width below (today's
+                   arrangement). ON = swapped: playlist beside the table, Auto DJ
+                   below. Purely visual position, same widgets either way.
+                   Inert on the Presenter page and in every other skin. -->
+              <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
+                <SetVariable name="Text">AutoDJ At Bottom</SetVariable>
+                <SetVariable name="Setting">[AndyVideo],classic_autodj_bottom</SetVariable>
+                <SetVariable name="TooltipId"></SetVariable>
+              </Template>
+
+            </Children>
+          </WidgetGroup><!-- /Layout -->
 
           <WidgetGroup>
             <ObjectName>SkinSettingsSeparator</ObjectName>

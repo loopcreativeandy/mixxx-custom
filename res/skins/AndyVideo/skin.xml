@@ -1026,29 +1026,52 @@
                                     <SingletonContainer>
                                       <ObjectName>LibrarySingleton</ObjectName>
                                     </SingletonContainer>
+                                    <!-- CP69: named LibraryContainer for the same
+                                         reason as the Presenter layout's wrapper
+                                         (CP11 T5) - LateNight's scrollbar qss is
+                                         scoped '#LibraryContainer QScrollBar', so
+                                         outside that scope Qt painted the default
+                                         white scrollbars with their arrow buttons.
+                                         Only the Presenter layout had the wrapper,
+                                         which is why the classic layout still
+                                         showed them. -->
+                                    <WidgetGroup>
+                                      <ObjectName>LibraryContainer</ObjectName>
+                                      <Layout>vertical</Layout>
+                                      <SizePolicy>me,me</SizePolicy>
+                                      <Children>
+                                        <WidgetStack currentpage="[AndyVideo],classic_autodj_bottom">
+                                          <Children>
+                                            <SingletonContainer>
+                                              <ObjectName>AndysAutoDJSingleton</ObjectName>
+                                            </SingletonContainer>
+                                            <SingletonContainer>
+                                              <ObjectName>AndysPaneSingleton</ObjectName>
+                                            </SingletonContainer>
+                                          </Children>
+                                        </WidgetStack>
+                                      </Children>
+                                    </WidgetGroup>
+                                  </Children>
+                                </Splitter>
+
+                                <WidgetGroup>
+                                  <ObjectName>LibraryContainer</ObjectName>
+                                  <Layout>vertical</Layout>
+                                  <SizePolicy>me,me</SizePolicy>
+                                  <Children>
                                     <WidgetStack currentpage="[AndyVideo],classic_autodj_bottom">
                                       <Children>
                                         <SingletonContainer>
-                                          <ObjectName>AndysAutoDJSingleton</ObjectName>
+                                          <ObjectName>AndysPaneSingleton</ObjectName>
                                         </SingletonContainer>
                                         <SingletonContainer>
-                                          <ObjectName>AndysPaneSingleton</ObjectName>
+                                          <ObjectName>AndysAutoDJSingleton</ObjectName>
                                         </SingletonContainer>
                                       </Children>
                                     </WidgetStack>
                                   </Children>
-                                </Splitter>
-
-                                <WidgetStack currentpage="[AndyVideo],classic_autodj_bottom">
-                                  <Children>
-                                    <SingletonContainer>
-                                      <ObjectName>AndysPaneSingleton</ObjectName>
-                                    </SingletonContainer>
-                                    <SingletonContainer>
-                                      <ObjectName>AndysAutoDJSingleton</ObjectName>
-                                    </SingletonContainer>
-                                  </Children>
-                                </WidgetStack>
+                                </WidgetGroup>
 
                               </Children>
                             </Splitter>

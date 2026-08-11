@@ -32,6 +32,13 @@ class WAndysPlaylistPane : public QWidget, public WBaseWidget {
             double backgroundColorOpacity,
             const QString& paneId = QString());
 
+    /// CP69: same reason as WAndysAutoDJPane — the header row (playlist name
+    /// label + buttons) and the track table report a wide minimumSizeHint, and
+    /// a QSplitter refuses to shrink a child below it. The Auto DJ pane already
+    /// reported 0, so the two panes resized very differently depending on which
+    /// one sat in the slot. Report 0 here too; the header text simply clips.
+    QSize minimumSizeHint() const override;
+
   public slots:
     void slotOpenPlaylist(int playlistId);
 

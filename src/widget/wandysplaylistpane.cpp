@@ -170,6 +170,17 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
     pLayout->setSpacing(2);
     pLayout->addWidget(m_pHeaderRow);
     pLayout->addWidget(m_pTrackTableView, 1);
+    // Without this the layout pushes its own minimum onto the pane, which the
+    // splitter then honours (same trick as WAndysAutoDJPane).
+    pLayout->setSizeConstraint(QLayout::SetNoConstraint);
+    setMinimumSize(0, 0);
+    // The header label is the widest fixed part - a long playlist name would
+    // otherwise be the pane's floor. Ignored = the layout drops its size hints
+    // entirely, so the text just clips when the pane gets narrow.
+    m_pHeader->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    m_pHeader->setMinimumSize(0, 0);
+    m_pHeaderRow->setMinimumSize(0, 0);
+    pHeaderLayout->setSizeConstraint(QLayout::SetNoConstraint);
 
     m_pTrackTableView->installEventFilter(pKeyboard);
 
@@ -256,6 +267,10 @@ WAndysPlaylistPane::WAndysPlaylistPane(QWidget* pParent,
             !playlistDao.getPlaylistName(lastPlaylistId).isEmpty()) {
         openPlaylist(lastPlaylistId);
     }
+}
+
+QSize WAndysPlaylistPane::minimumSizeHint() const {
+    return QSize(0, 0);
 }
 
 void WAndysPlaylistPane::slotOpenPlaylist(int playlistId) {

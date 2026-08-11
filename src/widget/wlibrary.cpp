@@ -1,6 +1,7 @@
 #include "widget/wlibrary.h"
 
 #include <QKeyEvent>
+#include <QLayout>
 #include <QtDebug>
 
 #include "library/libraryview.h"
@@ -15,6 +16,19 @@ WLibrary::WLibrary(QWidget* parent)
           m_mutex(QT_RECURSIVE_MUTEX_INIT),
           m_trackTableBackgroundColorOpacity(kDefaultTrackTableBackgroundColorOpacity),
           m_bShowButtonText(true) {
+    // CP69: the QStackedLayout would otherwise push the widest page's minimum
+    // onto this widget as a hard minimumSize(), which outranks the
+    // minimumSizeHint() below when a splitter measures us.
+    if (QLayout* pLayout = layout()) {
+        pLayout->setSizeConstraint(QLayout::SetNoConstraint);
+    }
+    setMinimumSize(0, 0);
+}
+
+QSize WLibrary::minimumSizeHint() const {
+    // Width only: the vertical minimum stays exactly what it was, so nothing
+    // about the library's height behaviour changes.
+    return QSize(kMinimumWidthPx, QStackedWidget::minimumSizeHint().height());
 }
 
 void WLibrary::setup(const QDomNode& node, const SkinContext& context) {
