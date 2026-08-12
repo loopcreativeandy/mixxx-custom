@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "control/pollingcontrolproxy.h"
+#include "soundio/audiojittertrace.h"
 #include "soundio/sounddevice.h"
 #include "soundio/soundmanagerconfig.h"
 #include "util/duration.h"
@@ -76,6 +77,9 @@ class SoundDevicePortAudio : public SoundDevice {
     PaStreamParameters m_inputParams;
     std::unique_ptr<FIFO<CSAMPLE>> m_outputFifo;
     std::unique_ptr<FIFO<CSAMPLE>> m_inputFifo;
+    // Per-callback timing trace for dropout forensics; alive while the
+    // stream is open.
+    std::unique_ptr<AudioJitterTrace> m_jitterTrace;
     bool m_outputDrift;
     bool m_inputDrift;
 

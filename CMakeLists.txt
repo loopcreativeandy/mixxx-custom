@@ -1534,6 +1534,7 @@ add_library(
   src/skin/legacy/tooltips.cpp
   src/skin/skincontrols.cpp
   src/skin/skinloader.cpp
+  src/soundio/audiojittertrace.cpp
   src/soundio/sounddevice.cpp
   src/soundio/sounddevicenetwork.cpp
   src/soundio/sounddeviceportaudio.cpp
@@ -2713,6 +2714,7 @@ if(BUILD_TESTING)
     src-mixxx-test
     src/test/analyserwaveformtest.cpp
     src/test/analyzersilence_test.cpp
+    src/test/audiojittertracetest.cpp
     src/test/audiotaperpot_test.cpp
     src/test/autodjprocessor_test.cpp
     src/test/beatgridtest.cpp

@@ -382,6 +382,18 @@ SoundDeviceStatus SoundDevicePortAudio::open(bool isClkRefDevice, int syncBuffer
     m_bFinished = false;
     Pa_SetStreamFinishedCallback(pStream, paFinishedCallback);
 
+    // The first callback can fire as soon as the stream starts, so the trace
+    // must exist before Pa_StartStream.
+    m_jitterTrace = std::make_unique<AudioJitterTrace>(
+            m_pConfig->getSettingsPath(),
+            m_deviceId.name,
+            m_hostAPI,
+            m_sampleRate.toDouble(),
+            framesPerBuffer == static_cast<SINT>(paFramesPerBufferUnspecified)
+                    ? 0
+                    : static_cast<int>(framesPerBuffer),
+            isClkRefDevice);
+
     // Tell the callback to return paContinue, once running.
     m_callbackResult.store(paContinue, std::memory_order_release);
 
@@ -396,6 +408,7 @@ SoundDeviceStatus SoundDevicePortAudio::open(bool isClkRefDevice, int syncBuffer
             qWarning() << "PortAudio: Close stream error:"
                        << Pa_GetErrorText(err) << m_deviceId;
         }
+        m_jitterTrace.reset();
         return SoundDeviceStatus::Error;
     } else {
         qDebug() << "PortAudio: Started stream successfully";
@@ -509,6 +522,9 @@ SoundDeviceStatus SoundDevicePortAudio::close() {
         m_pStream.store(nullptr, std::memory_order_release);
     }
 
+    // Stream is closed, no callback can still be running: flush the trace
+    // and log its summary.
+    m_jitterTrace.reset();
     m_outputFifo.reset();
     m_inputFifo.reset();
     m_bSetThreadPriority = false;
@@ -766,6 +782,8 @@ int SoundDevicePortAudio::callbackProcessDrift(
         const PaStreamCallbackTimeInfo *timeInfo,
         PaStreamCallbackFlags statusFlags) {
     Q_UNUSED(timeInfo);
+    AudioJitterTrace::Scope jitterScope(
+            m_jitterTrace.get(), statusFlags, framesPerBuffer);
     Trace trace("SoundDevicePortAudio::callbackProcessDrift %1",
             m_deviceId.debugName());
 
@@ -899,6 +917,8 @@ int SoundDevicePortAudio::callbackProcess(const SINT framesPerBuffer,
         const PaStreamCallbackTimeInfo *timeInfo,
         PaStreamCallbackFlags statusFlags) {
     Q_UNUSED(timeInfo);
+    AudioJitterTrace::Scope jitterScope(
+            m_jitterTrace.get(), statusFlags, framesPerBuffer);
     Trace trace("SoundDevicePortAudio::callbackProcess %1", m_deviceId.debugName());
 
     if (statusFlags & (paOutputUnderflow | paInputOverflow)) {
@@ -952,6 +972,9 @@ int SoundDevicePortAudio::callbackProcessClkRef(
         PaStreamCallbackFlags statusFlags) {
     // This must be the very first call, else timeInfo becomes invalid
     updateCallbackEntryToDacTime(framesPerBuffer, timeInfo);
+
+    AudioJitterTrace::Scope jitterScope(
+            m_jitterTrace.get(), statusFlags, framesPerBuffer);
 
     Trace trace("SoundDevicePortAudio::callbackProcessClkRef %1",
             m_deviceId.debugName());
