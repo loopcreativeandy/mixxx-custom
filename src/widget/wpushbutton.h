@@ -5,6 +5,8 @@
 #include <QVector>
 #include <memory>
 
+#include "control/controlproxy.h"
+
 #include "control/controlbuttonmode.h"
 #include "util/fpclassify.h"
 #include "util/performancetimer.h"
@@ -66,6 +68,8 @@ class WPushButton : public WWidget {
 
   private slots:
     void updateSlot();
+    // Andy (CP73): refresh the live "would land on <key>" tooltip
+    void updateKeyTooltip(double);
 
   protected:
     bool event(QEvent* e) override;
@@ -108,6 +112,13 @@ class WPushButton : public WWidget {
 
     // Associated background pixmap
     PaintablePointer m_pPixmapBack;
+
+    // Andy (CP73): optional live tooltip showing the key this button would
+    // shift the deck to (<KeyTooltipGroup> + <KeyTooltipSteps> in the skin)
+    int m_keyTooltipSteps = 0;
+    QString m_keyTooltipBase;
+    std::unique_ptr<ControlProxy> m_pKeyTooltipKey;
+    std::unique_ptr<ControlProxy> m_pKeyTooltipNotation;
 
     // short click toggle button long click push button
     mixxx::control::ButtonMode m_leftButtonMode;

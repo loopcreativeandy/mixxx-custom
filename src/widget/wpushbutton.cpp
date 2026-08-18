@@ -10,6 +10,8 @@
 #include "control/controlbehavior.h"
 #include "control/controlobject.h"
 #include "control/controlpushbutton.h"
+#include "library/library_prefs.h"
+#include "track/keyutils.h"
 #include "moc_wpushbutton.cpp"
 #include "skin/legacy/skincontext.h"
 #include "util/debug.h"
@@ -233,7 +235,50 @@ void WPushButton::setup(const QDomNode& node, const SkinContext& context) {
         }
     }
 
+    // Andy (CP73): key shift buttons get a live tooltip line telling which
+    // key the deck would land on. Enabled per-button from the skin via
+    // <KeyTooltipGroup> (the deck group) + <KeyTooltipSteps> (signed
+    // semitones); both empty on every other button, which skips all of this.
+    bool stepsOk = false;
+    const int keyTooltipSteps =
+            context.selectString(node, "KeyTooltipSteps").toInt(&stepsOk);
+    const QString keyTooltipGroup = context.selectString(node, "KeyTooltipGroup");
+    if (stepsOk && keyTooltipSteps != 0 && !keyTooltipGroup.isEmpty()) {
+        m_keyTooltipSteps = keyTooltipSteps;
+        // commonWidgetSetup already installed the static TooltipId text
+        m_keyTooltipBase = baseTooltip();
+        m_pKeyTooltipKey = std::make_unique<ControlProxy>(keyTooltipGroup,
+                QStringLiteral("visual_key"),
+                this,
+                ControlFlag::AllowMissingOrInvalid);
+        m_pKeyTooltipKey->connectValueChanged(this, &WPushButton::updateKeyTooltip);
+        m_pKeyTooltipNotation = std::make_unique<ControlProxy>(
+                mixxx::library::prefs::kKeyNotationConfigKey, this);
+        m_pKeyTooltipNotation->connectValueChanged(
+                this, &WPushButton::updateKeyTooltip);
+        updateKeyTooltip(m_pKeyTooltipKey->get());
+    }
+
     setFocusPolicy(Qt::NoFocus);
+}
+
+void WPushButton::updateKeyTooltip(double) {
+    const mixxx::track::io::key::ChromaticKey key =
+            KeyUtils::keyFromNumericValue(m_pKeyTooltipKey->get());
+    if (key == mixxx::track::io::key::INVALID) {
+        setToolTip(m_keyTooltipBase);
+        return;
+    }
+    const mixxx::track::io::key::ChromaticKey target =
+            KeyUtils::scaleKeySteps(key, m_keyTooltipSteps);
+    const QString landing = tr("%1%2 st → %3")
+                                    .arg(m_keyTooltipSteps > 0 ? QStringLiteral("+")
+                                                               : QStringLiteral("-"))
+                                    .arg(qAbs(m_keyTooltipSteps))
+                                    .arg(KeyUtils::keyToString(target));
+    setToolTip(m_keyTooltipBase.isEmpty()
+                    ? landing
+                    : landing + QStringLiteral("\n\n") + m_keyTooltipBase);
 }
 
 void WPushButton::setStates(int iStates) {

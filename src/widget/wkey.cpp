@@ -41,6 +41,7 @@ WKey::WKey(const QString& group, QWidget* pParent)
                   this,
                   ControlFlag::AllowMissingOrInvalid),
           m_pitch(group, "pitch", this, ControlFlag::AllowMissingOrInvalid),
+          m_fileKey(group, "file_key", this, ControlFlag::AllowMissingOrInvalid),
           m_zoukMode("[Controls]",
                   "zouk_mode",
                   this,
@@ -50,6 +51,7 @@ WKey::WKey(const QString& group, QWidget* pParent)
     m_keyNotation.connectValueChanged(this, &WKey::keyNotationChanged);
     m_engineKeyDistance.connectValueChanged(this, &WKey::setCents);
     m_pitch.connectValueChanged(this, &WKey::setCents);
+    m_fileKey.connectValueChanged(this, &WKey::setCents);
 
     // Zouk mode key-clash warning: watch every other deck's effective key
     // and play state. Missing decks resolve to invalid keys and are skipped.
@@ -119,10 +121,38 @@ void WKey::setValue(double dValue) {
                                                       : QLatin1Char('-'))
                                       .arg(qAbs(offset)));
             }
+            // Live tooltip: the original key, what a key reset would do,
+            // and where a one-semitone shift in either direction lands.
+            // Replaces the generic track_key tooltip on this label only.
+            QStringList tip;
+            const mixxx::track::io::key::ChromaticKey fileKey =
+                    KeyUtils::keyFromNumericValue(m_fileKey.get());
+            if (fileKey != mixxx::track::io::key::INVALID) {
+                if (offset != 0) {
+                    tip.append(tr("Original key: %1 (reset: %2%3 st)")
+                                    .arg(KeyUtils::keyToString(fileKey))
+                                    .arg(offset > 0 ? QStringLiteral("-")
+                                                    : QStringLiteral("+"))
+                                    .arg(qAbs(offset)));
+                } else {
+                    tip.append(tr("Original key: %1 (on it)")
+                                    .arg(KeyUtils::keyToString(fileKey)));
+                }
+            }
+            tip.append(tr("Key up (+1 st) → %1")
+                            .arg(KeyUtils::keyToString(
+                                    KeyUtils::scaleKeySteps(key, 1))));
+            tip.append(tr("Key down (-1 st) → %1")
+                            .arg(KeyUtils::keyToString(
+                                    KeyUtils::scaleKeySteps(key, -1))));
+            setBaseTooltip(tip.join(QChar('\n')));
         }
         setText(keyStr);
     } else {
         setText("");
+        if (m_displayOffset) {
+            setBaseTooltip(QString());
+        }
     }
     updateKeyClash();
 }

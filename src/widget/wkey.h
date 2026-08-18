@@ -31,6 +31,7 @@ class WKey : public WLabel  {
     ControlProxy m_keyNotation;
     ControlProxy m_engineKeyDistance;
     ControlProxy m_pitch;
+    ControlProxy m_fileKey;
     // Zouk mode (Andy): turn red when playing decks clash on the Camelot wheel
     ControlProxy m_zoukMode;
     ControlProxy m_playSelf;
