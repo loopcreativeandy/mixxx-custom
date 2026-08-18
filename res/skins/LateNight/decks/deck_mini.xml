@@ -197,17 +197,52 @@
                         </Connection>
                       </TrackProperty>
 
-                      <Key>
-                        <TooltipId>visual_key</TooltipId>
-                        <ObjectName>KeyTextSmall</ObjectName>
-                        <Channel><Variable name="ChanNum"/></Channel>
-                        <Size>44min,23f</Size>
-                        <Alignment>center</Alignment>
-                        <Elide>right</Elide>
+                      <!-- Andy: plain / semitone-offset key label variants,
+                           toggled by [Skin],show_key_offset -->
+                      <WidgetGroup>
+                        <Layout>horizontal</Layout>
+                        <SizePolicy>min,f</SizePolicy>
+                        <Children>
+                          <Key>
+                            <TooltipId>visual_key</TooltipId>
+                            <ObjectName>KeyTextSmall</ObjectName>
+                            <Channel><Variable name="ChanNum"/></Channel>
+                            <Size>44min,23f</Size>
+                            <Alignment>center</Alignment>
+                            <Elide>right</Elide>
+                            <Connection>
+                              <ConfigKey><Variable name="Group"/>,visual_key</ConfigKey>
+                            </Connection>
+                          </Key>
+                        </Children>
                         <Connection>
-                          <ConfigKey><Variable name="Group"/>,visual_key</ConfigKey>
+                          <ConfigKey persist="true">[Skin],show_key_offset</ConfigKey>
+                          <Transform><Not/></Transform>
+                          <BindProperty>visible</BindProperty>
                         </Connection>
-                      </Key>
+                      </WidgetGroup>
+                      <WidgetGroup>
+                        <Layout>horizontal</Layout>
+                        <SizePolicy>min,f</SizePolicy>
+                        <Children>
+                          <Key>
+                            <TooltipId>visual_key</TooltipId>
+                            <ObjectName>KeyTextSmall</ObjectName>
+                            <Channel><Variable name="ChanNum"/></Channel>
+                            <Size>44min,23f</Size>
+                            <Alignment>center</Alignment>
+                            <Elide>right</Elide>
+                            <DisplayOffset>true</DisplayOffset>
+                            <Connection>
+                              <ConfigKey><Variable name="Group"/>,visual_key</ConfigKey>
+                            </Connection>
+                          </Key>
+                        </Children>
+                        <Connection>
+                          <ConfigKey persist="true">[Skin],show_key_offset</ConfigKey>
+                          <BindProperty>visible</BindProperty>
+                        </Connection>
+                      </WidgetGroup>
 
                       <NumberBpm>
                         <ObjectName>BpmTextSmall</ObjectName>

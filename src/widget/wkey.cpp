@@ -1,5 +1,7 @@
 #include "widget/wkey.h"
 
+#include <cmath>
+
 #include "library/library_prefs.h"
 #include "moc_wkey.cpp"
 #include "skin/legacy/skincontext.h"
@@ -38,6 +40,7 @@ WKey::WKey(const QString& group, QWidget* pParent)
                   "visual_key_distance",
                   this,
                   ControlFlag::AllowMissingOrInvalid),
+          m_pitch(group, "pitch", this, ControlFlag::AllowMissingOrInvalid),
           m_zoukMode("[Controls]",
                   "zouk_mode",
                   this,
@@ -46,6 +49,7 @@ WKey::WKey(const QString& group, QWidget* pParent)
     setValue(m_dOldValue);
     m_keyNotation.connectValueChanged(this, &WKey::keyNotationChanged);
     m_engineKeyDistance.connectValueChanged(this, &WKey::setCents);
+    m_pitch.connectValueChanged(this, &WKey::setCents);
 
     // Zouk mode key-clash warning: watch every other deck's effective key
     // and play state. Missing decks resolve to invalid keys and are skipped.
@@ -79,6 +83,7 @@ void WKey::setup(const QDomNode& node, const SkinContext& context) {
     WLabel::setup(node, context);
     m_displayCents = context.selectBool(node, "DisplayCents", false);
     m_displayKey = context.selectBool(node, "DisplayKey", true);
+    m_displayOffset = context.selectBool(node, "DisplayOffset", false);
 }
 
 void WKey::setValue(double dValue) {
@@ -101,6 +106,19 @@ void WKey::setValue(double dValue) {
                 sign = '+';
             }
             keyStr.append(QString(" %1%2c").arg(sign).arg(qAbs(cents_to_display)));
+        }
+        if (m_displayOffset) {
+            // Semitones the displayed key sits above/below the file key.
+            // "pitch" is the total offset; visual_key_distance is the
+            // sub-semitone remainder, so the difference is a whole number.
+            const int offset = static_cast<int>(
+                    std::lround(m_pitch.get() - m_engineKeyDistance.get()));
+            if (offset != 0) {
+                keyStr.append(QString(" %1%2")
+                                      .arg(offset > 0 ? QLatin1Char('+')
+                                                      : QLatin1Char('-'))
+                                      .arg(qAbs(offset)));
+            }
         }
         setText(keyStr);
     } else {

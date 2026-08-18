@@ -112,6 +112,13 @@ Description:
         <SetVariable name="Setting">[Skin],show_key_controls</SetVariable>
       </Template>
 
+      <!-- Andy: semitone offset from the original file key in the key label -->
+      <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
+        <SetVariable name="TooltipId">show_key_controls</SetVariable>
+        <SetVariable name="Text">Key Offset (semitones)</SetVariable>
+        <SetVariable name="Setting">[Skin],show_key_offset</SetVariable>
+      </Template>
+
       <!-- Vinyl Control -->
       <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
         <SetVariable name="TooltipId">show_vinylcontrol</SetVariable>

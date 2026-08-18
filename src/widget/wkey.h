@@ -25,9 +25,12 @@ class WKey : public WLabel  {
     double m_dOldValue;
     bool m_displayCents;
     bool m_displayKey;
+    // Andy: append the integer semitone offset from the file key (" +2"/" -1")
+    bool m_displayOffset;
     bool m_keyClash;
     ControlProxy m_keyNotation;
     ControlProxy m_engineKeyDistance;
+    ControlProxy m_pitch;
     // Zouk mode (Andy): turn red when playing decks clash on the Camelot wheel
     ControlProxy m_zoukMode;
     ControlProxy m_playSelf;

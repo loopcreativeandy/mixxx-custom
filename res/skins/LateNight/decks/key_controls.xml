@@ -2,13 +2,13 @@
   <WidgetGroup>
     <Layout>horizontal</Layout>
     <SizePolicy>p,min</SizePolicy>
-    <MaximumSize>111,</MaximumSize>
+    <MaximumSize>131,</MaximumSize>
     <Children>
       <WidgetGroup>
         <ObjectName>KeyControls</ObjectName>
         <Layout>horizontal</Layout>
         <SizePolicy>me,min</SizePolicy>
-        <MaximumSize>111,</MaximumSize>
+        <MaximumSize>131,</MaximumSize>
         <Children>
           <Template src="skins:LateNight/controls/button_2state_right.xml">
             <SetVariable name="TooltipId">sync_reset_key</SetVariable>
@@ -21,53 +21,57 @@
             <SetVariable name="ConfigKeyRight"><Variable name="Group"/>,reset_key</SetVariable>
           </Template>
 
-          <Key>
-            <ObjectName>KeyText</ObjectName>
-            <TooltipId>track_key</TooltipId>
-            <Group><Variable name="Group"/></Group>
-            <MinimumSize>30,20</MinimumSize>
-            <MaximumSize>65,20</MaximumSize>
-            <SizePolicy>me,f</SizePolicy>
-            <Elide>right</Elide>
-            <Connection>
-              <ConfigKey><Variable name="Group"/>,visual_key</ConfigKey>
-            </Connection>
-            <!-- unfortunately this can't be used to highlight if the key is
-                offset from original file key
-            <Connection>
-              <ConfigKey><Variable name="Group"/>,visual_key</ConfigKey>
-              <Transform><Not><Variable name="Group"/>,file_key</Not></Transform>
-              <BindProperty>highlight</BindProperty>
-            </Connection> -->
-          </Key>
-
-          <!-- Another idea to group all keycontrols
+          <!-- Andy: two variants of the key label, toggled by
+               [Skin],show_key_offset (skin settings). The offset variant
+               appends the semitone distance from the file key (" +2") and
+               gets 20 px extra so the suffix does not elide away. -->
           <WidgetGroup>
-            <ObjectName>KeyTextBox</ObjectName>
             <Layout>horizontal</Layout>
-            <SizePolicy>me,f</SizePolicy>
-            <MinimumSize>30,20</MinimumSize>
-            <MaximumSize>65,20</MaximumSize>
+            <SizePolicy>me,min</SizePolicy>
             <Children>
               <Key>
                 <ObjectName>KeyText</ObjectName>
                 <TooltipId>track_key</TooltipId>
                 <Group><Variable name="Group"/></Group>
-                <MinimumSize>30,18</MinimumSize>
-                <MaximumSize>65,18</MaximumSize>
+                <MinimumSize>30,20</MinimumSize>
+                <MaximumSize>65,20</MaximumSize>
                 <SizePolicy>me,f</SizePolicy>
                 <Elide>right</Elide>
                 <Connection>
                   <ConfigKey><Variable name="Group"/>,visual_key</ConfigKey>
                 </Connection>
+              </Key>
+            </Children>
+            <Connection>
+              <ConfigKey persist="true">[Skin],show_key_offset</ConfigKey>
+              <Transform><Not/></Transform>
+              <BindProperty>visible</BindProperty>
+            </Connection>
+          </WidgetGroup>
+
+          <WidgetGroup>
+            <Layout>horizontal</Layout>
+            <SizePolicy>me,min</SizePolicy>
+            <Children>
+              <Key>
+                <ObjectName>KeyText</ObjectName>
+                <TooltipId>track_key</TooltipId>
+                <Group><Variable name="Group"/></Group>
+                <MinimumSize>30,20</MinimumSize>
+                <MaximumSize>85,20</MaximumSize>
+                <SizePolicy>me,f</SizePolicy>
+                <Elide>right</Elide>
+                <DisplayOffset>true</DisplayOffset>
                 <Connection>
                   <ConfigKey><Variable name="Group"/>,visual_key</ConfigKey>
-                  <Transform><Not><Variable name="Group"/>,file_key</Not></Transform>
-                  <BindProperty>highlight</BindProperty>
                 </Connection>
               </Key>
             </Children>
-          </WidgetGroup>KeyTextBox -->
+            <Connection>
+              <ConfigKey persist="true">[Skin],show_key_offset</ConfigKey>
+              <BindProperty>visible</BindProperty>
+            </Connection>
+          </WidgetGroup>
 
           <WidgetGroup>
             <ObjectName>KeyUpDown</ObjectName>
