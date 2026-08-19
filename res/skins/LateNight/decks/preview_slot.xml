@@ -1,0 +1,95 @@
+<!--
+Description:
+  andy-custom CP74: one candidate home for the preview deck.
+
+  The preview deck itself is a singleton (defined in library.xml, right where
+  the stock skins have always drawn it), so a skin can offer several slots and
+  the deck moves to whichever one is currently selected - there is still only
+  one preview deck widget, a SingletonContainer just takes it over when it
+  becomes visible.
+
+  Three gates, outside in:
+    1. position  - <PreviewPos> must match the position control, so exactly one
+                   slot in the visible layout holds the deck.
+    2. show_preview_decks - a SingletonContainer SHOWS whatever it holds, which
+                   overrules the visibility connection the deck carries itself,
+                   so the "Preview Deck" tick box has to be repeated here.
+    3. auto-hide - off: always visible. on: only while the preview deck plays,
+                   so it disappears on pause and comes back when a track is
+                   auditioned from the library.
+
+Variables:
+  PreviewPos          : the value of the position control this slot answers to
+  PreviewPositionKey  : control holding the chosen position (per skin)
+  PreviewAutohideKey  : control holding the auto-hide tick box (per skin)
+-->
+<Template>
+  <WidgetGroup>
+    <ObjectName>PreviewSlot</ObjectName>
+    <Layout>vertical</Layout>
+    <SizePolicy>me,max</SizePolicy>
+    <Children>
+
+      <WidgetGroup>
+        <Layout>vertical</Layout>
+        <SizePolicy>me,max</SizePolicy>
+        <Children>
+
+          <!-- auto-hide OFF: the deck simply lives here -->
+          <WidgetGroup>
+            <Layout>vertical</Layout>
+            <SizePolicy>me,max</SizePolicy>
+            <Children>
+              <SingletonContainer>
+                <ObjectName>PreviewDeckSingleton</ObjectName>
+                <SizePolicy>me,max</SizePolicy>
+              </SingletonContainer>
+            </Children>
+            <Connection>
+              <ConfigKey persist="true"><Variable name="PreviewAutohideKey"/></ConfigKey>
+              <Transform><Not/></Transform>
+              <BindProperty>visible</BindProperty>
+            </Connection>
+          </WidgetGroup>
+
+          <!-- auto-hide ON: visible only while the preview deck is playing -->
+          <WidgetGroup>
+            <Layout>vertical</Layout>
+            <SizePolicy>me,max</SizePolicy>
+            <Children>
+              <WidgetGroup>
+                <Layout>vertical</Layout>
+                <SizePolicy>me,max</SizePolicy>
+                <Children>
+                  <SingletonContainer>
+                    <ObjectName>PreviewDeckSingleton</ObjectName>
+                    <SizePolicy>me,max</SizePolicy>
+                  </SingletonContainer>
+                </Children>
+                <Connection>
+                  <ConfigKey>[PreviewDeck1],play</ConfigKey>
+                  <BindProperty>visible</BindProperty>
+                </Connection>
+              </WidgetGroup>
+            </Children>
+            <Connection>
+              <ConfigKey persist="true"><Variable name="PreviewAutohideKey"/></ConfigKey>
+              <BindProperty>visible</BindProperty>
+            </Connection>
+          </WidgetGroup>
+
+        </Children>
+        <Connection>
+          <ConfigKey>[Skin],show_preview_decks</ConfigKey>
+          <BindProperty>visible</BindProperty>
+        </Connection>
+      </WidgetGroup>
+
+    </Children>
+    <Connection>
+      <ConfigKey persist="true"><Variable name="PreviewPositionKey"/></ConfigKey>
+      <Transform><IsEqual><Variable name="PreviewPos"/></IsEqual></Transform>
+      <BindProperty>visible</BindProperty>
+    </Connection>
+  </WidgetGroup>
+</Template>

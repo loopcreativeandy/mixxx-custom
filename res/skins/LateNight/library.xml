@@ -39,14 +39,26 @@
           <Splitter>
             <ObjectName>LibrarySplitter</ObjectName>
             <SizePolicy>me,me</SizePolicy>
-            <SplitSizes>4,12,5</SplitSizes>
-            <SplitSizesConfigKey>[Skin],library_splitsize_cp9h</SplitSizesConfigKey>
-            <Collapsible>0,0,1</Collapsible>
+            <!-- CP74: driven by the including skin, like LibraryVSplitter
+                 above - a skin that switches off the inline Auto DJ pane has
+                 two children here, not three, and its defaults have to match
+                 or Mixxx drops them (and warns) on a fresh profile. -->
+            <SplitSizes><Variable name="LibrarySplitSizes"/></SplitSizes>
+            <SplitSizesConfigKey>[Skin],<Variable name="LibrarySplitSizesKey"/></SplitSizesConfigKey>
+            <Collapsible><Variable name="LibrarySplitCollapsible"/></Collapsible>
             <!-- CP70: this is the splitter Andy's "I want the middle library
                  table to get narrower" is about. LibSidebarContainer keeps its
                  explicit 100 px floor, the table and the Auto DJ pane lose
                  theirs. Opt-in, see LibraryVSplitter above. -->
             <FreeResize><Variable name="LibraryFreeResize"/></FreeResize>
+            <!-- CP74: opt-in per skin ("1,0" in AndyVideo, which has two
+                 children here because it switches off the inline Auto DJ pane).
+                 Holds the sidebar - preview deck, search box, tree, cover - at
+                 a constant width when the window or the presenter column is
+                 resized, instead of letting it take its proportional share.
+                 The track table absorbs the change; dragging this splitter's
+                 own handle still resizes the sidebar and sets the new width. -->
+            <KeepSize><Variable name="LibraryKeepSize"/></KeepSize>
             <Children>
 
               <WidgetGroup>
@@ -56,7 +68,23 @@
                 <MinimumSize>100,</MinimumSize>
                 <Children>
 
-                  <Template src="skins:LateNight/decks/preview_deck.xml"/>
+                  <!-- CP74: the preview deck became a singleton so it can be
+                       moved to other slots (AndyVideo offers a few; see
+                       decks/preview_slot.xml). It is DEFINED here, at the spot
+                       it has always been drawn, and the slot right below is
+                       position 0 - so a skin that does not know about any of
+                       this gets exactly the old picture: position defaults to
+                       0, the deck stays in the sidebar. -->
+                  <SingletonDefinition>
+                    <ObjectName>PreviewDeckSingleton</ObjectName>
+                    <Children>
+                      <Template src="skins:LateNight/decks/preview_deck.xml"/>
+                    </Children>
+                  </SingletonDefinition>
+
+                  <Template src="skins:LateNight/decks/preview_slot.xml">
+                    <SetVariable name="PreviewPos">0</SetVariable>
+                  </Template>
 
                   <WidgetGroup><!--SearchBox + Library expand toggle -->
                     <Layout>horizontal</Layout>

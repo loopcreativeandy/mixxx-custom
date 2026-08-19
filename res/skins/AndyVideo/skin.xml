@@ -59,6 +59,14 @@
                column / right of the classic table), playlist pane below.
            Toggled from the wrench panel. Inert in every other skin. -->
       <attribute persist="true" config_key="[AndyVideo],autodj_bottom">1</attribute>
+      <!-- CP74: where the preview deck sits. 0 = library sidebar (the stock
+           spot, and the only one the classic LateNight skins know), 1 = above
+           the library block, 2 = below it, 3 = above the side/bottom pane,
+           4 = below it. Buttons for all five are in the wrench panel. -->
+      <attribute persist="true" config_key="[AndyVideo],preview_position">0</attribute>
+      <!-- CP74: hide the preview deck as soon as it stops playing, show it
+           again when a track is auditioned from the library. -->
+      <attribute persist="true" config_key="[AndyVideo],preview_autohide">1</attribute>
 
     <!-- Decks -->
       <!-- general -->
@@ -398,6 +406,14 @@
 
     <SetVariable name="Align">center</SetVariable>
 
+    <!-- CP74: the preview deck is a singleton (defined in library.xml) that
+         moves between the slots below; these two controls say which slot holds
+         it and whether it hides itself when it is not playing. Own keys, so
+         nothing here moves the preview deck of the stock LateNight skin, which
+         shares the same mixxx.cfg. -->
+    <SetVariable name="PreviewPositionKey">[AndyVideo],preview_position</SetVariable>
+    <SetVariable name="PreviewAutohideKey">[AndyVideo],preview_autohide</SetVariable>
+
     <!-- Define singletons as early in the skin as possible.
     Note that Singletons don't actually appear here, they are just instantiated
     and configured. -->
@@ -480,6 +496,14 @@
           <!-- CP70: no size-hint floor on the sidebar/table split either, so
                the track table can be dragged really narrow. -->
           <SetVariable name="LibraryFreeResize">true</SetVariable>
+          <!-- CP74: sidebar (preview deck + search + tree + cover) keeps its
+               width when the window or the presenter column is resized; the
+               track table absorbs the change. Two entries, not three: the
+               inline Auto DJ pane above is switched off. -->
+          <SetVariable name="LibraryKeepSize">1,0</SetVariable>
+          <SetVariable name="LibrarySplitSizes">4,12</SetVariable>
+          <SetVariable name="LibrarySplitSizesKey">library_splitsize_cp9h_nopane</SetVariable>
+          <SetVariable name="LibrarySplitCollapsible">0,0</SetVariable>
         </Template>
       </Children>
     </SingletonDefinition>
@@ -706,7 +730,18 @@
                               <WidgetGroup>
                                 <ObjectName>DeckMixerRow</ObjectName>
                                 <Layout>horizontal</Layout>
-                                <SizePolicy>me,max</SizePolicy>
+                                <!-- CP74: 'min' vertically, not 'max'. Maximum has Qt's
+                                   ShrinkFlag, so this row was the first thing
+                                   squeezed when the waveform splitter was
+                                   dragged down - the deck text got crushed
+                                   while the library below kept its size, which
+                                   is exactly backwards. Minimum floors the row
+                                   at its natural height and the library block
+                                   (Ignored, see below) takes the shrinking
+                                   instead. Only when the whole block is
+                                   smaller than the decks alone do they start
+                                   to clip. -->
+                                <SizePolicy>me,min</SizePolicy>
                                 <Children>
 
                                   <!-- CP11 T1: decks stacked in natural order
@@ -842,10 +877,18 @@
                                    read the SAME control, so they swap in
                                    lockstep and each singleton is referenced
                                    exactly once at a time. -->
+                              <!-- CP74 preview slot 1: above the whole library block -->
+                              <Template src="skins:LateNight/decks/preview_slot.xml">
+                                <SetVariable name="PreviewPos">1</SetVariable>
+                              </Template>
                               <Splitter>
                                 <ObjectName>PresenterLibrarySplitter</ObjectName>
                                 <Orientation>vertical</Orientation>
-                                <SizePolicy>me,me</SizePolicy>
+                                <!-- CP74: 'i' vertically - no size-hint floor,
+                                     so this block is what gives way when the
+                                     waveform splitter is dragged down, instead
+                                     of the decks above. -->
+                                <SizePolicy>me,i</SizePolicy>
                                 <SplitSizes>10,4</SplitSizes>
                                 <SplitSizesConfigKey>[AndyVideo],presenterLibrary_splitSize_v1</SplitSizesConfigKey>
                                 <!-- The library itself never collapses, the
@@ -880,6 +923,11 @@
                                   </WidgetGroup>
                                 </Children>
                               </Splitter><!-- PresenterLibrarySplitter -->
+
+                              <!-- CP74 preview slot 2: below the whole library block -->
+                              <Template src="skins:LateNight/decks/preview_slot.xml">
+                                <SetVariable name="PreviewPos">2</SetVariable>
+                              </Template>
                             </Children>
                           </WidgetGroup><!-- ControlColumn -->
 
@@ -919,6 +967,10 @@
                                 <Layout>vertical</Layout>
                                 <SizePolicy>me,me</SizePolicy>
                                 <Children>
+                                  <!-- CP74 preview slot 3: above the presenter-column pane -->
+                                  <Template src="skins:LateNight/decks/preview_slot.xml">
+                                    <SetVariable name="PreviewPos">3</SetVariable>
+                                  </Template>
                                   <WidgetStack currentpage="[AndyVideo],autodj_bottom">
                                     <Children>
                                       <SingletonContainer>
@@ -929,6 +981,10 @@
                                       </SingletonContainer>
                                     </Children>
                                   </WidgetStack>
+                                  <!-- CP74 preview slot 4: below the presenter-column pane -->
+                                  <Template src="skins:LateNight/decks/preview_slot.xml">
+                                    <SetVariable name="PreviewPos">4</SetVariable>
+                                  </Template>
                                 </Children>
                               </WidgetGroup>
                             </Children>
@@ -990,7 +1046,11 @@
 
                             <WidgetGroup>
                               <Layout>horizontal</Layout>
-                              <SizePolicy>me,max</SizePolicy>
+                              <!-- CP74: floor at the decks' natural height, so
+                                   the library below is what shrinks when the
+                                   waveform splitter is dragged down (see the
+                                   same change in the presenter layout). -->
+                              <SizePolicy>me,min</SizePolicy>
                               <Children>
                                 <Template src="skins:LateNight/decks/decks_left.xml"/>
                                 <!-- CP49: mixer + spectrum share one column here too, so
@@ -1082,10 +1142,16 @@
                                  deeper. Neither AndysAutoDJSingleton nor AndysPaneSingleton
                                  is ever referenced twice at once, so there is still exactly
                                  one instance of each. -->
+                            <!-- CP74 preview slot 1: above the whole library block -->
+                            <Template src="skins:LateNight/decks/preview_slot.xml">
+                              <SetVariable name="PreviewPos">1</SetVariable>
+                            </Template>
                             <Splitter>
                               <ObjectName>ClassicLibrarySplitter</ObjectName>
                               <Orientation>vertical</Orientation>
-                              <SizePolicy>me,me</SizePolicy>
+                              <!-- CP74: 'i' - this block gives way, not the
+                                   decks above. -->
+                              <SizePolicy>me,i</SizePolicy>
                               <SplitSizes>10,4</SplitSizes>
                               <SplitSizesConfigKey>[AndyVideo],classicLibrary_splitSize_v1</SplitSizesConfigKey>
                               <Collapsible>0,1</Collapsible>
@@ -1142,6 +1208,10 @@
                                   <Layout>vertical</Layout>
                                   <SizePolicy>me,me</SizePolicy>
                                   <Children>
+                                    <!-- CP74 preview slot 3: above the classic bottom pane -->
+                                    <Template src="skins:LateNight/decks/preview_slot.xml">
+                                      <SetVariable name="PreviewPos">3</SetVariable>
+                                    </Template>
                                     <WidgetStack currentpage="[AndyVideo],autodj_bottom">
                                       <Children>
                                         <SingletonContainer>
@@ -1152,11 +1222,20 @@
                                         </SingletonContainer>
                                       </Children>
                                     </WidgetStack>
+                                    <!-- CP74 preview slot 4: below the classic bottom pane -->
+                                    <Template src="skins:LateNight/decks/preview_slot.xml">
+                                      <SetVariable name="PreviewPos">4</SetVariable>
+                                    </Template>
                                   </Children>
                                 </WidgetGroup>
 
                               </Children>
                             </Splitter>
+
+                            <!-- CP74 preview slot 2: below the whole library block -->
+                            <Template src="skins:LateNight/decks/preview_slot.xml">
+                              <SetVariable name="PreviewPos">2</SetVariable>
+                            </Template>
 
                           </Children>
                         </WidgetGroup><!-- DecksMixerContainer -->

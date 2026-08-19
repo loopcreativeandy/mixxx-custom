@@ -415,6 +415,15 @@
           <SetVariable name="LibraryVSplitSizes">10,4</SetVariable>
           <SetVariable name="LibraryVSplitSizesKey">library_splitsize_cp9v</SetVariable>
           <SetVariable name="LibraryVSplitCollapsible">0,1</SetVariable>
+          <!-- CP74: this skin offers only the sidebar slot for the preview
+               deck, so both controls stay at 0 and the deck sits where it
+               always has. Its own keys, not AndyVideo's - the two skins share
+               a mixxx.cfg and must not move each other's preview deck. -->
+          <SetVariable name="LibrarySplitSizes">4,12,5</SetVariable>
+          <SetVariable name="LibrarySplitSizesKey">library_splitsize_cp9h</SetVariable>
+          <SetVariable name="LibrarySplitCollapsible">0,0,1</SetVariable>
+          <SetVariable name="PreviewPositionKey">[LateNight],preview_position</SetVariable>
+          <SetVariable name="PreviewAutohideKey">[LateNight],preview_autohide</SetVariable>
         </Template>
       </Children>
     </SingletonDefinition>

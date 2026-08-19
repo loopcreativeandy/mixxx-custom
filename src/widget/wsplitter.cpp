@@ -3,6 +3,7 @@
 #include <QEvent>
 #include <QLayout>
 #include <QList>
+#include <QResizeEvent>
 #include <QSizePolicy>
 #include <QTimer>
 
@@ -14,7 +15,9 @@ WSplitter::WSplitter(QWidget* pParent, UserSettingsPointer pConfig)
         : QSplitter(pParent),
           WBaseWidget(this),
           m_pConfig(pConfig),
-          m_autoCenterPending(false) {
+          m_autoCenterPending(false),
+          m_keepTargetsValid(false),
+          m_keepCapturePending(false) {
     connect(this, &WSplitter::splitterMoved, this, &WSplitter::slotSplitterMoved);
 }
 
@@ -91,6 +94,10 @@ void WSplitter::setup(const QDomNode& node, const SkinContext& context) {
             ok = true;
         }
     }
+    // Sizes that came out of mixxx.cfg are real pixels written by a previous
+    // drag, so they can seed the <KeepSize> targets below; a <SplitSizes>
+    // default is usually a ratio ("4,12,5") and must not be taken literally.
+    const bool sizesFromConfig = ok;
 
     // nothing in mixxx.cfg? Load default values
     if (!ok && context.hasNodeSelectString(node, "SplitSizes", &sizesJoined)) {
@@ -116,6 +123,10 @@ void WSplitter::setup(const QDomNode& node, const SkinContext& context) {
         }
         if (ok) {
             this->setSizes(sizesList);
+            if (sizesFromConfig) {
+                m_keepTargets = sizesList;
+                m_keepTargetsValid = true;
+            }
         }
     }
 
@@ -143,6 +154,38 @@ void WSplitter::setup(const QDomNode& node, const SkinContext& context) {
             for (bool collapsible : collapsibleList) {
                 setCollapsible(i++, collapsible);
             }
+        }
+    }
+
+    // andy-custom CP74: <KeepSize>1,0</KeepSize> - one flag per child - holds
+    // that child's extent when the SPLITTER ITSELF is resized (window resize,
+    // or a parent splitter's handle being dragged). Qt hands every child its
+    // proportional share of such a change, whatever its size policy is (the
+    // policy only decides the floor, verified with a standalone Qt probe), so
+    // the library sidebar - and with it the preview deck and the tree - grew
+    // and shrank every time the presenter column was dragged. Dragging THIS
+    // splitter's own handle is untouched and updates the target.
+    QString keepSizeJoined;
+    if (context.hasNodeSelectString(node, "KeepSize", &keepSizeJoined) &&
+            !keepSizeJoined.isEmpty()) {
+        const QStringList keepSplit = keepSizeJoined.split(",");
+        QList<bool> keepList;
+        ok = false;
+        for (const QString& keepStr : keepSplit) {
+            keepList.push_back(keepStr.toInt(&ok) > 0);
+            if (!ok) {
+                break;
+            }
+        }
+        if (ok && keepList.length() != count()) {
+            msg = "<KeepSize> for <Splitter> (" + keepSizeJoined +
+                    ") does not match the number of children nodes:" +
+                    QString::number(count());
+            SKIN_WARNING(node, context, msg);
+            ok = false;
+        }
+        if (ok) {
+            m_keepSize = keepList;
         }
     }
 
@@ -206,7 +249,92 @@ void WSplitter::applyAutoCenter() {
     setSizes(newSizes);
 }
 
+void WSplitter::resizeEvent(QResizeEvent* pEvent) {
+    QSplitter::resizeEvent(pEvent);
+    if (m_keepSize.isEmpty()) {
+        return;
+    }
+    if (!m_keepTargetsValid) {
+        // No saved sizes to start from: adopt whatever the first layout ends
+        // up with. Done from the event loop (like the auto-center pass) so the
+        // intermediate geometries a window goes through while it is being
+        // built do not get frozen in.
+        if (!m_keepCapturePending) {
+            m_keepCapturePending = true;
+            QTimer::singleShot(0, this, &WSplitter::captureKeepSize);
+        }
+        return;
+    }
+    applyKeepSize();
+}
+
+void WSplitter::captureKeepSize() {
+    m_keepCapturePending = false;
+    if (m_keepTargetsValid || m_keepSize.isEmpty()) {
+        return;
+    }
+    m_keepTargets = sizes();
+    m_keepTargetsValid = true;
+}
+
+void WSplitter::applyKeepSize() {
+    if (m_keepSize.length() != count() || m_keepTargets.length() != count()) {
+        return;
+    }
+    const QList<int> current = sizes();
+    int total = 0;
+    for (const int paneSize : current) {
+        total += paneSize;
+    }
+    int keepTotal = 0;
+    int flexCurrent = 0;
+    for (int i = 0; i < current.length(); ++i) {
+        // A hidden child has no size of its own to hold on to.
+        const QWidget* pChild = widget(i);
+        if (m_keepSize.at(i) && pChild != nullptr && !pChild->isHidden()) {
+            keepTotal += m_keepTargets.at(i);
+        } else {
+            flexCurrent += current.at(i);
+        }
+    }
+    const int flexTotal = total - keepTotal;
+    if (flexTotal <= 0 || flexCurrent <= 0) {
+        // Not enough room left for the other panes (or they are all
+        // collapsed): let Qt's proportional result stand rather than push
+        // them to zero.
+        return;
+    }
+    QList<int> wanted = current;
+    int handedOut = 0;
+    int lastFlex = -1;
+    for (int i = 0; i < wanted.length(); ++i) {
+        const QWidget* pChild = widget(i);
+        if (m_keepSize.at(i) && pChild != nullptr && !pChild->isHidden()) {
+            wanted[i] = m_keepTargets.at(i);
+        } else {
+            wanted[i] = flexTotal * current.at(i) / flexCurrent;
+            handedOut += wanted.at(i);
+            lastFlex = i;
+        }
+    }
+    if (lastFlex >= 0) {
+        // Rounding leftovers go to the last flexible pane so the panes still
+        // add up to the full width.
+        wanted[lastFlex] += flexTotal - handedOut;
+    }
+    if (wanted == current) {
+        return;
+    }
+    setSizes(wanted);
+}
+
 void WSplitter::slotSplitterMoved() {
+    if (!m_keepSize.isEmpty()) {
+        // The user just said how wide they want the panes: that is the new
+        // size to hold.
+        m_keepTargets = sizes();
+        m_keepTargetsValid = true;
+    }
     if (!m_configKey.group.isEmpty() && !m_configKey.item.isEmpty()) {
         QStringList sizeStrList;
         const auto sizesIntList = sizes();

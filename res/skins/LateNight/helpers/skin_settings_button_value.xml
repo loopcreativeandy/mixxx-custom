@@ -1,0 +1,34 @@
+<!--
+Description:
+  andy-custom CP74: radio-style button for the skin settings menu. Same look as
+  skin_settings_button_2state.xml, but instead of toggling 0/1 it ticks when the
+  setting equals <Value> and writes <Value> when clicked - so a row of these
+  behaves like a radio group over one control.
+Variables:
+  Text     : label
+  Setting  : persistent control
+  Value    : the value this button stands for
+-->
+<Template>
+  <PushButton>
+    <TooltipId><Variable name="TooltipId"/></TooltipId>
+    <ObjectName>SkinSettingsButton</ObjectName>
+    <Size><Variable name="Width"/>,18f</Size>
+    <NumberStates>2</NumberStates>
+    <State>
+      <Number>0</Number>
+      <Text>&#8202;&#8202;&#9744;  <Variable name="Text"/></Text>
+      <Alignment>left</Alignment>
+    </State>
+    <State>
+      <Number>1</Number>
+      <Text>&#8202;&#8202;&#8202;&#10004;&#8202;&#8202; <Variable name="Text"/></Text>
+      <Alignment>left</Alignment>
+    </State>
+    <Connection>
+      <ConfigKey persist="true"><Variable name="Setting"/></ConfigKey>
+      <Transform><IsEqual><Variable name="Value"/></IsEqual></Transform>
+      <ButtonState>LeftButton</ButtonState>
+    </Connection>
+  </PushButton>
+</Template>

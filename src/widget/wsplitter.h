@@ -17,6 +17,7 @@ class WSplitter : public QSplitter, public WBaseWidget {
 
   protected:
     bool event(QEvent* pEvent) override;
+    void resizeEvent(QResizeEvent* pEvent) override;
 
   private slots:
     void slotSplitterMoved();
@@ -30,8 +31,22 @@ class WSplitter : public QSplitter, public WBaseWidget {
     /// No-op unless <AutoCenter> named a visible widget.
     void scheduleAutoCenter();
 
+    /// Re-applies the <KeepSize> targets after the splitter itself was
+    /// resized, so those children do not take their proportional share of the
+    /// change (andy-custom, CP74). No-op unless <KeepSize> marked a child.
+    void applyKeepSize();
+    /// Adopts the current split as the <KeepSize> target. Used once the very
+    /// first layout has settled, when no saved sizes existed to seed it.
+    void captureKeepSize();
+
     UserSettingsPointer m_pConfig;
     ConfigKey m_configKey;
     QString m_autoCenterName;
     bool m_autoCenterPending;
+    /// One flag per child: true = hold this child's extent across resizes.
+    QList<bool> m_keepSize;
+    /// The extent each child should keep; only entries flagged above are used.
+    QList<int> m_keepTargets;
+    bool m_keepTargetsValid;
+    bool m_keepCapturePending;
 };
