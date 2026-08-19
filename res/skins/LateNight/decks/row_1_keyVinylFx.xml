@@ -28,7 +28,11 @@
 
       <WidgetGroup>
         <SizePolicy>me,min</SizePolicy>
-        <MaximumSize>111,</MaximumSize>
+        <!-- Andy CP75: was 111, which silently clipped CP72's wider offset
+             label back to the old width - the whole point of the "+2" was
+             lost. The cap only limits; with the offset label switched off the
+             children still add up to 111, so stock LateNight is unchanged. -->
+        <MaximumSize>186,</MaximumSize>
         <Layout>vertical</Layout>
         <Children>
           <SingletonContainer>

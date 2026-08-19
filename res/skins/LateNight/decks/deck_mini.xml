@@ -229,7 +229,10 @@
                             <TooltipId>visual_key</TooltipId>
                             <ObjectName>KeyTextSmall</ObjectName>
                             <Channel><Variable name="ChanNum"/></Channel>
-                            <Size>44min,23f</Size>
+                            <!-- Andy CP75: 44 -> 92 min-expanding, the mini
+                                 deck's share of the wider "11m (4m +1)" form.
+                                 Plain variant above keeps 44. -->
+                            <Size>92min,23f</Size>
                             <Alignment>center</Alignment>
                             <Elide>right</Elide>
                             <DisplayOffset>true</DisplayOffset>

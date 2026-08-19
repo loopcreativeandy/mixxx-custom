@@ -88,6 +88,23 @@ void WKey::setup(const QDomNode& node, const SkinContext& context) {
     m_displayOffset = context.selectBool(node, "DisplayOffset", false);
 }
 
+KeyUtils::KeyNotation WKey::compactNotation() const {
+    const KeyUtils::KeyNotation notation =
+            KeyUtils::keyNotationFromNumericValue(m_keyNotation.get());
+    switch (notation) {
+    case KeyUtils::KeyNotation::OpenKeyAndTraditional:
+        return KeyUtils::KeyNotation::OpenKey;
+    case KeyUtils::KeyNotation::LancelotAndTraditional:
+        return KeyUtils::KeyNotation::Lancelot;
+    case KeyUtils::KeyNotation::Invalid:
+        // Nothing configured yet: Custom is what keyToString() defaults to.
+        return KeyUtils::KeyNotation::Custom;
+    default:
+        // Traditional / ID3v2 / Custom have no shorter form to fall back to.
+        return notation;
+    }
+}
+
 void WKey::setValue(double dValue) {
     m_dOldValue = dValue;
     mixxx::track::io::key::ChromaticKey key =
@@ -115,7 +132,27 @@ void WKey::setValue(double dValue) {
             // sub-semitone remainder, so the difference is a whole number.
             const int offset = static_cast<int>(
                     std::lround(m_pitch.get() - m_engineKeyDistance.get()));
-            if (offset != 0) {
+            const mixxx::track::io::key::ChromaticKey fileKey =
+                    KeyUtils::keyFromNumericValue(m_fileKey.get());
+            if (offset != 0 && m_displayKey &&
+                    fileKey != mixxx::track::io::key::INVALID) {
+                // Andy CP75: while the deck is pitched, spell it out as
+                // "11m (4m +1)" - where we are now, then where the track
+                // started and how far it moved. The traditional spelling is
+                // dropped in this mode even when the notation preference asks
+                // for it ("11m (G#m)"): two bracketed names plus the offset
+                // does not fit the row, and the numbers are what Andy mixes
+                // by. Unpitched decks keep the user's notation untouched.
+                const KeyUtils::KeyNotation compact = compactNotation();
+                keyStr = KeyUtils::keyToString(key, compact) +
+                        QStringLiteral(" (%1 %2%3)")
+                                .arg(KeyUtils::keyToString(fileKey, compact),
+                                        offset > 0 ? QStringLiteral("+")
+                                                   : QStringLiteral("-"),
+                                        QString::number(qAbs(offset)));
+            } else if (offset != 0) {
+                // No key detected for the file (or the label is offset-only):
+                // nothing to put in brackets, so just append the distance.
                 keyStr.append(QString(" %1%2")
                                       .arg(offset > 0 ? QLatin1Char('+')
                                                       : QLatin1Char('-'))
@@ -125,8 +162,6 @@ void WKey::setValue(double dValue) {
             // and where a one-semitone shift in either direction lands.
             // Replaces the generic track_key tooltip on this label only.
             QStringList tip;
-            const mixxx::track::io::key::ChromaticKey fileKey =
-                    KeyUtils::keyFromNumericValue(m_fileKey.get());
             if (fileKey != mixxx::track::io::key::INVALID) {
                 if (offset != 0) {
                     tip.append(tr("Original key: %1 (reset: %2%3 st)")

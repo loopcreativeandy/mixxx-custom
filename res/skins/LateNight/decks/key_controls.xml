@@ -2,13 +2,16 @@
   <WidgetGroup>
     <Layout>horizontal</Layout>
     <SizePolicy>p,min</SizePolicy>
-    <MaximumSize>131,</MaximumSize>
+    <!-- Andy CP75: 131 -> 186 so the "11m (4m +1)" form fits. Caps only, and
+         the plain variant's children still sum to 111, so a skin with the
+         offset label off looks exactly as before. -->
+    <MaximumSize>186,</MaximumSize>
     <Children>
       <WidgetGroup>
         <ObjectName>KeyControls</ObjectName>
         <Layout>horizontal</Layout>
         <SizePolicy>me,min</SizePolicy>
-        <MaximumSize>131,</MaximumSize>
+        <MaximumSize>186,</MaximumSize>
         <Children>
           <Template src="skins:LateNight/controls/button_2state_right.xml">
             <SetVariable name="TooltipId">sync_reset_key</SetVariable>
@@ -57,8 +60,12 @@
                 <ObjectName>KeyText</ObjectName>
                 <TooltipId>track_key</TooltipId>
                 <Group><Variable name="Group"/></Group>
+                <!-- Andy CP75: 85 -> 140. The pitched form is "11m (4m +1)",
+                     up to "11m (10m -12)", which needs roughly twice the
+                     width of a bare key name. 26 (reset) + 140 + 20 (up/down)
+                     = the 186 cap on the groups above. -->
                 <MinimumSize>30,20</MinimumSize>
-                <MaximumSize>85,20</MaximumSize>
+                <MaximumSize>140,20</MaximumSize>
                 <SizePolicy>me,f</SizePolicy>
                 <Elide>right</Elide>
                 <DisplayOffset>true</DisplayOffset>

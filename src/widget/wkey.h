@@ -5,6 +5,7 @@
 
 #include "widget/wlabel.h"
 #include "control/controlproxy.h"
+#include "track/keyutils.h"
 
 class WKey : public WLabel  {
     Q_OBJECT
@@ -21,6 +22,12 @@ class WKey : public WLabel  {
     void updateKeyClash();
 
   private:
+    /// The user's key notation with any "(traditional)" spelling stripped
+    /// off, so a pitched deck can show the compact "11m (4m +1)" form
+    /// (andy-custom, CP75). Falls back to the plain notation for the
+    /// notations that have no number form.
+    KeyUtils::KeyNotation compactNotation() const;
+
     QString m_group;
     double m_dOldValue;
     bool m_displayCents;

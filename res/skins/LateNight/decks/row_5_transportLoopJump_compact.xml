@@ -180,7 +180,8 @@
 
       <WidgetGroup>
         <SizePolicy>me,min</SizePolicy>
-        <MaximumSize>111,</MaximumSize>
+        <!-- Andy CP75: same 111 -> 186 as the full deck row, see there. -->
+        <MaximumSize>186,</MaximumSize>
         <Layout>vertical</Layout>
         <Children>
           <SingletonContainer>
