@@ -6,6 +6,8 @@
 #include "audio/types.h"
 #include "engine/filters/enginefilterbiquad1.h"
 #include "moc_enginespectrum.cpp"
+#include "util/assert.h"
+#include "util/defs.h"
 #include "util/sample.h"
 #include "util/spectrumconfig.h"
 
@@ -20,7 +22,9 @@ constexpr unsigned int kUpdateRate = 30; // Hz
 constexpr CSAMPLE kAttackSmoothing = 1.0f;
 constexpr CSAMPLE kDecaySmoothing = 1.0f;
 
-constexpr std::size_t kInitialScratchSize = 16384;
+// Sized to the largest buffer EngineObject::process() can be handed, so the
+// audio thread never has to grow it.
+constexpr std::size_t kScratchSize = kMaxEngineSamples;
 
 double bandCenterFreq(int band, int numBands) {
     const double ratio = EngineSpectrum::kMaxFreq / EngineSpectrum::kMinFreq;
@@ -60,7 +64,7 @@ EngineSpectrum::EngineSpectrum(const QString& group)
           m_samplesCalculated(0),
           m_wasActive(false),
           m_configuredSampleRate(mixxx::audio::SampleRate()),
-          m_scratch(kInitialScratchSize),
+          m_scratch(kScratchSize),
           m_sampleRate(QStringLiteral("[App]"), QStringLiteral("samplerate")) {
     m_filters.resize(m_bands);
     m_bandSums.assign(m_bands, 0);
@@ -70,6 +74,11 @@ EngineSpectrum::EngineSpectrum(const QString& group)
         m_bandControls.push_back(std::make_unique<ControlObject>(
                 ConfigKey(group, QStringLiteral("band_%1").arg(i))));
     }
+    // Build the filter bank here, off the audio thread, for a default rate.
+    // If the engine runs at a different rate, the first active callback goes
+    // through the setFrequencyCorners() path, which only rewrites
+    // coefficients — no allocation happens in process() at all.
+    configureFilters(mixxx::audio::SampleRate(44100));
     reset();
 }
 
@@ -107,10 +116,12 @@ void EngineSpectrum::process(CSAMPLE* pInOut, const std::size_t bufferSize) {
         return;
     }
     if (sampleRate != m_configuredSampleRate) {
+        // All filters exist since the constructor: this only rewrites biquad
+        // coefficients, which is fine on the audio thread.
         configureFilters(sampleRate);
     }
-    if (m_scratch.size() < static_cast<SINT>(bufferSize)) {
-        m_scratch = mixxx::SampleBuffer(bufferSize);
+    VERIFY_OR_DEBUG_ASSERT(bufferSize <= static_cast<std::size_t>(m_scratch.size())) {
+        return;
     }
 
     for (int i = 0; i < m_bands; ++i) {

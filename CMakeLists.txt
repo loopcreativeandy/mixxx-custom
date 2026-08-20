@@ -2813,6 +2813,7 @@ if(BUILD_TESTING)
     src/test/spectrumconfigtest.cpp
     src/test/sqliteliketest.cpp
     src/test/relatedtracks_test.cpp
+    src/test/stemcolorconfigtest.cpp
     src/test/stemoriginal_test.cpp
     src/test/synccontroltest.cpp
     src/test/synctrackmetadatatest.cpp

@@ -55,10 +55,12 @@
 #include "util/clipboard.h"
 #include "util/db/dbconnectionpooled.h"
 #include "util/font.h"
+#include "util/layoutconfig.h"
 #include "util/logger.h"
 #include "util/screensavermanager.h"
 #include "util/spectrumconfig.h"
 #include "util/statsmanager.h"
+#include "util/stemcolorconfig.h"
 #include "util/time.h"
 #include "util/translations.h"
 #include "util/versionstore.h"
@@ -473,6 +475,13 @@ void CoreServices::initializeSettings() {
     // this call SpectrumConfig does no file I/O, which keeps it out of the
     // engine constructor's way in the test binary.
     SpectrumConfig::initialize(m_pSettingsManager->settings()->getSettingsPath());
+    // Same pattern for the stem colors and layout overrides: before these
+    // calls, StemColorConfig/LayoutConfig::current() return built-in defaults
+    // without touching the filesystem, so the test binary (which never runs
+    // initializeSettings()) cannot write ini templates into the user's real
+    // settings directory.
+    StemColorConfig::initialize(m_pSettingsManager->settings()->getSettingsPath());
+    LayoutConfig::initialize(m_pSettingsManager->settings()->getSettingsPath());
 }
 
 void CoreServices::initializeLogging() {

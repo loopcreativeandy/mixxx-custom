@@ -26,8 +26,19 @@ struct LayoutConfig {
     /// spectrum column). false leaves the split wherever it was dragged.
     bool autoCenter;
 
+    /// Point the config at the resolved settings directory and create the
+    /// template file there if it is missing. Must be called once at startup,
+    /// after the settings path is final.
+    ///
+    /// Until this has run, current() returns the built-in defaults and touches
+    /// no files at all — same rationale as SpectrumConfig::initialize(): the
+    /// old resolve-and-create-on-demand behavior let the test binary write
+    /// andys_layout.ini into the user's real settings directory.
+    static void initialize(const QString& settingsPath);
+
     /// Thread-safe cached snapshot; re-parses the file when its modification
-    /// time changes, throttled to ~2 s.
+    /// time changes, throttled to ~2 s. Never creates or writes the file —
+    /// initialize() owns creation.
     static LayoutConfig current();
 };
 

@@ -1,6 +1,7 @@
 #include "util/layoutconfig.h"
 
 #include <QDateTime>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
@@ -8,7 +9,6 @@
 #include <QMutexLocker>
 #include <QTextStream>
 
-#include "util/cmdlineargs.h"
 #include "util/logger.h"
 
 namespace mixxx {
@@ -34,14 +34,6 @@ LayoutConfig defaultConfig() {
     config.rowHeightMinFactor = 1.0;
     config.autoCenter = true;
     return config;
-}
-
-QString configFilePath() {
-    const QString settingsPath = CmdlineArgs::Instance().getSettingsPath();
-    if (settingsPath.isEmpty()) {
-        return QString();
-    }
-    return settingsPath + QChar('/') + kConfigFileName;
 }
 
 void writeTemplateFile(const QString& filePath) {
@@ -171,7 +163,10 @@ struct Cache {
     QElapsedTimer sinceCheck;
     QDateTime lastModified;
     LayoutConfig config = defaultConfig();
-    bool initialized = false;
+    bool checkedOnce = false;
+    /// Empty until initialize() has run. While empty, current() does no
+    /// filesystem access whatsoever.
+    QString filePath;
 };
 
 Q_GLOBAL_STATIC(Cache, s_cache)
@@ -179,22 +174,40 @@ Q_GLOBAL_STATIC(Cache, s_cache)
 } // anonymous namespace
 
 // static
+void LayoutConfig::initialize(const QString& settingsPath) {
+    if (settingsPath.isEmpty()) {
+        return;
+    }
+    Cache* pCache = s_cache();
+    const QMutexLocker locker(&pCache->mutex);
+    pCache->filePath = QDir(settingsPath).filePath(kConfigFileName);
+    if (!QFileInfo::exists(pCache->filePath)) {
+        writeTemplateFile(pCache->filePath);
+    }
+    // Make the next current() actually read the file instead of returning the
+    // defaults it may already have handed out before this point.
+    pCache->checkedOnce = false;
+}
+
+// static
 LayoutConfig LayoutConfig::current() {
     Cache* pCache = s_cache();
     const QMutexLocker locker(&pCache->mutex);
-    if (pCache->initialized &&
+    if (pCache->filePath.isEmpty()) {
+        // initialize() has not run: unit tests, or startup before the settings
+        // path is final. Built-in defaults, no file I/O.
+        return pCache->config;
+    }
+    if (pCache->checkedOnce &&
             pCache->sinceCheck.elapsed() < kRecheckIntervalMs) {
         return pCache->config;
     }
-    pCache->initialized = true;
+    pCache->checkedOnce = true;
     pCache->sinceCheck.restart();
-    const QString filePath = configFilePath();
-    if (filePath.isEmpty()) {
-        return pCache->config;
-    }
-    const QFileInfo fileInfo(filePath);
+    const QFileInfo fileInfo(pCache->filePath);
     if (!fileInfo.exists()) {
-        writeTemplateFile(filePath);
+        // Deleted while Mixxx runs: fall back to the built-in defaults. The
+        // file is deliberately not recreated here — initialize() owns that.
         pCache->lastModified = QDateTime();
         pCache->config = defaultConfig();
         return pCache->config;
@@ -202,8 +215,8 @@ LayoutConfig LayoutConfig::current() {
     const QDateTime lastModified = fileInfo.lastModified();
     if (lastModified != pCache->lastModified) {
         pCache->lastModified = lastModified;
-        pCache->config = parseConfigFile(filePath);
-        kLogger.info() << "Loaded layout overrides from" << filePath;
+        pCache->config = parseConfigFile(pCache->filePath);
+        kLogger.info() << "Loaded layout overrides from" << pCache->filePath;
     }
     return pCache->config;
 }
