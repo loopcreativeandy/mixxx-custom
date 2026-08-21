@@ -501,7 +501,7 @@
                track table absorbs the change. Two entries, not three: the
                inline Auto DJ pane above is switched off. -->
           <SetVariable name="LibraryKeepSize">1,0</SetVariable>
-          <SetVariable name="LibrarySplitSizes">4,12</SetVariable>
+          <SetVariable name="LibrarySplitSizes">300,900</SetVariable>
           <SetVariable name="LibrarySplitSizesKey">library_splitsize_cp9h_nopane</SetVariable>
           <SetVariable name="LibrarySplitCollapsible">0,0</SetVariable>
         </Template>
@@ -884,11 +884,18 @@
                               <Splitter>
                                 <ObjectName>PresenterLibrarySplitter</ObjectName>
                                 <Orientation>vertical</Orientation>
-                                <!-- CP74: 'i' vertically - no size-hint floor,
-                                     so this block is what gives way when the
-                                     waveform splitter is dragged down, instead
-                                     of the decks above. -->
-                                <SizePolicy>me,i</SizePolicy>
+                                <!-- CP77: 'e' vertically. This block is the one
+                                     that gives way when the waveform splitter
+                                     is dragged down (ShrinkFlag), and the one
+                                     that takes the leftover height when there
+                                     is room (ExpandFlag), while the decks above
+                                     sit at their natural height.
+                                     NOT 'i': QSizePolicy::Ignored is
+                                     Grow|Shrink|Ignore with NO ExpandFlag and a
+                                     zeroed size hint, so a box layout hands it
+                                     none of the surplus - it collapsed this
+                                     whole block to 0 px (CP74 regression). -->
+                                <SizePolicy>me,e</SizePolicy>
                                 <SplitSizes>10,4</SplitSizes>
                                 <SplitSizesConfigKey>[AndyVideo],presenterLibrary_splitSize_v1</SplitSizesConfigKey>
                                 <!-- The library itself never collapses, the
@@ -1149,9 +1156,11 @@
                             <Splitter>
                               <ObjectName>ClassicLibrarySplitter</ObjectName>
                               <Orientation>vertical</Orientation>
-                              <!-- CP74: 'i' - this block gives way, not the
-                                   decks above. -->
-                              <SizePolicy>me,i</SizePolicy>
+                              <!-- CP77: 'e' - this block gives way, not the
+                                   decks above, and it takes the surplus height.
+                                   See the presenter branch for why 'i' is
+                                   wrong here (it collapses to 0 px). -->
+                              <SizePolicy>me,e</SizePolicy>
                               <SplitSizes>10,4</SplitSizes>
                               <SplitSizesConfigKey>[AndyVideo],classicLibrary_splitSize_v1</SplitSizesConfigKey>
                               <Collapsible>0,1</Collapsible>
