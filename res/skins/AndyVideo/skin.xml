@@ -730,18 +730,31 @@
                               <WidgetGroup>
                                 <ObjectName>DeckMixerRow</ObjectName>
                                 <Layout>horizontal</Layout>
-                                <!-- CP74: 'min' vertically, not 'max'. Maximum has Qt's
-                                   ShrinkFlag, so this row was the first thing
-                                   squeezed when the waveform splitter was
-                                   dragged down - the deck text got crushed
-                                   while the library below kept its size, which
-                                   is exactly backwards. Minimum floors the row
-                                   at its natural height and the library block
-                                   (Ignored, see below) takes the shrinking
-                                   instead. Only when the whole block is
-                                   smaller than the decks alone do they start
-                                   to clip. -->
-                                <SizePolicy>me,min</SizePolicy>
+                                <!-- CP74: not 'max'. Maximum has Qt's ShrinkFlag, so this
+                                   row was the first thing squeezed when the
+                                   waveform splitter was dragged down - the
+                                   deck text got crushed while the library
+                                   below kept its size, which is exactly
+                                   backwards. A minimum of the row's natural
+                                   height makes the library block (Expanding,
+                                   see below) take the shrinking instead. Only
+                                   when the whole block is smaller than the
+                                   decks alone do they start to clip.
+
+                                   CP78: 'f', not 'min'. Both floor the row at
+                                   its natural height, but Minimum also carries
+                                   GrowFlag, and Qt's box layout hands a
+                                   growable item a share of the surplus even
+                                   when a sibling is Expanding - measured
+                                   410 -> 512 px for the deck row while the
+                                   library grew 217 -> 512, i.e. the decks and
+                                   the spectrum ate half of every drag upwards
+                                   and left dead space behind (Andy,
+                                   2026-08-21). Fixed keeps the floor and drops
+                                   the growth, so all of it goes to the
+                                   library. The shrink path is untouched: Fixed
+                                   and Minimum have the same minimum. -->
+                                <SizePolicy>me,f</SizePolicy>
                                 <Children>
 
                                   <!-- CP11 T1: decks stacked in natural order
@@ -1055,9 +1068,12 @@
                               <Layout>horizontal</Layout>
                               <!-- CP74: floor at the decks' natural height, so
                                    the library below is what shrinks when the
-                                   waveform splitter is dragged down (see the
-                                   same change in the presenter layout). -->
-                              <SizePolicy>me,min</SizePolicy>
+                                   waveform splitter is dragged down. CP78:
+                                   Fixed rather than Minimum so the row also
+                                   never takes a share of the surplus when the
+                                   splitter is dragged up - see the same change
+                                   in the presenter layout for the numbers. -->
+                              <SizePolicy>me,f</SizePolicy>
                               <Children>
                                 <Template src="skins:LateNight/decks/decks_left.xml"/>
                                 <!-- CP49: mixer + spectrum share one column here too, so

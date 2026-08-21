@@ -3,8 +3,10 @@
 #include <QEvent>
 #include <QLayout>
 #include <QList>
+#include <QMouseEvent>
 #include <QResizeEvent>
 #include <QSizePolicy>
+#include <QSplitterHandle>
 #include <QTimer>
 
 #include "moc_wsplitter.cpp"
@@ -16,9 +18,34 @@ WSplitter::WSplitter(QWidget* pParent, UserSettingsPointer pConfig)
           WBaseWidget(this),
           m_pConfig(pConfig),
           m_autoCenterPending(false),
+          m_autoCenterArmed(true),
           m_keepTargetsValid(false),
           m_keepCapturePending(false) {
     connect(this, &WSplitter::splitterMoved, this, &WSplitter::slotSplitterMoved);
+}
+
+namespace {
+/// andy-custom CP78: a handle that re-centers its splitter on a double click.
+/// QSplitterHandle itself has no double-click behavior, so this is free.
+class WSplitterHandle : public QSplitterHandle {
+  public:
+    WSplitterHandle(Qt::Orientation orientation, WSplitter* pParent)
+            : QSplitterHandle(orientation, pParent) {
+    }
+
+  protected:
+    void mouseDoubleClickEvent(QMouseEvent* pEvent) override {
+        auto* pSplitter = qobject_cast<WSplitter*>(splitter());
+        if (pSplitter) {
+            pSplitter->recenterFromHandle();
+        }
+        QSplitterHandle::mouseDoubleClickEvent(pEvent);
+    }
+};
+} // namespace
+
+QSplitterHandle* WSplitter::createHandle() {
+    return new WSplitterHandle(orientation(), this);
 }
 
 void WSplitter::setup(const QDomNode& node, const SkinContext& context) {
@@ -98,6 +125,11 @@ void WSplitter::setup(const QDomNode& node, const SkinContext& context) {
     // drag, so they can seed the <KeepSize> targets below; a <SplitSizes>
     // default is usually a ratio ("4,12,5") and must not be taken literally.
     const bool sizesFromConfig = ok;
+    if (sizesFromConfig) {
+        // CP78: the user has already placed this split; do not move it behind
+        // their back (see scheduleAutoCenter()).
+        m_autoCenterArmed = false;
+    }
 
     // nothing in mixxx.cfg? Load default values
     if (!ok && context.hasNodeSelectString(node, "SplitSizes", &sizesJoined)) {
@@ -196,8 +228,24 @@ void WSplitter::setup(const QDomNode& node, const SkinContext& context) {
     context.hasNodeSelectString(node, "AutoCenter", &m_autoCenterName);
 }
 
+void WSplitter::recenterFromHandle() {
+    if (m_autoCenterName.isEmpty()) {
+        return;
+    }
+    applyAutoCenter();
+    // setSizes() emits nothing, so persist the new split by hand.
+    slotSplitterMoved();
+}
+
 void WSplitter::scheduleAutoCenter() {
-    if (m_autoCenterName.isEmpty() || m_autoCenterPending) {
+    // CP78: CP14 re-centered on every resize event, and a resize is exactly
+    // what a *vertical* splitter drag delivers here - so dragging the waveform
+    // splitter up or down threw the presenter column back to the middle and
+    // undid whatever width Andy had set (2026-08-21: measured 1615/299 after a
+    // drag, 1146/768 after the next vertical move). The automatic pass now
+    // only runs while the split has never been placed by hand; afterwards
+    // double-clicking the handle is the way back to centered.
+    if (!m_autoCenterArmed || m_autoCenterName.isEmpty() || m_autoCenterPending) {
         return;
     }
     // Wait for the layout pass this resize triggered: applyAutoCenter()
@@ -329,6 +377,8 @@ void WSplitter::applyKeepSize() {
 }
 
 void WSplitter::slotSplitterMoved() {
+    // CP78: a hand-placed split is never overruled by the automatic pass again.
+    m_autoCenterArmed = false;
     if (!m_keepSize.isEmpty()) {
         // The user just said how wide they want the panes: that is the new
         // size to hold.

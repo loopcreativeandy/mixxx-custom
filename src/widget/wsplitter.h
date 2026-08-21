@@ -15,9 +15,14 @@ class WSplitter : public QSplitter, public WBaseWidget {
 
     void setup(const QDomNode& node, const SkinContext& context);
 
+    /// Centers the <AutoCenter> descendant now. Called when the user
+    /// double-clicks the handle (andy-custom, CP78).
+    void recenterFromHandle();
+
   protected:
     bool event(QEvent* pEvent) override;
     void resizeEvent(QResizeEvent* pEvent) override;
+    QSplitterHandle* createHandle() override;
 
   private slots:
     void slotSplitterMoved();
@@ -43,6 +48,10 @@ class WSplitter : public QSplitter, public WBaseWidget {
     ConfigKey m_configKey;
     QString m_autoCenterName;
     bool m_autoCenterPending;
+    /// CP78: the automatic pass only runs until the split has a size of its
+    /// own - either one restored from mixxx.cfg or one the user dragged.
+    /// After that only a handle double-click re-centers.
+    bool m_autoCenterArmed;
     /// One flag per child: true = hold this child's extent across resizes.
     QList<bool> m_keepSize;
     /// The extent each child should keep; only entries flagged above are used.

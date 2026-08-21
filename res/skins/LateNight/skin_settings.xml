@@ -556,6 +556,91 @@ Description:
             <Size>1min,12f</Size>
           </WidgetGroup>
 
+          <!-- Preview Deck
+               CP78 (Andy, 2026-08-21): its own category instead of five
+               "Preview: …" rows buried in Library. The header is the on/off
+               toggle, everything below it belongs to the preview deck and is
+               covered while it is off - the same header-plus-submenu shape the
+               Effect Units category uses. Library keeps only Cover Art. -->
+          <WidgetGroup>
+            <SizePolicy>me,min</SizePolicy>
+            <Layout>vertical</Layout>
+            <Children>
+              <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
+                <SetVariable name="Text">Preview Deck</SetVariable>
+                <SetVariable name="Setting">[Skin],show_preview_decks</SetVariable>
+                <SetVariable name="TooltipId">show_previewdeck</SetVariable>
+                <SetVariable name="Width">180me</SetVariable>
+              </Template>
+
+              <WidgetGroup>
+                <ObjectName>SkinSettingsSubMenu</ObjectName>
+                <SizePolicy>me,f</SizePolicy>
+                <Layout>stacked</Layout>
+                <Children>
+                  <!-- translucent cover when the preview deck is off -->
+                  <Template src="skins:LateNight/helpers/skin_settings_cover_inverted.xml">
+                    <SetVariable name="Setting">[Skin],show_preview_decks</SetVariable>
+                  </Template>
+
+                  <WidgetGroup>
+                    <ObjectName>SkinSettingsCategory</ObjectName>
+                    <SizePolicy>me,min</SizePolicy>
+                    <Layout>vertical</Layout>
+                    <Children>
+                      <!-- Andy CP74: hide the preview deck as soon as it stops
+                           playing (and bring it back when a track is
+                           auditioned from the library), plus where it should
+                           sit. Both are AndyVideo-only keys - the other skins
+                           have just the sidebar slot and never read them. -->
+                      <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
+                        <SetVariable name="Text">Auto-Hide</SetVariable>
+                        <SetVariable name="Setting">[AndyVideo],preview_autohide</SetVariable>
+                        <SetVariable name="TooltipId"></SetVariable>
+                      </Template>
+
+                      <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
+                        <SetVariable name="Text">Sidebar</SetVariable>
+                        <SetVariable name="Setting">[AndyVideo],preview_position</SetVariable>
+                        <SetVariable name="Value">0</SetVariable>
+                        <SetVariable name="TooltipId"></SetVariable>
+                      </Template>
+                      <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
+                        <SetVariable name="Text">Above Library</SetVariable>
+                        <SetVariable name="Setting">[AndyVideo],preview_position</SetVariable>
+                        <SetVariable name="Value">1</SetVariable>
+                        <SetVariable name="TooltipId"></SetVariable>
+                      </Template>
+                      <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
+                        <SetVariable name="Text">Below Library</SetVariable>
+                        <SetVariable name="Setting">[AndyVideo],preview_position</SetVariable>
+                        <SetVariable name="Value">2</SetVariable>
+                        <SetVariable name="TooltipId"></SetVariable>
+                      </Template>
+                      <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
+                        <SetVariable name="Text">Above Pane</SetVariable>
+                        <SetVariable name="Setting">[AndyVideo],preview_position</SetVariable>
+                        <SetVariable name="Value">3</SetVariable>
+                        <SetVariable name="TooltipId"></SetVariable>
+                      </Template>
+                      <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
+                        <SetVariable name="Text">Below Pane</SetVariable>
+                        <SetVariable name="Setting">[AndyVideo],preview_position</SetVariable>
+                        <SetVariable name="Value">4</SetVariable>
+                        <SetVariable name="TooltipId"></SetVariable>
+                      </Template>
+                    </Children>
+                  </WidgetGroup>
+                </Children>
+              </WidgetGroup>
+            </Children>
+          </WidgetGroup><!-- /Preview Deck -->
+
+          <WidgetGroup>
+            <ObjectName>SkinSettingsSeparator</ObjectName>
+            <Size>1min,12f</Size>
+          </WidgetGroup>
+
           <!-- Library -->
           <Label>
             <ObjectName>CategoryLabel</ObjectName>
@@ -568,55 +653,6 @@ Description:
             <SizePolicy>me,min</SizePolicy>
             <Layout>vertical</Layout>
             <Children>
-
-              <!-- Preview Deck -->
-              <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
-                <SetVariable name="TooltipId">show_previewdeck</SetVariable>
-                <SetVariable name="Text">Preview Deck</SetVariable>
-                <SetVariable name="Setting">[Skin],show_preview_decks</SetVariable>
-              </Template>
-
-              <!-- Andy CP74: hide the preview deck as soon as it stops playing
-                   (and bring it back when a track is auditioned from the
-                   library), plus where it should sit. Both are AndyVideo-only
-                   keys - the other skins have just the sidebar slot and never
-                   read them. -->
-              <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">
-                <SetVariable name="Text">Preview Auto-Hide</SetVariable>
-                <SetVariable name="Setting">[AndyVideo],preview_autohide</SetVariable>
-                <SetVariable name="TooltipId"></SetVariable>
-              </Template>
-
-              <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
-                <SetVariable name="Text">Preview: Sidebar</SetVariable>
-                <SetVariable name="Setting">[AndyVideo],preview_position</SetVariable>
-                <SetVariable name="Value">0</SetVariable>
-                <SetVariable name="TooltipId"></SetVariable>
-              </Template>
-              <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
-                <SetVariable name="Text">Preview: Above Library</SetVariable>
-                <SetVariable name="Setting">[AndyVideo],preview_position</SetVariable>
-                <SetVariable name="Value">1</SetVariable>
-                <SetVariable name="TooltipId"></SetVariable>
-              </Template>
-              <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
-                <SetVariable name="Text">Preview: Below Library</SetVariable>
-                <SetVariable name="Setting">[AndyVideo],preview_position</SetVariable>
-                <SetVariable name="Value">2</SetVariable>
-                <SetVariable name="TooltipId"></SetVariable>
-              </Template>
-              <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
-                <SetVariable name="Text">Preview: Above Pane</SetVariable>
-                <SetVariable name="Setting">[AndyVideo],preview_position</SetVariable>
-                <SetVariable name="Value">3</SetVariable>
-                <SetVariable name="TooltipId"></SetVariable>
-              </Template>
-              <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
-                <SetVariable name="Text">Preview: Below Pane</SetVariable>
-                <SetVariable name="Setting">[AndyVideo],preview_position</SetVariable>
-                <SetVariable name="Value">4</SetVariable>
-                <SetVariable name="TooltipId"></SetVariable>
-              </Template>
 
               <!-- Cover Art -->
               <Template src="skins:LateNight/helpers/skin_settings_button_2state.xml">

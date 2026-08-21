@@ -136,7 +136,18 @@
       <WidgetGroup>
         <ObjectName>WaveformBox<Variable name="ChanNum"/></ObjectName>
         <Layout>horizontal</Layout>
-        <Size>me,30min</Size>
+        <!-- CP78: no 30 px floor. The waveform is drawn by a QOpenGLWindow
+             inside a QWindowContainer, i.e. a NATIVE child window whose X11 /
+             Win32 parent is the top-level window, not the widget it nominally
+             sits in. Alien ancestors therefore do not clip it: with a 30 px
+             floor the GL surface kept its 30 px while the waveform pane was
+             dragged down to 25 px, so it painted ~37 px past the pane - right
+             over the WaveformSplitter's handle, which then could not be seen
+             or grabbed any more (Andy, 2026-08-21; measured with
+             cp78_handle_probe.png). At 0 the box shrinks with the pane and
+             nothing ever reaches the handle. Minimum (not Fixed) so the box
+             still takes all the height the container can give it. -->
+        <Size>me,0min</Size>
         <Children>
           <Visual>
             <TooltipId>waveform_display</TooltipId>
