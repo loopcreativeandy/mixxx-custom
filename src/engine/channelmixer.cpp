@@ -38,9 +38,21 @@ void ChannelMixer::applyEffectsAndMixChannels(const EngineMixer::GainCalculator&
             newGain = gainCalculator.getGain(pChannelInfo);
         }
         gainCache.m_gain = newGain;
+        // Pre-EQ headphone cue: a deck hands us a separate buffer tapped before
+        // its EQ/filter while the global toggle is on; otherwise this is nullptr
+        // and we mix the normal post-EQ channel buffer. Only the headphone mix
+        // uses this copy variant, so the buses/main mix are unaffected.
+        CSAMPLE* pInputBuffer = pChannelInfo->m_pBuffer.data();
+        if (pChannelInfo->m_pChannel) {
+            CSAMPLE* pPreFaderBuffer =
+                    pChannelInfo->m_pChannel->getPreFaderBuffer();
+            if (pPreFaderBuffer) {
+                pInputBuffer = pPreFaderBuffer;
+            }
+        }
         pEngineEffectsManager->processPostFaderAndMix(pChannelInfo->m_handle,
                 outputHandle,
-                pChannelInfo->m_pBuffer.data(),
+                pInputBuffer,
                 pOutput,
                 bufferSize,
                 sampleRate,

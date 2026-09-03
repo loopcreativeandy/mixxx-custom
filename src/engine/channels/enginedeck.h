@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QScopedPointer>
+#include <memory>
 
 #include "engine/channels/enginechannel.h"
 #include "preferences/usersettings.h"
@@ -13,6 +14,7 @@ class EngineBuffer;
 class EngineMixer;
 class ControlPushButton;
 class ControlPotmeter;
+class ControlProxy;
 
 class EngineDeck : public EngineChannel, public AudioDestination {
     Q_OBJECT
@@ -42,6 +44,13 @@ class EngineDeck : public EngineChannel, public AudioDestination {
 
     // TODO(XXX) This hack needs to be removed.
     EngineBuffer* getEngineBuffer() override;
+
+    // Pre-EQ headphone cue: hand the mixer the signal captured before the EQ /
+    // pre-fader effects, but only while the global toggle was on for the last
+    // process() call. nullptr otherwise → mixer uses the normal post-EQ buffer.
+    CSAMPLE* getPreFaderBuffer() override {
+        return m_bPreFaderBufferValid ? m_preFaderBuffer.data() : nullptr;
+    }
 
     EngineChannel::ActiveState updateActiveState() override;
 
@@ -111,4 +120,12 @@ class EngineDeck : public EngineChannel, public AudioDestination {
     ControlPushButton* m_pPassing;
     bool m_bPassthroughIsActive;
     bool m_bPassthroughWasActive;
+
+    // Pre-EQ headphone cue: signal tapped after pregain but before the EQ /
+    // pre-fader effect racks. Captured in process() only while the global
+    // [Master],headphone_pre_eq toggle is on; m_bPreFaderBufferValid tells the
+    // mixer whether the copy in m_preFaderBuffer is current for this callback.
+    std::unique_ptr<ControlProxy> m_pHeadphonePreEq;
+    mixxx::SampleBuffer m_preFaderBuffer;
+    bool m_bPreFaderBufferValid;
 };

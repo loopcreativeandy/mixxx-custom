@@ -327,6 +327,8 @@ class EngineMixer : public QObject, public AudioSource {
     std::unique_ptr<ControlPotmeter> m_pXFaderCalibration;
     std::unique_ptr<ControlPushButton> m_pXFaderReverse;
     std::unique_ptr<ControlPushButton> m_pHeadSplitEnabled;
+    // Pre-EQ headphone cue: global toggle routing PFL before deck EQ/filter.
+    std::unique_ptr<ControlPushButton> m_pHeadphonePreEq;
     std::unique_ptr<ControlObject> m_pKeylockEngine;
 
     PflGainCalculator m_headphoneGain;

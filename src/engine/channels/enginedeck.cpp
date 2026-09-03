@@ -2,6 +2,7 @@
 
 #include <QStringView>
 
+#include "control/controlproxy.h"
 #include "control/controlpushbutton.h"
 #include "effects/effectsmanager.h"
 #include "engine/controls/bpmcontrol.h"
@@ -12,6 +13,7 @@
 #include "moc_enginedeck.cpp"
 #include "track/track.h"
 #include "util/assert.h"
+#include "util/defs.h"
 #include "util/sample.h"
 
 EngineDeck::EngineDeck(
@@ -29,7 +31,13 @@ EngineDeck::EngineDeck(
           m_stemClonedState(false),
 #endif
           m_pInputConfigured(new ControlObject(ConfigKey(getGroup(), "input_configured"))),
-          m_pPassing(new ControlPushButton(ConfigKey(getGroup(), "passthrough"))) {
+          m_pPassing(new ControlPushButton(ConfigKey(getGroup(), "passthrough"))),
+          m_pHeadphonePreEq(std::make_unique<ControlProxy>(
+                  ConfigKey(QStringLiteral("[Master]"),
+                          QStringLiteral("headphone_pre_eq")),
+                  this)),
+          m_preFaderBuffer(kMaxEngineSamples),
+          m_bPreFaderBufferValid(false) {
     m_pInputConfigured->setReadOnly();
     // Set up passthrough utilities and fields
     m_pPassing->setButtonMode(mixxx::control::ButtonMode::PowerWindow);
@@ -140,6 +148,19 @@ void EngineDeck::processStem(CSAMPLE* pOut, const std::size_t bufferSize) {
 
     CSAMPLE* pIn = m_stemBuffer.data();
 
+    // Pre-EQ headphone cue for stems: when the global toggle is on, mix the raw
+    // stems together at unity gain — bypassing the per-stem faders, mutes and
+    // stem FX applied in the loop below — so the cue previews every stem even
+    // when they are faded down or muted. Same toggle as the plain-deck cue; the
+    // deck EQ/filter are skipped later because this buffer is tapped pre-fader.
+    // Note: mixMultichannelToStereo is already used for the stem downmix below,
+    // so this adds one comparable pass, and only while the toggle is on.
+    if (m_pHeadphonePreEq->toBool()) {
+        SampleUtil::mixMultichannelToStereo(
+                m_preFaderBuffer.data(), pIn, numFrames, chCount);
+        m_bPreFaderBufferValid = true;
+    }
+
     // TODO(XXX): process stem DSP
 
     EngineEffectsManager* pEngineEffectsManager = m_pEffectsManager->getEngineEffectsManager();
@@ -220,6 +241,12 @@ void EngineDeck::cloneStemState(const EngineDeck* deckToClone) {
 #endif
 
 void EngineDeck::process(CSAMPLE* pOut, const std::size_t bufferSize) {
+    // Invalidate any pre-EQ headphone tap from the previous callback. It is
+    // re-armed below only if we reach the EQ stage with the toggle on, so the
+    // early-return passthrough path correctly leaves the mixer on the normal
+    // post-EQ buffer.
+    m_bPreFaderBufferValid = false;
+
     // Feed the incoming audio through if passthrough is active
     const CSAMPLE* sampleBuffer = m_sampleBuffer; // save pointer on stack
     if (isPassthroughActive() && sampleBuffer) {
@@ -249,6 +276,17 @@ void EngineDeck::process(CSAMPLE* pOut, const std::size_t bufferSize) {
 #endif
         m_pPregain->setSpeedAndScratching(m_pBuffer->getSpeed(), m_pBuffer->getScratching());
         m_bPassthroughWasActive = false;
+    }
+
+    // Pre-EQ headphone cue: while the global toggle is on, stash the signal
+    // here — before pregain and the EQ / pre-fader effect racks below — so the
+    // headphone mix can preview the track without the deck's EQ and filter
+    // moves. For stem decks processStem() has already captured the raw stems
+    // (bypassing the per-stem faders and mutes), so only copy here when it did
+    // not. Cheap, no allocation (m_preFaderBuffer is pre-sized).
+    if (!m_bPreFaderBufferValid && m_pHeadphonePreEq->toBool()) {
+        SampleUtil::copy(m_preFaderBuffer.data(), pOut, bufferSize);
+        m_bPreFaderBufferValid = true;
     }
 
     // Apply pregain

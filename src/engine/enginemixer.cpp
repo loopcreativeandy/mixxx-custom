@@ -133,6 +133,8 @@ EngineMixer::EngineMixer(UserSettingsPointer pConfig,
                   ConfigKey(EngineXfader::kXfaderConfigKey, "xFaderReverse"))),
           m_pHeadSplitEnabled(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "headSplit"), true, 0.0)),
+          m_pHeadphonePreEq(std::make_unique<ControlPushButton>(
+                  ConfigKey(group, "headphone_pre_eq"), true, 0.0)),
 
           m_pKeylockEngine(std::make_unique<ControlObject>(
                   ConfigKey(kAppGroup, QStringLiteral("keylock_engine")),
@@ -202,6 +204,11 @@ EngineMixer::EngineMixer(UserSettingsPointer pConfig,
 
     m_pHeadSplitEnabled->setButtonMode(mixxx::control::ButtonMode::Toggle);
     m_pHeadSplitEnabled->set(0.0);
+
+    // Pre-EQ headphone cue toggle: when on, PFL/headphone cue previews decks
+    // before their EQ and filter, as if all the EQ knobs were flat.
+    m_pHeadphonePreEq->setButtonMode(mixxx::control::ButtonMode::Toggle);
+    m_pHeadphonePreEq->set(0.0);
 
     // zero out otherwise uninitialized buffers
     m_head.clear();

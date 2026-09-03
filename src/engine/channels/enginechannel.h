@@ -75,6 +75,17 @@ class EngineChannel : public EngineObject {
         return nullptr;
     }
 
+    // Returns the channel signal tapped before the EQ / pre-fader effect racks,
+    // used for the optional pre-EQ headphone cue. Returns nullptr when this
+    // channel exposes no such tap for the current callback (feature off, or the
+    // channel type has no EQ stage); the headphone mix then falls back to the
+    // regular post-EQ buffer. Non-const because the headphone mix processes the
+    // returned buffer in place — it is a per-callback scratch buffer, so that
+    // is safe and does not affect the main/bus mixes.
+    virtual CSAMPLE* getPreFaderBuffer() {
+        return nullptr;
+    }
+
   protected:
     const ChannelHandleAndGroup m_group;
     EffectsManager* m_pEffectsManager;
