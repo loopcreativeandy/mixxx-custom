@@ -32,6 +32,10 @@ const ConfigKey kGainAutoResetKey = ConfigKey(kMixerProfile, QStringLiteral("Gai
 #ifdef __STEM__
 const ConfigKey kStemAutoResetKey = ConfigKey(kMixerProfile, QStringLiteral("stem_auto_reset"));
 #endif
+/// Global pre-EQ headphone cue toggle, created by EngineMixer. The control is
+/// persistent, so this ConfigKey is both the control and its stored setting.
+const ConfigKey kHeadphonePreEqKey = ConfigKey(
+        QStringLiteral("[Master]"), QStringLiteral("headphone_pre_eq"));
 const QString kDefaultMainEqId = QString();
 
 const ConfigKey kHighEqFreqKey = ConfigKey(kMixerProfile, kHighEqFrequency);
@@ -90,6 +94,8 @@ DlgPrefMixer::DlgPrefMixer(
           m_pNumDecks(make_parented<ControlProxy>(QStringLiteral("[App]"),
                   QStringLiteral("num_decks"),
                   this)),
+          m_pHeadphonePreEqCO(make_parented<ControlProxy>(
+                  kHeadphonePreEqKey, this)),
           m_ignoreEqQuickEffectBoxSignals(false),
           m_singleEq(true),
           m_eqEffectsOnly(true),
@@ -99,6 +105,7 @@ DlgPrefMixer::DlgPrefMixer(
           m_stemAutoReset(true),
 #endif
           m_eqBypass(false),
+          m_headphonePreEq(false),
           m_initializing(true),
           m_updatingMainEQ(false),
           m_applyingDeckEQs(false),
@@ -175,6 +182,15 @@ DlgPrefMixer::DlgPrefMixer(
 #else
     CheckBoxStemAutoReset->hide();
 #endif
+    connect(CheckBoxHeadphonePreEq,
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+            &QCheckBox::checkStateChanged,
+#else
+            &QCheckBox::stateChanged,
+#endif
+            this,
+            &DlgPrefMixer::slotHeadphonePreEqToggled);
+
     connect(CheckBoxBypass,
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
             &QCheckBox::checkStateChanged,
@@ -519,6 +535,7 @@ void DlgPrefMixer::slotResetToDefaults() {
     CheckBoxBypass->setChecked(false);
     CheckBoxEqOnly->setChecked(true);
     CheckBoxSingleEqEffect->setChecked(true);
+    CheckBoxHeadphonePreEq->setChecked(false);
     CheckBoxEqAutoReset->setChecked(false);
     CheckBoxGainAutoReset->setChecked(false);
 #ifdef __STEM__
@@ -738,6 +755,12 @@ void DlgPrefMixer::slotApply() {
 #ifdef __STEM__
     m_pConfig->set(kStemAutoResetKey, ConfigValue(m_stemAutoReset ? 1 : 0));
 #endif
+
+    // The control itself is persistent (written on shutdown), but store it here
+    // as well so the setting survives a crash.
+    m_pHeadphonePreEqCO->set(m_headphonePreEq ? 1.0 : 0.0);
+    m_pConfig->set(kHeadphonePreEqKey, ConfigValue(m_headphonePreEq ? 1 : 0));
+
     applyDeckEQs();
     applyQuickEffects();
 
@@ -797,6 +820,11 @@ void DlgPrefMixer::slotUpdate() {
     m_stemAutoReset = m_pConfig->getValue(kStemAutoResetKey, true);
     CheckBoxStemAutoReset->setChecked(m_stemAutoReset);
 #endif
+
+    // Read the live control, not the config: it may have been toggled from a
+    // controller or a skin button since the dialog was last opened.
+    m_headphonePreEq = m_pHeadphonePreEqCO->toBool();
+    CheckBoxHeadphonePreEq->setChecked(m_headphonePreEq);
 
     QString eqBaypassCfg = m_pConfig->getValueString(kEnableEqsKey);
     m_eqBypass = !(eqBaypassCfg == "yes" || eqBaypassCfg == "1" || eqBaypassCfg.isEmpty());
@@ -1052,6 +1080,10 @@ void DlgPrefMixer::slotEqAutoResetToggled(bool checked) {
 
 void DlgPrefMixer::slotGainAutoResetToggled(bool checked) {
     m_gainAutoReset = checked;
+}
+
+void DlgPrefMixer::slotHeadphonePreEqToggled(bool checked) {
+    m_headphonePreEq = checked;
 }
 
 #ifdef __STEM__

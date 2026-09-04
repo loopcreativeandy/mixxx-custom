@@ -206,9 +206,10 @@ EngineMixer::EngineMixer(UserSettingsPointer pConfig,
     m_pHeadSplitEnabled->set(0.0);
 
     // Pre-EQ headphone cue toggle: when on, PFL/headphone cue previews decks
-    // before their EQ and filter, as if all the EQ knobs were flat.
+    // before their EQ and filter, as if all the EQ knobs were flat. Unlike
+    // headSplit this is a preference (Preferences > Mixer), so the persisted
+    // value is deliberately kept instead of being reset on every start.
     m_pHeadphonePreEq->setButtonMode(mixxx::control::ButtonMode::Toggle);
-    m_pHeadphonePreEq->set(0.0);
 
     // zero out otherwise uninitialized buffers
     m_head.clear();

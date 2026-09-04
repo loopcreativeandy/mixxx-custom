@@ -195,7 +195,7 @@
      <property name="title">
       <string>Deck Equalizers</string>
      </property>
-     <layout class="QVBoxLayout" name="DeckEqualizerCheckboxes" stretch="0,0,0,0,0,0,0">
+     <layout class="QVBoxLayout" name="DeckEqualizerCheckboxes" stretch="0,0,0,0,0,0,0,0">
       <item>
        <widget class="QCheckBox" name="CheckBoxEqOnly">
         <property name="toolTip">
@@ -284,6 +284,17 @@
         </property>
         <property name="text">
          <string>Bypass EQ effect processing</string>
+        </property>
+       </widget>
+      </item>
+
+      <item>
+       <widget class="QCheckBox" name="CheckBoxHeadphonePreEq">
+        <property name="toolTip">
+         <string>When checked, the headphone cue (PFL) previews decks before their EQ and filter, and stems before the stem faders, mutes and effects. You hear the raw track even with the EQs killed or stems faded down. The main and booth outputs are not affected.</string>
+        </property>
+        <property name="text">
+         <string>Headphone cue previews decks before EQ and stem faders</string>
         </property>
        </widget>
       </item>
