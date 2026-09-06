@@ -65,6 +65,11 @@ void EnginePregain::setSpeedAndScratching(double speed, bool scratching) {
 }
 
 void EnginePregain::process(CSAMPLE* pInOut, const std::size_t bufferSize) {
+    processWithCue(pInOut, nullptr, bufferSize);
+}
+
+void EnginePregain::processWithCue(
+        CSAMPLE* pInOut, CSAMPLE* pCueInOut, const std::size_t bufferSize) {
     const auto fReplayGain = static_cast<CSAMPLE_GAIN>(m_pCOReplayGain->get());
     CSAMPLE_GAIN fReplayGainCorrection;
     if (!s_pEnableReplayGain->toBool() || m_pPassthroughEnabled->toBool()) {
@@ -150,14 +155,25 @@ void EnginePregain::process(CSAMPLE* pInOut, const std::size_t bufferSize) {
         // direction changed, go though zero if scratching
         SampleUtil::applyRampingGain(&pInOut[0], m_fPrevGain, 0, bufferSize / 2);
         SampleUtil::applyRampingGain(&pInOut[bufferSize / 2], 0, totalGain, bufferSize / 2);
+        if (pCueInOut) {
+            SampleUtil::applyRampingGain(&pCueInOut[0], m_fPrevGain, 0, bufferSize / 2);
+            SampleUtil::applyRampingGain(
+                    &pCueInOut[bufferSize / 2], 0, totalGain, bufferSize / 2);
+        }
     } else if (totalGain != m_fPrevGain) {
         // Prevent sound wave discontinuities by interpolating from old to new gain
         // if not stopped or starting
         // This handles also the ramping of play (from speed 0) and pause (to speed 0)
         SampleUtil::applyRampingGain(pInOut, m_fPrevGain, totalGain, bufferSize);
+        if (pCueInOut) {
+            SampleUtil::applyRampingGain(pCueInOut, m_fPrevGain, totalGain, bufferSize);
+        }
     } else {
         // SampleUtil deals with aliased buffers and gains of 1 or 0.
         SampleUtil::applyGain(pInOut, totalGain, bufferSize);
+        if (pCueInOut) {
+            SampleUtil::applyGain(pCueInOut, totalGain, bufferSize);
+        }
     }
     m_fPrevGain = totalGain;
 }

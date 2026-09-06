@@ -25,6 +25,13 @@ class EnginePregain : public EngineObject {
 
     void process(CSAMPLE* pInOut, const std::size_t bufferSize) override;
 
+    // Same as process(), but applies the identical gain — including the ramp
+    // from the previous callback — to a second buffer as well. Used by the
+    // pre-EQ headphone cue: the cue is tapped before this stage, so without
+    // this it would be heard at a different level than the deck contributes to
+    // the main mix (ReplayGain and the GAIN trim are applied here).
+    void processWithCue(CSAMPLE* pInOut, CSAMPLE* pCueInOut, const std::size_t bufferSize);
+
     void collectFeatures(GroupFeatureState* pGroupFeatures) const override;
 
   private:

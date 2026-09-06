@@ -279,18 +279,25 @@ void EngineDeck::process(CSAMPLE* pOut, const std::size_t bufferSize) {
     }
 
     // Pre-EQ headphone cue: while the global toggle is on, stash the signal
-    // here — before pregain and the EQ / pre-fader effect racks below — so the
-    // headphone mix can preview the track without the deck's EQ and filter
-    // moves. For stem decks processStem() has already captured the raw stems
-    // (bypassing the per-stem faders and mutes), so only copy here when it did
-    // not. Cheap, no allocation (m_preFaderBuffer is pre-sized).
+    // here — before the EQ / pre-fader effect racks below — so the headphone
+    // mix can preview the track without the deck's EQ and filter moves. For
+    // stem decks processStem() has already captured the raw stems (bypassing
+    // the per-stem faders and mutes), so only copy here when it did not.
+    // Cheap, no allocation (m_preFaderBuffer is pre-sized).
     if (!m_bPreFaderBufferValid && m_pHeadphonePreEq->toBool()) {
         SampleUtil::copy(m_preFaderBuffer.data(), pOut, bufferSize);
         m_bPreFaderBufferValid = true;
     }
 
-    // Apply pregain
-    m_pPregain->process(pOut, bufferSize);
+    // Apply pregain — to the cue tap as well, so the cue is heard at the same
+    // level the deck feeds into the main mix. Pregain carries ReplayGain and
+    // the GAIN trim, so skipping it made the cue louder than the mix for any
+    // track with a negative loudness correction.
+    if (m_bPreFaderBufferValid) {
+        m_pPregain->processWithCue(pOut, m_preFaderBuffer.data(), bufferSize);
+    } else {
+        m_pPregain->process(pOut, bufferSize);
+    }
 
     EngineEffectsManager* pEngineEffectsManager = m_pEffectsManager->getEngineEffectsManager();
     if (pEngineEffectsManager != nullptr) {
