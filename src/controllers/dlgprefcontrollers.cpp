@@ -38,6 +38,11 @@ DlgPrefControllers::DlgPrefControllers(DlgPreferences* pPreferences,
         openLocalFile(mappingsPath);
     });
 
+    connect(btnRescanControllers,
+            &QPushButton::clicked,
+            this,
+            &DlgPrefControllers::slotRescanControllers);
+
     // Connections
     connect(m_pControllerManager.get(),
             &ControllerManager::devicesChanged,
@@ -60,7 +65,7 @@ DlgPrefControllers::DlgPrefControllers(DlgPreferences* pPreferences,
     txt_midithrough->setText(tr(
             "%1 is a virtual controller that allows to use e.g. the 'MIDI for light' "
             "mapping.<br/>"
-            "You need to restart Mixxx in order to enable it.<br/>"
+            "Click \"Rescan controllers\" (or restart Mixxx) in order to enable it.<br/>"
             "<b>Note:</b> mappings meant for physical controllers can cause issues and "
             "even render the Mixxx GUI unresponsive when being loaded to %1.")
                     .arg(kMidiThroughPortPrefix));
@@ -161,9 +166,23 @@ bool DlgPrefControllers::handleTreeItemClick(QTreeWidgetItem* clickedItem) {
     return false;
 }
 
+void DlgPrefControllers::slotRescanControllers() {
+    // The rescan destroys every Controller object, so we have to release our
+    // pointers and connections to them *before* the controller thread starts
+    // working. rescanControllers() rebuilds the pages once ControllerManager
+    // reports back with devicesChanged().
+    destroyControllerWidgets();
+    txtNoControllersAvailable->setVisible(false);
+    btnRescanControllers->setEnabled(false);
+    btnRescanControllers->setText(tr("Rescanning…"));
+    m_pControllerManager->rescanDevices();
+}
+
 void DlgPrefControllers::rescanControllers() {
     destroyControllerWidgets();
     setupControllerWidgets();
+    btnRescanControllers->setText(tr("Rescan controllers"));
+    btnRescanControllers->setEnabled(true);
 }
 
 void DlgPrefControllers::destroyControllerWidgets() {

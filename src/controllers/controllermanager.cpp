@@ -95,7 +95,8 @@ ControllerManager::ControllerManager(UserSettingsPointer pConfig)
           // its own event loop.
           m_pControllerLearningEventFilter(new ControllerLearningEventFilter()),
           m_pollTimer(this),
-          m_skipPoll(false) {
+          m_skipPoll(false),
+          m_bRescanInProgress(false) {
     qRegisterMetaType<std::shared_ptr<LegacyControllerMapping>>(
             "std::shared_ptr<LegacyControllerMapping>");
 
@@ -124,6 +125,10 @@ ControllerManager::ControllerManager(UserSettingsPointer pConfig)
             &ControllerManager::requestSetUpDevices,
             this,
             &ControllerManager::slotSetUpDevices);
+    connect(this,
+            &ControllerManager::requestRescanDevices,
+            this,
+            &ControllerManager::slotRescanDevices);
     connect(this, &ControllerManager::requestShutdown, this, &ControllerManager::slotShutdown);
 
     // Signal that we should run slotInitialize once our event loop has started
@@ -152,45 +157,92 @@ void ControllerManager::slotInitialize() {
     m_pMainThreadSystemMappingEnumerator = QSharedPointer<MappingInfoEnumerator>(
             new MappingInfoEnumerator(resourceMappingsPath(m_pConfig)));
 
-    // Instantiate all enumerators. Enumerators can take a long time to
-    // construct since they interact with host MIDI APIs.
-#ifdef __PORTMIDI__
-    m_enumerators.append(new PortMidiEnumerator(m_pConfig));
-#endif
-#ifdef __HSS1394__
-    m_enumerators.append(new Hss1394Enumerator());
-#endif
-#ifdef __BULK__
-    m_enumerators.append(new BulkEnumerator());
-#endif
-#ifdef __HID__
-    m_enumerators.append(new HidEnumerator());
-#endif
+    createEnumerators();
 }
 
-void ControllerManager::slotShutdown() {
-    stopPolling();
+void ControllerManager::createEnumerators() {
+    // Instantiate all enumerators. Enumerators can take a long time to
+    // construct since they interact with host MIDI APIs.
+    // NOTE: constructing PortMidiEnumerator calls Pm_Initialize(), which is
+    // what makes PortMidi pick up the currently connected MIDI devices. It must
+    // always happen on this thread, see the Pm_Initialize() docs.
+    QList<ControllerEnumerator*> enumerators;
+#ifdef __PORTMIDI__
+    enumerators.append(new PortMidiEnumerator(m_pConfig));
+#endif
+#ifdef __HSS1394__
+    enumerators.append(new Hss1394Enumerator());
+#endif
+#ifdef __BULK__
+    enumerators.append(new BulkEnumerator());
+#endif
+#ifdef __HID__
+    enumerators.append(new HidEnumerator());
+#endif
 
+    auto locker = lockMutex(&m_mutex);
+    m_enumerators = enumerators;
+}
+
+void ControllerManager::destroyEnumerators() {
     // Clear m_enumerators before deleting the enumerators to prevent other code
     // paths from accessing them.
     auto locker = lockMutex(&m_mutex);
     QList<ControllerEnumerator*> enumerators = m_enumerators;
     m_enumerators.clear();
+    // The enumerators own their Controllers, so our list of controllers dangles
+    // the moment they are gone.
+    m_controllers.clear();
     locker.unlock();
 
     // Delete enumerators and they'll delete their Devices
     for (ControllerEnumerator* pEnumerator : enumerators) {
         delete pEnumerator;
     }
+}
+
+void ControllerManager::slotShutdown() {
+    stopPolling();
+
+    destroyEnumerators();
 
     // Stop the processor after the enumerators since the engines live in it
     m_pThread->quit();
 }
 
+void ControllerManager::slotRescanDevices() {
+    qDebug() << "ControllerManager: Rescanning devices";
+
+    // This throws away every Controller object and builds new ones, because
+    // that is the only way to see newly connected devices: PortMidi only
+    // enumerates during Pm_Initialize() and hands out PmDeviceInfo pointers
+    // that a Pm_Terminate() invalidates, and HidEnumerator/BulkEnumerator
+    // append to their device list instead of diffing it. Both happen in the
+    // enumerator destructors/constructors.
+    //
+    // It is only safe because whoever asked for the rescan released their
+    // Controller pointers first (see ControllerManager::rescanDevices()).
+    m_bRescanInProgress = true;
+
+    stopPolling();
+    destroyEnumerators();
+    createEnumerators();
+
+    // Enumerate again and re-open everything that is enabled and mapped,
+    // including whatever was just plugged in.
+    slotSetUpDevices();
+
+    m_bRescanInProgress = false;
+    // Always emit, even if the device list is unchanged: the GUI dropped its
+    // controller pages before requesting the rescan and needs to rebuild them.
+    emit devicesChanged();
+}
+
 void ControllerManager::updateControllerList() {
-    // NOTE: Currently this function is only called on startup. If hotplug is added, changes to the
-    // controller list must be synchronized with dlgprefcontrollers to avoid dangling connections
-    // and possible crashes.
+    // NOTE: this is called on startup and from slotRescanDevices(). A rescan
+    // replaces every Controller object, so it must only run while
+    // dlgprefcontrollers holds no Controller pointers, otherwise we get
+    // dangling connections and possible crashes.
     auto locker = lockMutex(&m_mutex);
     if (m_enumerators.isEmpty()) {
         qWarning() << "updateControllerList called but no enumerators have been added!";
@@ -208,7 +260,11 @@ void ControllerManager::updateControllerList() {
     if (newDeviceList != m_controllers) {
         m_controllers = newDeviceList;
         locker.unlock();
-        emit devicesChanged();
+        // During a rescan slotRescanDevices() emits this itself, once the
+        // controllers have been re-opened.
+        if (!m_bRescanInProgress) {
+            emit devicesChanged();
+        }
     }
 }
 

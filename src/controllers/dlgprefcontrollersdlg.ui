@@ -62,12 +62,40 @@
          <string notr="true">QLabel { font-weight: bold; }</string>
         </property>
         <property name="text">
-         <string>Mixxx did not detect any controllers. If you connected the controller while Mixxx was running you must restart Mixxx first.</string>
+         <string>Mixxx did not detect any controllers. If you connected the controller while Mixxx was running, click &quot;Rescan controllers&quot; below.</string>
         </property>
         <property name="wordWrap">
          <bool>true</bool>
         </property>
        </widget>
+      </item>
+
+      <item>
+       <layout class="QHBoxLayout" name="layoutRescanControllers">
+        <item>
+         <widget class="QPushButton" name="btnRescanControllers">
+          <property name="toolTip">
+           <string>Look for controllers that were connected or disconnected while Mixxx was running. Open controllers are briefly closed and re-opened.</string>
+          </property>
+          <property name="text">
+           <string>Rescan controllers</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacerRescanControllers">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
       </item>
 
       <item>

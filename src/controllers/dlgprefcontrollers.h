@@ -40,6 +40,10 @@ class DlgPrefControllers : public DlgPreferencePage, public Ui::DlgPrefControlle
     void slotResetToDefaults() override;
 
   private slots:
+    /// Triggered by the "Rescan controllers" button: tears down the controller
+    /// pages and asks ControllerManager to re-enumerate all controller APIs.
+    void slotRescanControllers();
+    /// Rebuilds the controller pages after ControllerManager changed the list.
     void rescanControllers();
 #ifdef __PORTMIDI__
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)

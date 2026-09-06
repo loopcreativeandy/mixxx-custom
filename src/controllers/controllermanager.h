@@ -42,11 +42,23 @@ class ControllerManager : public QObject {
     /// Prevent other parts of Mixxx from having to manually connect to our slots
     void setUpDevices() { emit requestSetUpDevices(); };
 
+    /// Tear down every controller API, enumerate again and re-open the enabled
+    /// devices. This is how a controller that was plugged in after Mixxx
+    /// started becomes usable without a restart.
+    ///
+    /// WARNING: every Controller object is destroyed and recreated by this.
+    /// Callers must drop all Controller pointers and connections *before*
+    /// calling this, and rebuild them when devicesChanged() is emitted.
+    /// DlgPrefControllers is the only place outside this class that holds
+    /// Controller pointers, and it does exactly that.
+    void rescanDevices() { emit requestRescanDevices(); };
+
     static QList<QString> getMappingPaths(UserSettingsPointer pConfig);
 
   signals:
     void devicesChanged();
     void requestSetUpDevices();
+    void requestRescanDevices();
     void requestShutdown();
     void requestInitialize();
     void mappingApplied(bool applied);
@@ -64,11 +76,15 @@ class ControllerManager : public QObject {
     /// only runs on start-up but maybe should instead be signaled by the
     /// preferences dialog on apply, and only open/close changed devices
     void slotSetUpDevices();
+    /// Re-enumerate all controller APIs, then run slotSetUpDevices().
+    void slotRescanDevices();
     void slotShutdown();
     /// Calls poll() on all devices that have isPolling() true.
     void slotPollDevices();
 
   private:
+    void createEnumerators();
+    void destroyEnumerators();
     void updateControllerList();
     void startPolling();
     void stopPolling();
@@ -86,4 +102,9 @@ class ControllerManager : public QObject {
     QSharedPointer<MappingInfoEnumerator> m_pMainThreadUserMappingEnumerator;
     QSharedPointer<MappingInfoEnumerator> m_pMainThreadSystemMappingEnumerator;
     bool m_skipPoll;
+    /// While a rescan runs, updateControllerList() must not emit
+    /// devicesChanged() yet: the GUI would rebuild its pages before the
+    /// controllers are opened again. slotRescanDevices() emits it exactly once
+    /// when everything is back up.
+    bool m_bRescanInProgress;
 };
