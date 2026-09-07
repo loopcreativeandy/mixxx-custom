@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <QElapsedTimer>
 #include <QSignalSpy>
 
 #include "controllers/controller.h"
@@ -43,6 +44,18 @@ TEST_F(ControllerManagerRescanTest, RescanIsRepeatableAndReportsBack) {
 #ifdef __PORTMIDI__
 namespace {
 
+// QSignalSpy::wait() only counts emissions that arrive while it is running, and
+// the controller thread may well have answered before we get here. Wait for a
+// total count instead.
+bool waitForDevicesChanged(QSignalSpy& spy, int expectedCount) {
+    QElapsedTimer timer;
+    timer.start();
+    while (spy.count() < expectedCount && timer.elapsed() < 10000) {
+        spy.wait(100);
+    }
+    return spy.count() >= expectedCount;
+}
+
 int countMidiThroughPorts(const ControllerManager& controllerManager) {
     int count = 0;
     for (Controller* pController : controllerManager.getControllers()) {
@@ -67,8 +80,13 @@ TEST_F(ControllerManagerRescanTest, RescanPicksUpDeviceThatAppeared) {
     QSignalSpy devicesChangedSpy(&controllerManager, &ControllerManager::devicesChanged);
     ASSERT_TRUE(devicesChangedSpy.isValid());
 
-    controllerManager.setUpDevices();
-    ASSERT_TRUE(devicesChangedSpy.wait(10000));
+    // Deliberately a rescan and not setUpDevices(): setUpDevices() only reports
+    // back when the device list actually changed, so on a machine with no
+    // controller attached - which is every CI runner - the signal never arrives
+    // and we would time out here instead of reaching the skip below. A rescan
+    // always reports back.
+    controllerManager.rescanDevices();
+    ASSERT_TRUE(waitForDevicesChanged(devicesChangedSpy, 1));
     if (countMidiThroughPorts(controllerManager) == 0) {
         GTEST_SKIP() << "No MIDI Through Port on this machine";
     }
@@ -77,12 +95,12 @@ TEST_F(ControllerManagerRescanTest, RescanPicksUpDeviceThatAppeared) {
     // would stay as it was at startup.
     config()->setValue(kMidiThroughCfgKey, false);
     controllerManager.rescanDevices();
-    ASSERT_TRUE(devicesChangedSpy.wait(10000));
+    ASSERT_TRUE(waitForDevicesChanged(devicesChangedSpy, 2));
     EXPECT_EQ(0, countMidiThroughPorts(controllerManager));
 
     config()->setValue(kMidiThroughCfgKey, true);
     controllerManager.rescanDevices();
-    ASSERT_TRUE(devicesChangedSpy.wait(10000));
+    ASSERT_TRUE(waitForDevicesChanged(devicesChangedSpy, 3));
     EXPECT_EQ(1, countMidiThroughPorts(controllerManager));
 }
 #endif
