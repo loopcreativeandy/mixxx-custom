@@ -220,6 +220,11 @@ class WTrackTableView : public WLibraryTableView {
     // Returns the current TrackModel, or returns NULL if none is set.
     TrackModel* getTrackModel() const;
 
+    /// While the preview deck is playing, Left/Right skip through the previewed
+    /// track instead of moving the cell cursor. Returns true if the key was
+    /// used for that, i.e. if the table should not see it.
+    bool seekPreviewDeck(QKeyEvent* pEvent);
+
     void initTrackMenu();
     void showTrackMenu(const QPoint pos, const QModelIndex& index);
 
@@ -249,6 +254,9 @@ class WTrackTableView : public WLibraryTableView {
     ControlProxy* m_pKeyNotation;
     ControlProxy* m_pSortColumn;
     ControlProxy* m_pSortOrder;
+    ControlProxy* m_pPreviewDeckPlay;
+    ControlProxy* m_pPreviewSeekForward;
+    ControlProxy* m_pPreviewSeekBackward;
     bool m_independentSorting;
 
     int m_dropRow;

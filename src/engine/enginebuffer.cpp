@@ -1,6 +1,7 @@
 #include "engine/enginebuffer.h"
 
 #include <QtDebug>
+#include <algorithm>
 
 #include "control/controllinpotmeter.h"
 #include "control/controlpotmeter.h"
@@ -52,6 +53,14 @@ constexpr double kLinearScalerElipsis =
 constexpr int kPlaypositionUpdateRate = 15; // updates per second
 
 const QString kAppGroup = QStringLiteral("[App]");
+
+// Default step of the seek_percent_forward/~backward controls, in percent of
+// the track length.
+constexpr double kDefaultSeekPercent = 10.0;
+// Keep the percentage seek inside this range so that jumping forward past the
+// last step does not run into the end of the track and stop playback.
+constexpr double kMinSeekPercentPosition = 0.0;
+constexpr double kMaxSeekPercentPosition = 0.99;
 
 } // anonymous namespace
 
@@ -168,6 +177,31 @@ EngineBuffer::EngineBuffer(const QString& group,
         ConfigKey(m_group, "playposition"), 0.0, 1.0, 0, 0, true);
     connect(m_playposSlider, &ControlObject::valueChanged,
             this, &EngineBuffer::slotControlSeek,
+            Qt::DirectConnection);
+
+    // Percentage seek: skip ahead/back by a share of the track length,
+    // independent of the beatgrid. Meant for quickly getting past the intro of
+    // a track that is being pre-listened.
+    m_pSeekPercentSize = new ControlObject(ConfigKey(m_group, "seek_percent_size"),
+            true,
+            false,
+            true, // persist
+            kDefaultSeekPercent);
+    m_pSeekPercentForward = new ControlPushButton(
+            ConfigKey(m_group, "seek_percent_forward"));
+    m_pSeekPercentForward->setKbdRepeatable(true);
+    connect(m_pSeekPercentForward,
+            &ControlObject::valueChanged,
+            this,
+            &EngineBuffer::slotSeekPercentForward,
+            Qt::DirectConnection);
+    m_pSeekPercentBackward = new ControlPushButton(
+            ConfigKey(m_group, "seek_percent_backward"));
+    m_pSeekPercentBackward->setKbdRepeatable(true);
+    connect(m_pSeekPercentBackward,
+            &ControlObject::valueChanged,
+            this,
+            &EngineBuffer::slotSeekPercentBackward,
             Qt::DirectConnection);
 
     // Control used to communicate ratio playpos to GUI thread
@@ -321,6 +355,9 @@ EngineBuffer::~EngineBuffer() {
     delete m_endButton;
     delete m_stopButton;
     delete m_playposSlider;
+    delete m_pSeekPercentForward;
+    delete m_pSeekPercentBackward;
+    delete m_pSeekPercentSize;
 
     delete m_pSlipButton;
     delete m_pRepeat;
@@ -728,6 +765,30 @@ void EngineBuffer::slotPassthroughChanged(double enabled) {
 // WARNING: This method runs in both the GUI thread and the Engine Thread
 void EngineBuffer::slotControlSeek(double fractionalPos) {
     doSeekFractional(fractionalPos, SEEK_STANDARD);
+}
+
+// WARNING: This method runs in both the GUI thread and the Engine Thread
+void EngineBuffer::slotSeekPercentForward(double pressed) {
+    if (pressed > 0) {
+        seekPercent(m_pSeekPercentSize->get());
+    }
+}
+
+// WARNING: This method runs in both the GUI thread and the Engine Thread
+void EngineBuffer::slotSeekPercentBackward(double pressed) {
+    if (pressed > 0) {
+        seekPercent(-m_pSeekPercentSize->get());
+    }
+}
+
+void EngineBuffer::seekPercent(double percent) {
+    // Relative to the position the playposition control reports, which is the
+    // one the user sees on the waveform, rather than to the engine's internal
+    // play position that may be a buffer ahead.
+    const double fractionalPos = m_playposSlider->get() + percent / 100;
+    doSeekFractional(
+            std::clamp(fractionalPos, kMinSeekPercentPosition, kMaxSeekPercentPosition),
+            SEEK_STANDARD);
 }
 
 // WARNING: This method is called by EngineControl and runs in the engine thread

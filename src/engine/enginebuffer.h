@@ -256,6 +256,8 @@ class EngineBuffer : public EngineObject {
     void slotControlStart(double);
     void slotControlEnd(double);
     void slotControlSeek(double);
+    void slotSeekPercentForward(double);
+    void slotSeekPercentBackward(double);
     void slotKeylockEngineChanged(double);
 
   signals:
@@ -297,6 +299,11 @@ class EngineBuffer : public EngineObject {
 
     void doSeekFractional(double fractionalPos, enum SeekRequest seekType);
     void doSeekPlayPos(mixxx::audio::FramePos position, enum SeekRequest seekType);
+
+    /// Seek relative to the current position by a share of the track length,
+    /// e.g. +10 jumps a tenth of the track ahead. Used for quickly skipping
+    /// through a track while pre-listening to it.
+    void seekPercent(double percent);
 
     // Read one buffer from the current scaler into the crossfade buffer.  Used
     // for transitioning from one scaler to another, or reseeking a scaler
@@ -445,6 +452,12 @@ class EngineBuffer : public EngineObject {
     // Fwd and back controls, start and end of track control
     ControlPushButton* m_startButton;
     ControlPushButton* m_endButton;
+
+    // Skip through the track in steps of a share of its length, sized by
+    // m_pSeekPercentSize (in percent of the track length).
+    ControlPushButton* m_pSeekPercentForward;
+    ControlPushButton* m_pSeekPercentBackward;
+    ControlObject* m_pSeekPercentSize;
 
     // Object used to perform waveform scaling (sample rate conversion).  These
     // three pointers may be reassigned depending on configuration and tests.

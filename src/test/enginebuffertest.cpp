@@ -591,3 +591,43 @@ TEST_F(EngineBufferTest, RatePermTest) {
     ControlObject::set(ConfigKey(m_sGroup1, "rate_perm_up_small"), 0);
     EXPECT_EQ(1.06, m_pChannel1->getEngineBuffer()->m_speed_old);
 }
+
+TEST_F(EngineBufferTest, SeekPercentJumpsShareOfTrackLength) {
+    // The fake track loaded by the fixture is 10 s at 44100 Hz.
+    ProcessBuffer();
+    ASSERT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey(m_sGroup1, "playposition")));
+    ASSERT_DOUBLE_EQ(10.0, ControlObject::get(ConfigKey(m_sGroup1, "seek_percent_size")));
+
+    auto pressSeek = [this](const char* control) {
+        ControlObject::set(ConfigKey(m_sGroup1, control), 1.0);
+        ControlObject::set(ConfigKey(m_sGroup1, control), 0.0);
+        ProcessBuffer(); // schedule the seek in the stopped deck
+        ProcessBuffer(); // execute it
+    };
+
+    // Two jumps forward accumulate, i.e. the second one starts from where the
+    // first one landed.
+    pressSeek("seek_percent_forward");
+    EXPECT_DOUBLE_EQ(0.1, ControlObject::get(ConfigKey(m_sGroup1, "playposition")));
+    pressSeek("seek_percent_forward");
+    EXPECT_DOUBLE_EQ(0.2, ControlObject::get(ConfigKey(m_sGroup1, "playposition")));
+
+    pressSeek("seek_percent_backward");
+    EXPECT_DOUBLE_EQ(0.1, ControlObject::get(ConfigKey(m_sGroup1, "playposition")));
+
+    // Jumping backward past the start stops at the start instead of wrapping.
+    pressSeek("seek_percent_backward");
+    pressSeek("seek_percent_backward");
+    EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey(m_sGroup1, "playposition")));
+
+    // The step size is configurable.
+    ControlObject::set(ConfigKey(m_sGroup1, "seek_percent_size"), 25.0);
+    pressSeek("seek_percent_forward");
+    EXPECT_DOUBLE_EQ(0.25, ControlObject::get(ConfigKey(m_sGroup1, "playposition")));
+
+    // Jumping forward past the end stops just short of it, so that the deck
+    // does not run into the end of the track and stop.
+    ControlObject::set(ConfigKey(m_sGroup1, "seek_percent_size"), 100.0);
+    pressSeek("seek_percent_forward");
+    EXPECT_DOUBLE_EQ(0.99, ControlObject::get(ConfigKey(m_sGroup1, "playposition")));
+}

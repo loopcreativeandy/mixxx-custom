@@ -217,6 +217,18 @@ ControlPickerMenu::ControlPickerMenu(QWidget* pParent)
             tr("Strip Search"),
             tr("Strip-search through track"),
             pTransportMenu);
+    addDeckAndSamplerAndPreviewDeckControl("seek_percent_forward",
+            tr("Seek Forward By Percentage"),
+            tr("Jump forward by a percentage of the track length"),
+            pTransportMenu);
+    addDeckAndSamplerAndPreviewDeckControl("seek_percent_backward",
+            tr("Seek Backward By Percentage"),
+            tr("Jump backward by a percentage of the track length"),
+            pTransportMenu);
+    addDeckAndSamplerAndPreviewDeckControl("seek_percent_size",
+            tr("Seek Percentage Size"),
+            tr("Share of the track length the percentage seek jumps, in percent"),
+            pTransportMenu);
     addDeckAndSamplerAndPreviewDeckControl("reverse",
             tr("Play Reverse"),
             tr("Play Reverse button"),

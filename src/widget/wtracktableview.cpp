@@ -80,6 +80,14 @@ WTrackTableView::WTrackTableView(QWidget* pParent,
     m_pKeyNotation = new ControlProxy(mixxx::library::prefs::kKeyNotationConfigKey, this);
     m_pKeyNotation->connectValueChanged(this, &WTrackTableView::keyNotationChanged);
 
+    // Skipping through a running preview with Left/Right, see seekPreviewDeck().
+    const QString previewDeckGroup = PlayerManager::groupForPreviewDeck(0);
+    m_pPreviewDeckPlay = new ControlProxy(previewDeckGroup, QStringLiteral("play"), this);
+    m_pPreviewSeekForward = new ControlProxy(
+            previewDeckGroup, QStringLiteral("seek_percent_forward"), this);
+    m_pPreviewSeekBackward = new ControlProxy(
+            previewDeckGroup, QStringLiteral("seek_percent_backward"), this);
+
     m_pSortColumn = new ControlProxy("[Library]", "sort_column", this);
     m_pSortColumn->connectValueChanged(this, &WTrackTableView::applySortingIfVisible);
     m_pSortOrder = new ControlProxy("[Library]", "sort_order", this);
@@ -1365,7 +1373,48 @@ void WTrackTableView::keyPressEvent(QKeyEvent* event) {
             return;
         }
     }
+
+    if (seekPreviewDeck(event)) {
+        return;
+    }
+
     QTableView::keyPressEvent(event);
+}
+
+bool WTrackTableView::seekPreviewDeck(QKeyEvent* pEvent) {
+    // Only while something is actually being pre-listened -- with the preview
+    // deck stopped, Left/Right stay the plain table cursor keys.
+    if (!m_pPreviewDeckPlay->toBool()) {
+        return false;
+    }
+    // Note: don't compare against Qt::NoModifier, on macOS arrow keys carry the
+    // keypad modifier, see KeyboardEventFilter::getKeySeq().
+    if (pEvent->modifiers() &
+            (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) {
+        return false;
+    }
+
+    ControlProxy* pSeek = nullptr;
+    if (pEvent->key() == Qt::Key_Right) {
+        pSeek = m_pPreviewSeekForward;
+    } else if (pEvent->key() == Qt::Key_Left) {
+        pSeek = m_pPreviewSeekBackward;
+    } else {
+        return false;
+    }
+
+    // One jump per press: a held key would race through the track at the
+    // keyboard repeat rate. The event is still swallowed so that holding the
+    // key doesn't move the table cursor either.
+    if (pEvent->isAutoRepeat()) {
+        return true;
+    }
+
+    // Press and release, same as a controller button or a keyboard shortcut
+    // would do.
+    pSeek->set(1.0);
+    pSeek->set(0.0);
+    return true;
 }
 
 void WTrackTableView::resizeEvent(QResizeEvent* event) {
