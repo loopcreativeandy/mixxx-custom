@@ -158,7 +158,28 @@ void WaveformWidgetRenderer::onPreRender(VSyncTimeProvider* vsyncThread) {
     if (pTrack) {
         ConstWaveformPointer pWaveform = pTrack->getWaveform();
         if (pWaveform) {
-            m_audioSamplePerPixel = m_visualSamplePerPixel * pWaveform->getAudioVisualRatio();
+            // Audio frames per visual sample. The ratio stored with the analysis
+            // is the sample rate the file had *when it was analysed* divided by
+            // the visual sample rate, and nothing ever revalidates it against
+            // the file (see AnalyzerWaveform::shouldAnalyze()). If the file has
+            // since been replaced or re-encoded at a different sample rate — a
+            // 44.1 kHz rip swapped for a 48 kHz one, say — the stored ratio no
+            // longer describes the audio this deck is actually playing. The
+            // waveform then scrolls 8.8% off while the beatgrid and the play
+            // marker stay correct, so two beat-matched decks hit their beats
+            // together but their waveforms will not overlap.
+            //
+            // The waveform always spans exactly the whole track, so derive the
+            // ratio from the data itself. It is identical to the stored value
+            // whenever the analysis still matches the file, and correct when it
+            // does not. Keeping it in frames (rather than bypassing it) also
+            // keeps sampleToPixel() and the drag-scratch mapping in
+            // WWaveformViewer right for the same tracks.
+            const double visualFrames = pWaveform->getDataSize() / 2.0;
+            const double trackFrames = m_trackSamples / 2.0;
+            m_audioSamplePerPixel = m_visualSamplePerPixel *
+                    (visualFrames > 0.0 ? trackFrames / visualFrames
+                                        : pWaveform->getAudioVisualRatio());
         }
     }
 
