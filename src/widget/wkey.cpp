@@ -165,10 +165,10 @@ void WKey::setValue(double dValue) {
             if (fileKey != mixxx::track::io::key::INVALID) {
                 if (offset != 0) {
                     tip.append(tr("Original key: %1 (reset: %2%3 st)")
-                                    .arg(KeyUtils::keyToString(fileKey))
-                                    .arg(offset > 0 ? QStringLiteral("-")
-                                                    : QStringLiteral("+"))
-                                    .arg(qAbs(offset)));
+                                    .arg(KeyUtils::keyToString(fileKey),
+                                            offset > 0 ? QStringLiteral("-")
+                                                       : QStringLiteral("+"),
+                                            QString::number(qAbs(offset))));
                 } else {
                     tip.append(tr("Original key: %1 (on it)")
                                     .arg(KeyUtils::keyToString(fileKey)));

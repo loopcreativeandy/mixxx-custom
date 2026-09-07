@@ -29,10 +29,12 @@ constexpr double kLateGapRatio = 1.5;
 
 constexpr int kNumWorstGaps = 10;
 
+const QRegularExpression kUnsafeFilenameCharsRegex(
+        QStringLiteral("[^A-Za-z0-9._-]+"));
+
 QString sanitizeForFilename(const QString& name) {
     QString s = name;
-    s.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9._-]+")),
-            QStringLiteral("_"));
+    s.replace(kUnsafeFilenameCharsRegex, QStringLiteral("_"));
     return s.left(48);
 }
 
