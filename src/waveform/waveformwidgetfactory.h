@@ -181,6 +181,10 @@ class WaveformWidgetFactory : public QObject,
     void setStemOutlineOpacity(float value);
     void setStemOpacity(float value);
 
+    /// andy-custom CP84: keep a dimmed "ghost" of the unattenuated waveform
+    /// behind the EQ-scaled one, so a killed band does not leave a blank strip.
+    void setEqGhostWaveform(bool value);
+
     bool getUntilMarkShowBeats() const {
         return m_untilMarkShowBeats;
     }
@@ -207,6 +211,9 @@ class WaveformWidgetFactory : public QObject,
     }
     float getStemOpacity() const {
         return m_stemOpacity;
+    }
+    bool isEqGhostWaveform() const {
+        return m_eqGhostWaveform;
     }
     static Qt::Alignment toUntilMarkAlign(int index);
     static int toUntilMarkAlignIndex(Qt::Alignment align);
@@ -278,6 +285,7 @@ class WaveformWidgetFactory : public QObject,
     void stemSplitTracksChanged(bool value);
     void stemOutlineOpacityChanged(float value);
     void stemOpacityChanged(float value);
+    void eqGhostWaveformChanged(bool value);
 
   public slots:
     void slotSkinLoaded();
@@ -344,6 +352,7 @@ class WaveformWidgetFactory : public QObject,
     bool m_stemSplitTracks;
     float m_stemOutlineOpacity;
     float m_stemOpacity;
+    bool m_eqGhostWaveform;
     std::unique_ptr<ControlObject> m_pStemSplitTracksControl;
 
     bool m_openGlAvailable;

@@ -7,8 +7,16 @@
 #include "util/math.h"
 #include "waveform/renderers/waveformwidgetrenderer.h"
 #include "waveform/waveform.h"
+#include "waveform/waveformwidgetfactory.h"
 
 using namespace rendergraph;
+
+namespace {
+// andy-custom CP84: the flat grey the "ghost" backdrop is drawn in. The RGB
+// material has no alpha channel (see rgb.frag, which writes alpha 1.0), so the
+// dimming has to be baked into the colour rather than done with opacity.
+constexpr float kEqGhostGrey = 0.28f;
+} // namespace
 
 namespace allshader {
 
@@ -17,9 +25,25 @@ WaveformRendererRGB::WaveformRendererRGB(WaveformWidgetRenderer* waveformWidget,
         WaveformRendererSignalBase::Options options)
         : WaveformRendererSignalBase(waveformWidget),
           m_isSlipRenderer(type == ::WaveformRendererAbstract::Slip),
-          m_options(options) {
+          m_options(options),
+          m_eqGhost(true) {
     initForRectangles<RGBMaterial>(0);
     setUsePreprocess(true);
+}
+
+bool WaveformRendererRGB::init() {
+    if (!::WaveformRendererSignalBase::init()) {
+        return false;
+    }
+#ifndef __SCENEGRAPH__
+    auto* pWaveformWidgetFactory = WaveformWidgetFactory::instance();
+    setEqGhost(pWaveformWidgetFactory->isEqGhostWaveform());
+    connect(pWaveformWidgetFactory,
+            &WaveformWidgetFactory::eqGhostWaveformChanged,
+            this,
+            &WaveformRendererRGB::setEqGhost);
+#endif
+    return true;
 }
 
 void WaveformRendererRGB::setAxesColor(const QColor& axesColor) {
@@ -111,6 +135,18 @@ bool WaveformRendererRGB::preprocessInner() {
     float highGain = 1.0f;
     getGains(&allGain, &lowGain, &midGain, &highGain);
 
+    // andy-custom CP84: the ghost shows the waveform as it would look with the
+    // EQ knobs at unity, so it is compared against the per-band *visual* gains
+    // (a preference, not part of the mix) rather than against 1.0. Equal gains
+    // mean the EQ removes nothing and the ghost would be fully covered anyway,
+    // so it is skipped entirely - no extra vertices at neutral EQ.
+    const float ghostLowGain = static_cast<float>(m_lowVisualGain);
+    const float ghostMidGain = static_cast<float>(m_midVisualGain);
+    const float ghostHighGain = static_cast<float>(m_highVisualGain);
+    const bool drawGhost = m_eqGhost &&
+            (lowGain < ghostLowGain || midGain < ghostMidGain ||
+                    highGain < ghostHighGain);
+
     const float breadth = static_cast<float>(m_waveformRenderer->getBreadth());
     const float halfBreadth = breadth / 2.0f;
 
@@ -134,9 +170,10 @@ bool WaveformRendererRGB::preprocessInner() {
 
     const int numVerticesPerLine = 6; // 2 triangles
 
+    // Slip renderer only render a single channel, so the vertices count doesn't change
+    const int rectanglesPerPixel = splitLeftRight && !m_isSlipRenderer ? 2 : 1;
     const int reserved = numVerticesPerLine *
-            // Slip renderer only render a single channel, so the vertices count doesn't change
-            ((splitLeftRight && !m_isSlipRenderer ? pixelLength * 2 : pixelLength) + 1);
+            ((drawGhost ? 2 : 1) * rectanglesPerPixel * pixelLength + 1);
 
     geometry().setDrawingMode(Geometry::DrawingMode::Triangles);
     geometry().allocate(reserved);
@@ -206,8 +243,12 @@ bool WaveformRendererRGB::preprocessInner() {
 
             float allUnscaled = maxLowU + maxMidU + maxHighU;
             float eqGain = 1.0f;
+            float ghostEqGain = 1.0f;
             if (allUnscaled > 0.0f) {
                 eqGain = (maxLow + maxMid + maxHigh) / allUnscaled;
+                ghostEqGain = (maxLowU * ghostLowGain + maxMidU * ghostMidGain +
+                                      maxHighU * ghostHighGain) /
+                        allUnscaled;
             }
 
             // Use the gained maxLow, maxMid and maxHigh values to calculate the color components
@@ -230,29 +271,40 @@ bool WaveformRendererRGB::preprocessInner() {
             }
 
             // Lines are thin rectangles
-            if (!splitLeftRight) {
-                vertexUpdater.addRectangle(
-                        {fpos - halfPixelSize,
-                                halfBreadth -
-                                        heightFactorAbs * eqGain *
-                                                maxAllChn[chn]},
-                        {fpos + halfPixelSize,
-                                m_isSlipRenderer ? halfBreadth
-                                                 : halfBreadth +
-                                                heightFactorAbs * eqGain *
-                                                        maxAllChn[chn]},
-                        {red, green, blue});
-            } else {
-                // note: heightFactor is the same for left and right,
-                // but negative for left (chn 0) and positive for right (chn 1)
-                vertexUpdater.addRectangle({fpos - halfPixelSize,
-                                                   halfBreadth},
-                        {fpos + halfPixelSize,
-                                halfBreadth + heightFactor[chn] * eqGain * maxAllChn[chn]},
-                        {red,
-                                green,
-                                blue});
+            const auto addSignalRectangle = [&](float gain,
+                                                    float r,
+                                                    float g,
+                                                    float b) {
+                if (!splitLeftRight) {
+                    vertexUpdater.addRectangle(
+                            {fpos - halfPixelSize,
+                                    halfBreadth -
+                                            heightFactorAbs * gain *
+                                                    maxAllChn[chn]},
+                            {fpos + halfPixelSize,
+                                    m_isSlipRenderer ? halfBreadth
+                                                     : halfBreadth +
+                                                    heightFactorAbs * gain *
+                                                            maxAllChn[chn]},
+                            {r, g, b});
+                } else {
+                    // note: heightFactor is the same for left and right,
+                    // but negative for left (chn 0) and positive for right (chn 1)
+                    vertexUpdater.addRectangle({fpos - halfPixelSize,
+                                                       halfBreadth},
+                            {fpos + halfPixelSize,
+                                    halfBreadth + heightFactor[chn] * gain * maxAllChn[chn]},
+                            {r, g, b});
+                }
+            };
+
+            // The ghost goes first so the EQ-scaled signal is painted over it;
+            // the fragment shader writes an opaque alpha, so wherever the two
+            // overlap only the real waveform shows.
+            if (drawGhost) {
+                addSignalRectangle(ghostEqGain, kEqGhostGrey, kEqGhostGrey, kEqGhostGrey);
             }
+            addSignalRectangle(eqGain, red, green, blue);
         }
 
         xVisualFrame += visualIncrementPerPixel;

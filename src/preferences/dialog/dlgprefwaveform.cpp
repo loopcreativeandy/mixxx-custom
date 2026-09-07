@@ -171,6 +171,10 @@ DlgPrefWaveform::DlgPrefWaveform(
             &QCheckBox::clicked,
             this,
             &DlgPrefWaveform::slotSetZoomSynchronization);
+    connect(eqGhostWaveformCheckBox,
+            &QCheckBox::clicked,
+            this,
+            &DlgPrefWaveform::slotSetEqGhostWaveform);
     connect(allVisualGain,
             QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this,
@@ -329,6 +333,7 @@ void DlgPrefWaveform::slotUpdate() {
     endOfTrackWarningTimeSpinBox->setValue(factory->getEndOfTrackWarningTime());
     endOfTrackWarningTimeSlider->setValue(factory->getEndOfTrackWarningTime());
     synchronizeZoomCheckBox->setChecked(factory->isZoomSync());
+    eqGhostWaveformCheckBox->setChecked(factory->isEqGhostWaveform());
     allVisualGain->setValue(factory->getVisualGain(BandIndex::AllBand));
     lowVisualGain->setValue(factory->getVisualGain(BandIndex::Low));
     midVisualGain->setValue(factory->getVisualGain(BandIndex::Mid));
@@ -423,6 +428,11 @@ void DlgPrefWaveform::slotResetToDefaults() {
     defaultZoomComboBox->setCurrentIndex(3 + 1);
 
     synchronizeZoomCheckBox->setChecked(true);
+
+    // setChecked() does not emit clicked(), so push the default through to the
+    // factory by hand rather than relying on the signal.
+    eqGhostWaveformCheckBox->setChecked(true);
+    factory->setEqGhostWaveform(true);
 
     // RGB overview.
     waveformOverviewComboBox->setCurrentIndex(
@@ -687,6 +697,10 @@ void DlgPrefWaveform::slotSetDefaultZoom(int index) {
 
 void DlgPrefWaveform::slotSetZoomSynchronization(bool checked) {
     WaveformWidgetFactory::instance()->setZoomSync(checked);
+}
+
+void DlgPrefWaveform::slotSetEqGhostWaveform(bool checked) {
+    WaveformWidgetFactory::instance()->setEqGhostWaveform(checked);
 }
 
 void DlgPrefWaveform::slotSetVisualGainAll(double gain) {

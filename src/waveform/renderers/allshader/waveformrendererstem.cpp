@@ -38,7 +38,8 @@ WaveformRendererStem::WaveformRendererStem(
           m_isSlipRenderer(type == ::WaveformRendererAbstract::Slip),
           m_splitStemTracks(false),
           m_outlineOpacity(0.15f),
-          m_opacity(0.75f) {
+          m_opacity(0.75f),
+          m_eqGhost(true) {
     initForRectangles<RGBAMaterial>(0);
     setUsePreprocess(true);
 }
@@ -97,6 +98,11 @@ bool WaveformRendererStem::init() {
             &WaveformWidgetFactory::stemOpacityChanged,
             this,
             &WaveformRendererStem::setOpacity);
+    setEqGhost(pWaveformWidgetFactory->isEqGhostWaveform());
+    connect(pWaveformWidgetFactory,
+            &WaveformWidgetFactory::eqGhostWaveformChanged,
+            this,
+            &WaveformRendererStem::setEqGhost);
 #endif
     return true;
 }
@@ -297,6 +303,31 @@ bool WaveformRendererStem::preprocessInner() {
                                 ? 1.f
                                 : static_cast<float>(m_pStemGain[stemIdx]->get());
                         max *= volume;
+                    }
+
+                    // andy-custom CP84: let the EQ scale the filled layer the
+                    // way the RGB renderer scales its waveform, so killing a
+                    // band actually takes it out of the picture. The outline
+                    // layer is drawn unscaled and is left standing as the
+                    // ghost - the same affordance a muted stem already has.
+                    //
+                    // Measured against the per-band *visual* gains (a
+                    // preference, not part of the mix) rather than against
+                    // 1.0, so that at neutral EQ knobs this comes out exactly
+                    // 1.0 and nothing about the existing look changes.
+                    if (m_eqGhost && hasStemBands) {
+                        const float bandLow = static_cast<float>(u8maxLow);
+                        const float bandMid = static_cast<float>(u8maxMid);
+                        const float bandHigh = static_cast<float>(u8maxHigh);
+                        const float reference =
+                                bandLow * static_cast<float>(m_lowVisualGain) +
+                                bandMid * static_cast<float>(m_midVisualGain) +
+                                bandHigh * static_cast<float>(m_highVisualGain);
+                        if (reference > 0.0f) {
+                            max *= (bandLow * lowGain + bandMid * midGain +
+                                           bandHigh * highGain) /
+                                    reference;
+                        }
                     }
                 }
 

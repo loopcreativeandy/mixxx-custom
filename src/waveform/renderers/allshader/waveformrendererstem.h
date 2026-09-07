@@ -53,6 +53,15 @@ class allshader::WaveformRendererStem final
         m_opacity = value;
         markDirtyMaterial();
     }
+    /// andy-custom CP84: let the EQ scale the filled layer's height, so a
+    /// killed band leaves the faded full-height outline standing as a ghost of
+    /// what the band would look like with the knobs up.
+    void setEqGhost(bool value) {
+        if (m_eqGhost != value) {
+            m_eqGhost = value;
+            markDirtyGeometry();
+        }
+    }
 
   private:
     bool m_isSlipRenderer;
@@ -61,6 +70,7 @@ class allshader::WaveformRendererStem final
     bool m_reorderOnChange;
     float m_outlineOpacity;
     float m_opacity;
+    bool m_eqGhost;
 
     std::vector<std::unique_ptr<ControlProxy>> m_pStemGain;
     std::vector<std::unique_ptr<ControlProxy>> m_pStemMute;

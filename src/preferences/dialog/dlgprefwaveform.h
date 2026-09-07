@@ -47,6 +47,8 @@ class DlgPrefWaveform : public DlgPreferencePage, public Ui::DlgPrefWaveformDlg 
 #endif
     void slotSetDefaultZoom(int index);
     void slotSetZoomSynchronization(bool checked);
+    /// andy-custom CP84: dimmed backdrop of the un-EQ'd waveform.
+    void slotSetEqGhostWaveform(bool checked);
     void slotSetVisualGainAll(double gain);
     void slotSetVisualGainLow(double gain);
     void slotSetVisualGainMid(double gain);

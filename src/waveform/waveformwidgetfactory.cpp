@@ -135,6 +135,7 @@ WaveformWidgetFactory::WaveformWidgetFactory()
           m_untilMarkTextPointSize(24),
           m_untilMarkTextHeightLimit(toUntilMarkTextHeightLimit(0)),
           m_stemSplitTracks(false),
+          m_eqGhostWaveform(true),
           m_openGlAvailable(false),
           m_openGlesAvailable(false),
           m_openGLShaderAvailable(false),
@@ -478,6 +479,9 @@ bool WaveformWidgetFactory::setConfig(UserSettingsPointer config) {
     setStemOutlineOpacity(static_cast<float>(
             m_config->getValue(ConfigKey(kWaveformGroup, QStringLiteral("stem_outline_opacity")),
                     0.15)));
+    setEqGhostWaveform(m_config->getValue(
+            ConfigKey(kWaveformGroup, QStringLiteral("eq_ghost_waveform")),
+            true));
 
     return true;
 }
@@ -1505,6 +1509,15 @@ void WaveformWidgetFactory::setStemOpacity(float value) {
                 static_cast<double>(value));
     }
     emit stemOpacityChanged(value);
+}
+
+void WaveformWidgetFactory::setEqGhostWaveform(bool value) {
+    m_eqGhostWaveform = value;
+    if (m_config) {
+        m_config->setValue(ConfigKey(kWaveformGroup, QStringLiteral("eq_ghost_waveform")),
+                value);
+    }
+    emit eqGhostWaveformChanged(value);
 }
 
 void WaveformWidgetFactory::setStemSplitTracks(bool value) {
