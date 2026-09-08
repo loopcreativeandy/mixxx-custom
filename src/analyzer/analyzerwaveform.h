@@ -39,7 +39,13 @@ struct WaveformStride {
             m_averageOverallData[i] = 0.0f;
             SampleUtil::clear(m_filteredData[i], BandCount);
             SampleUtil::clear(m_averageFilteredData[i], BandCount);
-            SampleUtil::clear(m_stemData[i], m_stemCount);
+            if (m_stemCount > 0) {
+                SampleUtil::clear(m_stemData[i], m_stemCount);
+            } else {
+                DEBUG_ASSERT(m_stemCount == 0);
+            }
+            // The filtered stem buffer is a fixed-size array, so it is always
+            // cleared in full regardless of the actual stem count.
             SampleUtil::clear(&m_stemFilteredData[i][0][0],
                     mixxx::kMaxSupportedStems * BandCount);
         }
