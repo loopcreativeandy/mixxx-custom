@@ -15,6 +15,7 @@
 #include "library/searchqueryparser.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
+#include "mixer/playerinfo.h"
 #include "mixer/playermanager.h"
 #include "moc_wtracktableview.cpp"
 #include "preferences/colorpalettesettings.h"
@@ -38,6 +39,10 @@ const ConfigKey kVScrollBarPosConfigKey{
         // unit of compilation and cannot be reused here!
         QStringLiteral("[Library]"),
         QStringLiteral("VScrollBarPos")};
+
+// The preview deck the library's Left/Right keys drive. Mixxx only ever
+// creates one, see PreviewButtonDelegate.
+constexpr int kPreviewDeckIndex = 0;
 
 } // anonymous namespace
 
@@ -80,8 +85,8 @@ WTrackTableView::WTrackTableView(QWidget* pParent,
     m_pKeyNotation = new ControlProxy(mixxx::library::prefs::kKeyNotationConfigKey, this);
     m_pKeyNotation->connectValueChanged(this, &WTrackTableView::keyNotationChanged);
 
-    // Skipping through a running preview with Left/Right, see seekPreviewDeck().
-    const QString previewDeckGroup = PlayerManager::groupForPreviewDeck(0);
+    // Driving a running preview with Left/Right, see handlePreviewDeckKey().
+    const QString previewDeckGroup = PlayerManager::groupForPreviewDeck(kPreviewDeckIndex);
     m_pPreviewDeckPlay = new ControlProxy(previewDeckGroup, QStringLiteral("play"), this);
     m_pPreviewSeekForward = new ControlProxy(
             previewDeckGroup, QStringLiteral("seek_percent_forward"), this);
@@ -1374,14 +1379,14 @@ void WTrackTableView::keyPressEvent(QKeyEvent* event) {
         }
     }
 
-    if (seekPreviewDeck(event)) {
+    if (handlePreviewDeckKey(event)) {
         return;
     }
 
     QTableView::keyPressEvent(event);
 }
 
-bool WTrackTableView::seekPreviewDeck(QKeyEvent* pEvent) {
+bool WTrackTableView::handlePreviewDeckKey(QKeyEvent* pEvent) {
     // Only while something is actually being pre-listened -- with the preview
     // deck stopped, Left/Right stay the plain table cursor keys.
     if (!m_pPreviewDeckPlay->toBool()) {
@@ -1393,13 +1398,8 @@ bool WTrackTableView::seekPreviewDeck(QKeyEvent* pEvent) {
             (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) {
         return false;
     }
-
-    ControlProxy* pSeek = nullptr;
-    if (pEvent->key() == Qt::Key_Right) {
-        pSeek = m_pPreviewSeekForward;
-    } else if (pEvent->key() == Qt::Key_Left) {
-        pSeek = m_pPreviewSeekBackward;
-    } else {
+    const bool forward = pEvent->key() == Qt::Key_Right;
+    if (!forward && pEvent->key() != Qt::Key_Left) {
         return false;
     }
 
@@ -1410,11 +1410,58 @@ bool WTrackTableView::seekPreviewDeck(QKeyEvent* pEvent) {
         return true;
     }
 
+    // Right on a row other than the one being pre-listened hands the preview
+    // over to it and starts it: Up/Down picks the next candidate, Right plays
+    // it, every further Right skips through it. Left stays a seek in all cases
+    // -- rewinding a track one is about to replace is not what it is for.
+    if (forward && !isPreviewingSelectedTrack()) {
+        loadSelectedTrackToPreviewDeck();
+        return true;
+    }
+
     // Press and release, same as a controller button or a keyboard shortcut
     // would do.
+    ControlProxy* pSeek = forward ? m_pPreviewSeekForward : m_pPreviewSeekBackward;
     pSeek->set(1.0);
     pSeek->set(0.0);
     return true;
+}
+
+bool WTrackTableView::isPreviewingSelectedTrack() const {
+    TrackModel* pTrackModel = getTrackModel();
+    const QModelIndexList indices = getSelectedRows();
+    if (!pTrackModel || indices.isEmpty()) {
+        // Nothing to hand the preview over to, so keep skipping through what
+        // is playing.
+        return true;
+    }
+    // The first selected row is the one loadSelectedTrackToGroup() would load,
+    // so it has to be the one we compare against -- otherwise a multi-selection
+    // could compare one track and then load another, and Right would never
+    // start seeking.
+    const TrackPointer pSelectedTrack = pTrackModel->getTrack(indices.at(0));
+    if (!pSelectedTrack) {
+        return true;
+    }
+    // Pointer comparison is enough: the global track cache hands out one Track
+    // object per file, so the same track is the same instance in the table and
+    // in the deck.
+    return pSelectedTrack ==
+            PlayerInfo::instance().getTrackInfo(
+                    PlayerManager::groupForPreviewDeck(kPreviewDeckIndex));
+}
+
+void WTrackTableView::loadSelectedTrackToPreviewDeck() {
+    // Deliberately not routed through [PreviewDeck1],LoadSelectedTrackAndPlay
+    // (what the p key triggers): that control asks LibraryControl for the
+    // *current library view's* table, which is never Andy's side pane. Loading
+    // from this table keeps the keys working in whichever list has focus.
+    const QString group = PlayerManager::groupForPreviewDeck(kPreviewDeckIndex);
+#ifdef __STEM__
+    loadSelectedTrackToGroup(group, mixxx::StemChannelSelection(), true);
+#else
+    loadSelectedTrackToGroup(group, true);
+#endif
 }
 
 void WTrackTableView::resizeEvent(QResizeEvent* event) {

@@ -220,10 +220,17 @@ class WTrackTableView : public WLibraryTableView {
     // Returns the current TrackModel, or returns NULL if none is set.
     TrackModel* getTrackModel() const;
 
-    /// While the preview deck is playing, Left/Right skip through the previewed
-    /// track instead of moving the cell cursor. Returns true if the key was
-    /// used for that, i.e. if the table should not see it.
-    bool seekPreviewDeck(QKeyEvent* pEvent);
+    /// While the preview deck is playing, Left/Right drive the preview instead
+    /// of moving the cell cursor: Right on a newly selected row loads it into
+    /// the preview and plays it, otherwise the keys skip through the track.
+    /// Returns true if the key was used for that, i.e. if the table should not
+    /// see it.
+    bool handlePreviewDeckKey(QKeyEvent* pEvent);
+    /// Whether the first selected row is the track the preview deck currently
+    /// holds. True when there is nothing to compare, so that the preview keys
+    /// keep seeking rather than reloading.
+    bool isPreviewingSelectedTrack() const;
+    void loadSelectedTrackToPreviewDeck();
 
     void initTrackMenu();
     void showTrackMenu(const QPoint pos, const QModelIndex& index);
