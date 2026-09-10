@@ -17,6 +17,7 @@ class LibraryControl;
 class WLibrary;
 class WLibrarySidebar;
 class WSearchLineEdit;
+class WTrackTableView;
 class KeyboardEventFilter;
 
 class LoadToGroupController : public QObject {
@@ -143,6 +144,12 @@ class LibraryControl : public QObject {
 
     // Simulate pressing a key on the keyboard
     void emitKeyEvent(QKeyEvent&& event);
+
+    /// The track table every selection-driven control acts on: the one holding
+    /// the keyboard focus, so that a track table outside the library widget --
+    /// Andy's side playlist pane -- is served too, and only otherwise the
+    /// visible library view. May be nullptr.
+    WTrackTableView* focusedTrackTableView() const;
 
     // Controls to navigate vertically within currently focused widget (up/down buttons)
     std::unique_ptr<ControlPushButton> m_pMoveUp;

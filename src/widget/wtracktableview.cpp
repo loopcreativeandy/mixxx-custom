@@ -1453,9 +1453,9 @@ bool WTrackTableView::isPreviewingSelectedTrack() const {
 
 void WTrackTableView::loadSelectedTrackToPreviewDeck() {
     // Deliberately not routed through [PreviewDeck1],LoadSelectedTrackAndPlay
-    // (what the p key triggers): that control asks LibraryControl for the
-    // *current library view's* table, which is never Andy's side pane. Loading
-    // from this table keeps the keys working in whichever list has focus.
+    // (what the p key triggers): a key event already tells us which table it
+    // was meant for, so there is no reason to go back out to LibraryControl and
+    // have it work that out from the focus again (see CP87).
     const QString group = PlayerManager::groupForPreviewDeck(kPreviewDeckIndex);
 #ifdef __STEM__
     loadSelectedTrackToGroup(group, mixxx::StemChannelSelection(), true);

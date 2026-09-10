@@ -664,6 +664,30 @@ void LibraryControl::searchboxWidgetDeleted() {
     m_pSearchbox = nullptr;
 }
 
+WTrackTableView* LibraryControl::focusedTrackTableView() const {
+    // CP87: whichever track table has the keyboard wins. WLibrary only knows
+    // the tables inside its own view stack, so Andy's side playlist pane -- a
+    // WTrackTableView living next to the library, not in it -- was invisible
+    // here and every load/edit control silently acted on the main library's
+    // selection instead of the list he was looking at.
+    QWidget* pFocus = QApplication::focusWidget();
+    while (pFocus) {
+        // Walk up: while a cell is being edited the focus sits on the editor
+        // widget inside the table's viewport, not on the table itself.
+        if (auto* pFocusedTrackTableView = qobject_cast<WTrackTableView*>(pFocus)) {
+            return pFocusedTrackTableView;
+        }
+        pFocus = pFocus->parentWidget();
+    }
+    // Focus is elsewhere (sidebar, search box, a dialog, a deck widget, or the
+    // controller triggered this with nothing focused at all): fall back to the
+    // visible library view, i.e. the behaviour before CP87.
+    if (!m_pLibraryWidget) {
+        return nullptr;
+    }
+    return m_pLibraryWidget->getCurrentTrackTableView();
+}
+
 void LibraryControl::slotUpdateTrackMenuControl(bool visible) {
     m_pShowTrackMenu->setAndConfirm(visible ? 1.0 : 0.0);
 }
@@ -674,11 +698,7 @@ void LibraryControl::slotLoadSelectedTrackToGroup(
 #else
 void LibraryControl::slotLoadSelectedTrackToGroup(const QString& group, bool play) {
 #endif
-    if (!m_pLibraryWidget) {
-        return;
-    }
-
-    WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
+    WTrackTableView* pTrackTableView = focusedTrackTableView();
     if (pTrackTableView) {
 #ifdef __STEM__
         pTrackTableView->loadSelectedTrackToGroup(group, stemMask, play);
@@ -689,44 +709,44 @@ void LibraryControl::slotLoadSelectedTrackToGroup(const QString& group, bool pla
 }
 
 void LibraryControl::slotLoadSelectedIntoFirstStopped(double v) {
-    if (!m_pLibraryWidget || v <= 0) {
+    if (v <= 0) {
         return;
     }
 
-    WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
+    WTrackTableView* pTrackTableView = focusedTrackTableView();
     if (pTrackTableView) {
         pTrackTableView->activateSelectedTrack();
     }
 }
 
 void LibraryControl::slotAutoDjAddTop(double v) {
-    if (!m_pLibraryWidget || v <= 0) {
+    if (v <= 0) {
         return;
     }
 
-    WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
+    WTrackTableView* pTrackTableView = focusedTrackTableView();
     if (pTrackTableView) {
         pTrackTableView->addToAutoDJTop();
     }
 }
 
 void LibraryControl::slotAutoDjAddBottom(double v) {
-    if (!m_pLibraryWidget || v <= 0) {
+    if (v <= 0) {
         return;
     }
 
-    WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
+    WTrackTableView* pTrackTableView = focusedTrackTableView();
     if (pTrackTableView) {
         pTrackTableView->addToAutoDJBottom();
     }
 }
 
 void LibraryControl::slotAutoDjAddReplace(double v) {
-    if (!m_pLibraryWidget || v <= 0) {
+    if (v <= 0) {
         return;
     }
 
-    WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
+    WTrackTableView* pTrackTableView = focusedTrackTableView();
     if (pTrackTableView) {
         pTrackTableView->addToAutoDJReplace();
     }
@@ -745,11 +765,11 @@ void LibraryControl::slotSelectPrevTrack(double v) {
 }
 
 void LibraryControl::slotSelectTrack(double v) {
-    if (!m_pLibraryWidget || v == 0) {
+    if (v == 0) {
         return;
     }
 
-    WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
+    WTrackTableView* pTrackTableView = focusedTrackTableView();
     if (pTrackTableView) {
         int i = (int)v;
         pTrackTableView->moveSelection(i);
@@ -900,11 +920,7 @@ void LibraryControl::slotMoveTrackDown(double v) {
 
 /// Move a selected track up or down a playlist by emulating Alt + Up/Down keypresses
 void LibraryControl::slotMoveTrack(double v) {
-    if (!m_pLibraryWidget) {
-        return;
-    }
-
-    auto* pTrackTableview = m_pLibraryWidget->getCurrentTrackTableView();
+    auto* pTrackTableview = focusedTrackTableView();
     if (!pTrackTableview) {
         // no track table view is currently visible
         return;
@@ -1107,7 +1123,7 @@ void LibraryControl::slotEditItem(double v) {
         break;
     }
     case FocusWidget::TracksTable: {
-        WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
+        WTrackTableView* pTrackTableView = focusedTrackTableView();
         if (pTrackTableView) {
             pTrackTableView->editSelectedItem();
         }
@@ -1138,7 +1154,7 @@ void LibraryControl::slotGoToItem(double v) {
         }
         return;
     case FocusWidget::TracksTable: {
-        WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
+        WTrackTableView* pTrackTableView = focusedTrackTableView();
         if (pTrackTableView) {
             pTrackTableView->activateSelectedTrack();
         }
@@ -1228,44 +1244,44 @@ void LibraryControl::slotDecrementFontSize(double v) {
 }
 
 void LibraryControl::slotToggleBpmLock(double v) {
-    if (!m_pLibraryWidget || v < 0) {
+    if (v < 0) {
         return;
     }
 
-    WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
+    WTrackTableView* pTrackTableView = focusedTrackTableView();
     if (pTrackTableView) {
         pTrackTableView->toggleBpmLock(v > 0);
     }
 }
 
 void LibraryControl::slotTrackColorPrev(double v) {
-    if (!m_pLibraryWidget || v <= 0) {
+    if (v <= 0) {
         return;
     }
 
-    WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
+    WTrackTableView* pTrackTableView = focusedTrackTableView();
     if (pTrackTableView) {
         pTrackTableView->assignPreviousTrackColor();
     }
 }
 
 void LibraryControl::slotTrackColorNext(double v) {
-    if (!m_pLibraryWidget || v <= 0) {
+    if (v <= 0) {
         return;
     }
 
-    WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
+    WTrackTableView* pTrackTableView = focusedTrackTableView();
     if (pTrackTableView) {
         pTrackTableView->assignNextTrackColor();
     }
 }
 
 void LibraryControl::slotTrackRatingChangeRequestRelative(int change) {
-    if (!m_pLibraryWidget || change == 0) {
+    if (change == 0) {
         return;
     }
 
-    WTrackTableView* pTrackTableView = m_pLibraryWidget->getCurrentTrackTableView();
+    WTrackTableView* pTrackTableView = focusedTrackTableView();
     if (pTrackTableView) {
         pTrackTableView->trackRatingChangeRequestRelative(change);
     }
