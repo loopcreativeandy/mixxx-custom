@@ -14,6 +14,7 @@
 #include "track/track.h"
 #include "util/assert.h"
 #include "util/defs.h"
+#include "util/math.h"
 #include "util/sample.h"
 
 EngineDeck::EngineDeck(
@@ -37,7 +38,20 @@ EngineDeck::EngineDeck(
                           QStringLiteral("headphone_pre_eq")),
                   this)),
           m_preFaderBuffer(kMaxEngineSamples),
-          m_bPreFaderBufferValid(false) {
+          m_bPreFaderBufferValid(false),
+          m_bIsPreviewDeck(handleGroup.name().startsWith(QLatin1String("[PreviewDeck"))),
+          m_pBeatClickEnabled(m_bIsPreviewDeck
+                          ? std::make_unique<ControlProxy>(
+                                    ConfigKey(QStringLiteral("[Master]"),
+                                            QStringLiteral("preview_beat_click")),
+                                    this)
+                          : nullptr),
+          m_pBeatClickGain(m_bIsPreviewDeck
+                          ? std::make_unique<ControlProxy>(
+                                    ConfigKey(QStringLiteral("[Master]"),
+                                            QStringLiteral("preview_beat_click_gain")),
+                                    this)
+                          : nullptr) {
     m_pInputConfigured->setReadOnly();
     // Set up passthrough utilities and fields
     m_pPassing->setButtonMode(mixxx::control::ButtonMode::PowerWindow);
@@ -306,6 +320,24 @@ void EngineDeck::process(CSAMPLE* pOut, const std::size_t bufferSize) {
                 pOut,
                 bufferSize,
                 mixxx::audio::SampleRate::fromDouble(m_sampleRate.get()));
+    }
+
+    // Beatgrid check click (preview decks only): put a click on every beat of
+    // the loaded track. It goes in after the EQ and the pre-fader effects, so
+    // no filter or effect can swallow it, and into the pre-EQ headphone tap as
+    // well when that is active — otherwise the click would be missing from
+    // exactly the signal Andy is listening to.
+    if (m_bIsPreviewDeck && m_pBeatClickEnabled->toBool()) {
+        GroupFeatureState featureState;
+        collectFeatures(&featureState);
+        m_beatClick.process(pOut,
+                m_bPreFaderBufferValid ? m_preFaderBuffer.data() : nullptr,
+                bufferSize,
+                mixxx::audio::SampleRate::fromDouble(m_sampleRate.get()),
+                featureState,
+                static_cast<CSAMPLE_GAIN>(db2ratio(m_pBeatClickGain->get())));
+    } else if (m_bIsPreviewDeck) {
+        m_beatClick.reset();
     }
 
     // Update VU meter

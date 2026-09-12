@@ -4,10 +4,12 @@
 #include <QString>
 
 #include "analyzer/plugins/analyzerplugin.h"
+#include "control/controlproxy.h"
 #include "preferences/beatdetectionsettings.h"
 #include "preferences/dialog/dlgpreferencepage.h"
 #include "preferences/dialog/ui_dlgprefbeatsdlg.h"
 #include "preferences/usersettings.h"
+#include "util/parented_ptr.h"
 
 class QWidget;
 
@@ -41,11 +43,21 @@ class DlgPrefBeats : public DlgPreferencePage, public Ui::DlgBeatsDlg {
     void slotReanalyzeImportedChanged(int value);
 #endif
     void slotStemStrategyChanged(int index);
+    void slotBeatClickToggled(bool checked);
+    void slotBeatClickGainChanged(int gainDb);
 
   private:
     void updateGui();
+    void updateBeatClickGui();
 
+    UserSettingsPointer m_pConfig;
     BeatDetectionSettings m_bpmSettings;
+    // Beatgrid check click. Backed by persistent engine controls, not by
+    // BeatDetectionSettings, because the engine reads them live.
+    parented_ptr<ControlProxy> m_pBeatClickCO;
+    parented_ptr<ControlProxy> m_pBeatClickGainCO;
+    bool m_bBeatClick;
+    int m_beatClickGainDb;
     QList<mixxx::AnalyzerPluginInfo> m_availablePlugins;
     QString m_selectedAnalyzerId;
     bool m_bAnalyzerEnabled;

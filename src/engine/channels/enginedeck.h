@@ -3,6 +3,7 @@
 #include <QScopedPointer>
 #include <memory>
 
+#include "engine/beatclick.h"
 #include "engine/channels/enginechannel.h"
 #include "preferences/usersettings.h"
 #include "soundio/soundmanagerutil.h"
@@ -128,4 +129,11 @@ class EngineDeck : public EngineChannel, public AudioDestination {
     std::unique_ptr<ControlProxy> m_pHeadphonePreEq;
     mixxx::SampleBuffer m_preFaderBuffer;
     bool m_bPreFaderBufferValid;
+
+    // Beatgrid check click. Only preview decks get the controls and run the
+    // click, so the click can never end up in a live mix from a main deck.
+    const bool m_bIsPreviewDeck;
+    std::unique_ptr<ControlProxy> m_pBeatClickEnabled;
+    std::unique_ptr<ControlProxy> m_pBeatClickGain;
+    BeatClick m_beatClick;
 };

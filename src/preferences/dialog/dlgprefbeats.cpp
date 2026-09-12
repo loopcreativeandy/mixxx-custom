@@ -2,17 +2,33 @@
 
 #include "analyzer/analyzerbeats.h"
 #include "defs_urls.h"
+#include "engine/beatclick.h"
 #include "moc_dlgprefbeats.cpp"
+#include "util/math.h"
+
+namespace {
+/// Beatgrid check click. Both controls are created by EngineMixer and are
+/// persistent, so these ConfigKeys are the stored settings as well.
+const ConfigKey kBeatClickKey = ConfigKey(
+        QStringLiteral("[Master]"), QStringLiteral("preview_beat_click"));
+const ConfigKey kBeatClickGainKey = ConfigKey(
+        QStringLiteral("[Master]"), QStringLiteral("preview_beat_click_gain"));
+} // namespace
 
 DlgPrefBeats::DlgPrefBeats(QWidget* parent, UserSettingsPointer pConfig)
         : DlgPreferencePage(parent),
+          m_pConfig(pConfig),
           m_bpmSettings(pConfig),
           m_bAnalyzerEnabled(m_bpmSettings.getBpmDetectionEnabledDefault()),
           m_bFixedTempoEnabled(m_bpmSettings.getFixedTempoAssumptionDefault()),
           m_bFastAnalysisEnabled(m_bpmSettings.getFastAnalysisDefault()),
           m_bReanalyze(m_bpmSettings.getReanalyzeWhenSettingsChangeDefault()),
           m_bReanalyzeImported(m_bpmSettings.getReanalyzeImportedDefault()),
-          m_stemStrategy(BeatDetectionSettings::StemStrategy::Disabled) {
+          m_stemStrategy(BeatDetectionSettings::StemStrategy::Disabled),
+          m_pBeatClickCO(make_parented<ControlProxy>(kBeatClickKey, this)),
+          m_pBeatClickGainCO(make_parented<ControlProxy>(kBeatClickGainKey, this)),
+          m_bBeatClick(false),
+          m_beatClickGainDb(0) {
     setupUi(this);
 
     m_availablePlugins = AnalyzerBeats::availablePlugins();
@@ -75,8 +91,17 @@ DlgPrefBeats::DlgPrefBeats(QWidget* parent, UserSettingsPointer pConfig)
             &QComboBox::currentIndexChanged,
             this,
             &DlgPrefBeats::slotStemStrategyChanged);
+    connect(checkBoxBeatClick,
+            &QCheckBox::toggled,
+            this,
+            &DlgPrefBeats::slotBeatClickToggled);
+    connect(spinBoxBeatClickGain,
+            QOverload<int>::of(&QSpinBox::valueChanged),
+            this,
+            &DlgPrefBeats::slotBeatClickGainChanged);
 
     setScrollSafeGuard(comboBoxBeatPlugin);
+    setScrollSafeGuard(spinBoxBeatClickGain);
 }
 
 DlgPrefBeats::~DlgPrefBeats() {
@@ -96,8 +121,11 @@ void DlgPrefBeats::slotResetToDefaults() {
     m_bReanalyze = m_bpmSettings.getReanalyzeWhenSettingsChangeDefault();
     m_bReanalyzeImported = m_bpmSettings.getReanalyzeImportedDefault();
     m_stemStrategy = m_bpmSettings.getStemStrategyDefault();
+    m_bBeatClick = false;
+    m_beatClickGainDb = 0;
 
     updateGui();
+    updateBeatClickGui();
 }
 
 void DlgPrefBeats::pluginSelected(int i) {
@@ -137,8 +165,32 @@ void DlgPrefBeats::slotUpdate() {
     m_bReanalyzeImported = m_bpmSettings.getReanalyzeImported();
     m_bFastAnalysisEnabled = m_bpmSettings.getFastAnalysis();
     m_stemStrategy = m_bpmSettings.getStemStrategy();
+    m_bBeatClick = m_pBeatClickCO->toBool();
+    m_beatClickGainDb = static_cast<int>(std::lround(m_pBeatClickGainCO->get()));
 
     updateGui();
+    updateBeatClickGui();
+}
+
+void DlgPrefBeats::updateBeatClickGui() {
+    // Not part of updateGui(): that one returns early when the analyzer is
+    // disabled, and the click works regardless of the analyzer settings.
+    const QSignalBlocker checkBoxBlocker(checkBoxBeatClick);
+    const QSignalBlocker spinBoxBlocker(spinBoxBeatClickGain);
+    checkBoxBeatClick->setChecked(m_bBeatClick);
+    spinBoxBeatClickGain->setValue(m_beatClickGainDb);
+}
+
+void DlgPrefBeats::slotBeatClickToggled(bool checked) {
+    // Written to the control in slotApply(), like every other setting on this
+    // page, so that Cancel discards it. Ctrl+Shift+P toggles the click live.
+    m_bBeatClick = checked;
+}
+
+void DlgPrefBeats::slotBeatClickGainChanged(int gainDb) {
+    m_beatClickGainDb = math_clamp(gainDb,
+            static_cast<int>(kBeatClickGainMinDb),
+            static_cast<int>(kBeatClickGainMaxDb));
 }
 
 void DlgPrefBeats::updateGui() {
@@ -236,4 +288,11 @@ void DlgPrefBeats::slotApply() {
     m_bpmSettings.setReanalyzeImported(m_bReanalyzeImported);
     m_bpmSettings.setFastAnalysis(m_bFastAnalysisEnabled);
     m_bpmSettings.setStemStrategy(m_stemStrategy);
+
+    m_pBeatClickCO->set(m_bBeatClick ? 1.0 : 0.0);
+    m_pBeatClickGainCO->set(m_beatClickGainDb);
+    // The controls persist themselves on shutdown; write the config here too so
+    // an unclean exit cannot lose the setting.
+    m_pConfig->set(kBeatClickKey, ConfigValue(m_bBeatClick ? 1 : 0));
+    m_pConfig->set(kBeatClickGainKey, ConfigValue(m_beatClickGainDb));
 }

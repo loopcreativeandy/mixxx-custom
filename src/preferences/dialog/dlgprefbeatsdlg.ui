@@ -25,6 +25,67 @@ automatically shows a beat-grid for them, and allows you to synchronize tracks u
      </property>
     </widget>
    </item>
+   <item row="4" column="0">
+    <widget class="QGroupBox" name="groupBoxBeatClick">
+     <property name="title">
+      <string>Beatgrid Check</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayoutBeatClick">
+      <item>
+       <widget class="QCheckBox" name="checkBoxBeatClick">
+        <property name="toolTip">
+         <string>Plays a click on every beat of the beatgrid while a track is playing in the preview deck.
+Lets you check the beatgrid and the tempo by ear: if the clicks drift away from the drums, the grid or the BPM is wrong.
+Can be switched on and off while listening with Ctrl+Shift+P.</string>
+        </property>
+        <property name="text">
+         <string>Play a click on every beat in the preview deck</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayoutBeatClick">
+        <item>
+         <widget class="QLabel" name="labelBeatClickGain">
+          <property name="text">
+           <string>Click volume</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="spinBoxBeatClickGain">
+          <property name="toolTip">
+           <string>Volume of the click, relative to the track playing in the preview deck.</string>
+          </property>
+          <property name="suffix">
+           <string> dB</string>
+          </property>
+          <property name="minimum">
+           <number>-24</number>
+          </property>
+          <property name="maximum">
+           <number>6</number>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacerBeatClick">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
    <item row="5" column="0">
     <spacer name="verticalSpacer">
      <property name="orientation">
@@ -163,6 +224,8 @@ This can speed up beat detection on slower computers but may result in lower qua
   <tabstop>checkBoxFixedTempo</tabstop>
   <tabstop>checkBoxReanalyze</tabstop>
   <tabstop>checkBoxReanalyzeImported</tabstop>
+  <tabstop>checkBoxBeatClick</tabstop>
+  <tabstop>spinBoxBeatClickGain</tabstop>
  </tabstops>
  <resources/>
  <connections/>

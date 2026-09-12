@@ -1292,6 +1292,7 @@ add_library(
   src/engine/effects/engineeffectchain.cpp
   src/engine/effects/engineeffectsdelay.cpp
   src/engine/effects/engineeffectsmanager.cpp
+  src/engine/beatclick.cpp
   src/engine/enginebuffer.cpp
   src/engine/enginedelay.cpp
   src/engine/enginemixer.cpp
@@ -2719,6 +2720,7 @@ if(BUILD_TESTING)
     src/test/autodjprocessor_test.cpp
     src/test/beatgridtest.cpp
     src/test/beatmaptest.cpp
+    src/test/beatclicktest.cpp
     src/test/beatstest.cpp
     src/test/beatstranslatetest.cpp
     src/test/borrowabletest.cpp

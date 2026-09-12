@@ -9,6 +9,7 @@
 #include "control/controlpotmeter.h"
 #include "control/controlpushbutton.h"
 #include "effects/effectsmanager.h"
+#include "engine/beatclick.h"
 #include "engine/channelmixer.h"
 #include "engine/channels/enginechannel.h"
 #include "engine/effects/engineeffectsmanager.h"
@@ -136,6 +137,17 @@ EngineMixer::EngineMixer(UserSettingsPointer pConfig,
                   ConfigKey(group, "headSplit"), true, 0.0)),
           m_pHeadphonePreEq(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "headphone_pre_eq"), true, 0.0)),
+          m_pPreviewBeatClick(std::make_unique<ControlPushButton>(
+                  ConfigKey(group, "preview_beat_click"), true, 0.0)),
+          m_pPreviewBeatClickGain(std::make_unique<ControlPotmeter>(
+                  ConfigKey(group, "preview_beat_click_gain"),
+                  kBeatClickGainMinDb,
+                  kBeatClickGainMaxDb,
+                  false,
+                  true,
+                  false,
+                  true,
+                  0.0)),
 
           m_pKeylockEngine(std::make_unique<ControlObject>(
                   ConfigKey(kAppGroup, QStringLiteral("keylock_engine")),
@@ -163,6 +175,10 @@ EngineMixer::EngineMixer(UserSettingsPointer pConfig,
                   ConfigKey(group, "mono_mixdown"), true, false, true)),
           m_pMicMonitorMode(std::make_unique<ControlObject>(
                   ConfigKey(group, "talkover_mix"), true, false, true)) {
+    // A mapped button or the keyboard shortcut should latch the beat click,
+    // not hold it down for as long as the key is pressed.
+    m_pPreviewBeatClick->setButtonMode(mixxx::control::ButtonMode::Toggle);
+
     pEffectsManager->registerInputChannel(m_mainHandle);
     pEffectsManager->registerInputChannel(m_headphoneHandle);
     pEffectsManager->registerOutputChannel(m_mainHandle);
