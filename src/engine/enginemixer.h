@@ -330,6 +330,8 @@ class EngineMixer : public QObject, public AudioSource {
     std::unique_ptr<ControlPushButton> m_pHeadSplitEnabled;
     // Pre-EQ headphone cue: global toggle routing PFL before deck EQ/filter.
     std::unique_ptr<ControlPushButton> m_pHeadphonePreEq;
+    // Auto Headphones: persistent toggle, acted on by AutoHeadphones (mixer/).
+    std::unique_ptr<ControlPushButton> m_pAutoHeadphones;
     // Beatgrid check click on the preview decks: toggle + click volume in dB.
     // Both are persistent, so the ConfigKey is the stored setting as well.
     std::unique_ptr<ControlPushButton> m_pPreviewBeatClick;

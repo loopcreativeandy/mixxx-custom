@@ -195,7 +195,7 @@
      <property name="title">
       <string>Deck Equalizers</string>
      </property>
-     <layout class="QVBoxLayout" name="DeckEqualizerCheckboxes" stretch="0,0,0,0,0,0,0,0">
+     <layout class="QVBoxLayout" name="DeckEqualizerCheckboxes" stretch="0,0,0,0,0,0,0,0,0">
       <item>
        <widget class="QCheckBox" name="CheckBoxEqOnly">
         <property name="toolTip">
@@ -295,6 +295,17 @@
         </property>
         <property name="text">
          <string>Headphone cue previews decks before EQ and stem faders</string>
+        </property>
+       </widget>
+      </item>
+
+      <item>
+       <widget class="QCheckBox" name="CheckBoxAutoHeadphones">
+        <property name="toolTip">
+         <string>When checked, a loaded deck that is silent on the main output is put on the headphones automatically, and taken off as soon as it becomes audible. Silent means: channel fader down, crossfader on the other side, all three EQs down or killed, all stems down or muted, or the deck muted. A headphone button you press yourself stays as it is until the deck changes between silent and audible again.</string>
+        </property>
+        <property name="text">
+         <string>Auto Headphones: cue silent decks automatically</string>
         </property>
        </widget>
       </item>

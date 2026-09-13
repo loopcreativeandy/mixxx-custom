@@ -137,6 +137,8 @@ EngineMixer::EngineMixer(UserSettingsPointer pConfig,
                   ConfigKey(group, "headSplit"), true, 0.0)),
           m_pHeadphonePreEq(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "headphone_pre_eq"), true, 0.0)),
+          m_pAutoHeadphones(std::make_unique<ControlPushButton>(
+                  ConfigKey(group, "auto_headphones"), true, 0.0)),
           m_pPreviewBeatClick(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "preview_beat_click"), true, 0.0)),
           m_pPreviewBeatClickGain(std::make_unique<ControlPotmeter>(
@@ -178,6 +180,8 @@ EngineMixer::EngineMixer(UserSettingsPointer pConfig,
     // A mapped button or the keyboard shortcut should latch the beat click,
     // not hold it down for as long as the key is pressed.
     m_pPreviewBeatClick->setButtonMode(mixxx::control::ButtonMode::Toggle);
+    // Same for Auto Headphones (AutoHeadphones watches this control).
+    m_pAutoHeadphones->setButtonMode(mixxx::control::ButtonMode::Toggle);
 
     pEffectsManager->registerInputChannel(m_mainHandle);
     pEffectsManager->registerInputChannel(m_headphoneHandle);

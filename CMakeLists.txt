@@ -1451,6 +1451,7 @@ add_library(
   src/library/traktor/traktorfeature.cpp
   src/library/treeitem.cpp
   src/library/treeitemmodel.cpp
+  src/mixer/autoheadphones.cpp
   src/mixer/auxiliary.cpp
   src/mixer/baseplayer.cpp
   src/mixer/basetrackplayer.cpp
@@ -2718,6 +2719,7 @@ if(BUILD_TESTING)
     src/test/audiojittertracetest.cpp
     src/test/audiotaperpot_test.cpp
     src/test/autodjprocessor_test.cpp
+    src/test/autoheadphonestest.cpp
     src/test/beatgridtest.cpp
     src/test/beatmaptest.cpp
     src/test/beatclicktest.cpp

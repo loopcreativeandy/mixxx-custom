@@ -40,6 +40,7 @@ class DlgPrefMixer : public DlgPreferencePage, public Ui::DlgPrefMixerDlg {
     void slotEqAutoResetToggled(bool checked);
     void slotGainAutoResetToggled(bool checked);
     void slotHeadphonePreEqToggled(bool checked);
+    void slotAutoHeadphonesToggled(bool checked);
 #ifdef __STEM__
     void slotStemAutoResetToggled(bool checked);
 #endif
@@ -118,6 +119,8 @@ class DlgPrefMixer : public DlgPreferencePage, public Ui::DlgPrefMixerDlg {
     parented_ptr<ControlProxy> m_pNumDecks;
     /// Global pre-EQ headphone cue toggle, owned by EngineMixer
     parented_ptr<ControlProxy> m_pHeadphonePreEqCO;
+    /// Auto Headphones toggle, owned by EngineMixer
+    parented_ptr<ControlProxy> m_pAutoHeadphonesCO;
 
     bool m_ignoreEqQuickEffectBoxSignals;
 
@@ -136,6 +139,7 @@ class DlgPrefMixer : public DlgPreferencePage, public Ui::DlgPrefMixerDlg {
 #endif
     bool m_eqBypass;
     bool m_headphonePreEq;
+    bool m_autoHeadphones;
 
     bool m_initializing;
     bool m_updatingMainEQ;

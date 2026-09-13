@@ -9,6 +9,7 @@
 #include "engine/enginemixer.h"
 #include "library/library.h"
 #include "library/trackcollectionmanager.h"
+#include "mixer/autoheadphones.h"
 #include "mixer/auxiliary.h"
 #include "mixer/deck.h"
 #include "mixer/microphone.h"
@@ -162,6 +163,8 @@ PlayerManager::PlayerManager(UserSettingsPointer pConfig,
 
     // This is parented to the PlayerManager so does not need to be deleted
     m_pSamplerBank = new SamplerBank(m_pConfig, this);
+    // Parented as well; idle unless [Master],auto_headphones is on.
+    new AutoHeadphones(this);
 
     m_cloneTimer.start();
 }
