@@ -1417,6 +1417,7 @@ add_library(
   src/library/sidebarmodel.cpp
   src/library/starrating.cpp
   src/library/relatedtracks.cpp
+  src/library/stemaudioalign.cpp
   src/library/stemoriginal.cpp
   src/library/tabledelegates/bpmdelegate.cpp
   src/library/tabledelegates/checkboxdelegate.cpp

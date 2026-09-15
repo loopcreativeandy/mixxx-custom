@@ -6,8 +6,10 @@
 #include <QDir>
 #include <QString>
 
+#include "library/stemaudioalign.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
+#include "sources/soundsourceproxy.h"
 #include "test/librarytest.h"
 #include "track/beats.h"
 #include "track/cue.h"
@@ -793,4 +795,215 @@ TEST_F(StemOriginalTest, implausibleAlignmentShiftFlagsNegativeAndOversizedOffse
     EXPECT_TRUE(isImplausibleAlignmentShift(
             mixxx::stemoriginal::kMaxPlausibleShiftMillis + 0.5));
     EXPECT_TRUE(isImplausibleAlignmentShift(250.0));
+}
+
+// ---------------------------------------------------------------------------
+// Audio offset (CP93). Andy, 2026-09-15: a lot of imported stem tracks were
+// still off, because the grid-vs-grid correction goes wrong whenever one of the
+// two grids is. The offset is now measured in the audio of both files.
+
+namespace {
+
+/// The same "recording" rendered at `sampleRate`, starting `delaySeconds` late:
+/// a sum of sines with a slow envelope plus decaying clicks, so it has both
+/// tonal content and transients like music.
+std::vector<float> renderRecording(int sampleRate, double delaySeconds, double seconds) {
+    struct Partial {
+        double frequency;
+        double phase;
+        double amplitude;
+    };
+    std::vector<Partial> partials;
+    // Fixed pseudo-random sequence so both renderings use the same partials.
+    unsigned int state = 12345;
+    const auto next = [&state]() {
+        state = state * 1103515245u + 12345u;
+        return static_cast<double>((state >> 8) & 0xFFFF) / 65535.0;
+    };
+    for (int i = 0; i < 40; ++i) {
+        partials.push_back({40.0 + 4000.0 * next(), 6.283 * next(), 0.02 + 0.03 * next()});
+    }
+    const auto size = static_cast<std::size_t>(seconds * sampleRate);
+    std::vector<float> signal(size, 0.0f);
+    for (std::size_t i = 0; i < size; ++i) {
+        const double t = static_cast<double>(i) / sampleRate - delaySeconds;
+        if (t < 0.0) {
+            continue; // The codec delay is silence in front of the audio.
+        }
+        double value = 0.0;
+        const double envelope = 0.6 + 0.4 * std::sin(0.7 * t);
+        for (const auto& partial : partials) {
+            value += partial.amplitude * std::sin(6.283185307 * partial.frequency * t + partial.phase);
+        }
+        // A click every 0.5 s (120 BPM)
+        const double sinceBeat = std::fmod(t, 0.5);
+        value += 0.8 * std::exp(-sinceBeat * 60.0) * std::sin(6.283185307 * 60.0 * sinceBeat);
+        signal[i] = static_cast<float>(envelope * value * 0.5);
+    }
+    return signal;
+}
+
+} // anonymous namespace
+
+TEST(StemAudioAlignTest, measuresTheCodecDelayAtTheSameRate) {
+    const auto source = renderRecording(44100, 0.0, 10.0);
+    const auto target = renderRecording(44100, 0.09907, 10.0);
+    const auto offset = mixxx::stemaudioalign::measureOffset(source,
+            mixxx::audio::SampleRate(44100),
+            target,
+            mixxx::audio::SampleRate(44100));
+    ASSERT_TRUE(offset.has_value());
+    EXPECT_NEAR(99.07, offset->seconds * 1000.0, 0.05);
+    EXPECT_GT(offset->correlation, 0.99);
+}
+
+TEST(StemAudioAlignTest, measuresTheCodecDelayAcrossSampleRates) {
+    const auto source = renderRecording(48000, 0.0, 10.0);
+    const auto target = renderRecording(44100, 0.09491, 10.0);
+    const auto offset = mixxx::stemaudioalign::measureOffset(source,
+            mixxx::audio::SampleRate(48000),
+            target,
+            mixxx::audio::SampleRate(44100));
+    ASSERT_TRUE(offset.has_value());
+    EXPECT_NEAR(94.91, offset->seconds * 1000.0, 0.1);
+    EXPECT_GT(offset->correlation, 0.9);
+}
+
+TEST(StemAudioAlignTest, measuresASmallAndANegativeOffset) {
+    const auto source = renderRecording(44100, 0.03, 10.0);
+    const auto later = renderRecording(44100, 0.05389, 10.0);
+    auto offset = mixxx::stemaudioalign::measureOffset(source,
+            mixxx::audio::SampleRate(44100),
+            later,
+            mixxx::audio::SampleRate(44100));
+    ASSERT_TRUE(offset.has_value());
+    EXPECT_NEAR(23.89, offset->seconds * 1000.0, 0.05);
+
+    const auto earlier = renderRecording(44100, 0.0, 10.0);
+    offset = mixxx::stemaudioalign::measureOffset(source,
+            mixxx::audio::SampleRate(44100),
+            earlier,
+            mixxx::audio::SampleRate(44100));
+    ASSERT_TRUE(offset.has_value());
+    EXPECT_NEAR(-30.0, offset->seconds * 1000.0, 0.05);
+}
+
+TEST(StemAudioAlignTest, refusesADifferentRecording) {
+    const auto source = renderRecording(44100, 0.0, 10.0);
+    std::vector<float> noise(source.size());
+    unsigned int state = 987;
+    for (auto& sample : noise) {
+        state = state * 1664525u + 1013904223u;
+        sample = static_cast<float>(((state >> 9) & 0xFFFF) / 65535.0 - 0.5) * 0.5f;
+    }
+    EXPECT_FALSE(mixxx::stemaudioalign::measureOffset(source,
+                         mixxx::audio::SampleRate(44100),
+                         noise,
+                         mixxx::audio::SampleRate(44100))
+                         .has_value());
+}
+
+TEST(StemAudioAlignTest, refusesSilenceAndTooShortSignals) {
+    const std::vector<float> silence(44100 * 10, 0.0f);
+    EXPECT_FALSE(mixxx::stemaudioalign::measureOffset(silence,
+                         mixxx::audio::SampleRate(44100),
+                         silence,
+                         mixxx::audio::SampleRate(44100))
+                         .has_value());
+    const auto shortSignal = renderRecording(44100, 0.0, 1.0);
+    EXPECT_FALSE(mixxx::stemaudioalign::measureOffset(shortSignal,
+                         mixxx::audio::SampleRate(44100),
+                         shortSignal,
+                         mixxx::audio::SampleRate(44100))
+                         .has_value());
+}
+
+TEST_F(StemOriginalTest, audioOffsetMovesCuesAndTheOriginalsGridEvenWhenTheStemGridIsWrong) {
+    // Original: hand-checked grid at 120 BPM with the first beat at 1 s.
+    ASSERT_TRUE(m_pOriginal->trySetBeats(constTempoBeats(44100, 44100, 120)));
+    // Stem: analyzed a third of a beat off - the grid comparison would come out
+    // negative here, which is Andy's broken case.
+    ASSERT_TRUE(m_pStem->trySetBeats(constTempoBeats(44100, 44100 - 7350, 120)));
+    m_pOriginal->createAndAddCue(mixxx::CueType::HotCue,
+            1,
+            mixxx::audio::FramePos(44100 + 4 * 22050),
+            mixxx::audio::FramePos());
+    m_pOriginal->createAndAddCue(mixxx::CueType::Loop,
+            2,
+            mixxx::audio::FramePos(88200),
+            mixxx::audio::FramePos(88200 + 4 * 22050));
+
+    const auto result = mixxx::stemoriginal::importFromOriginal(
+            *m_pStem, *m_pOriginal, 0.09907);
+    EXPECT_TRUE(result.alignedToAudio);
+    EXPECT_FALSE(result.alignedToTargetGrid);
+    EXPECT_FALSE(result.alignmentUnavailable);
+    EXPECT_TRUE(result.beatsCopied);
+    EXPECT_NEAR(99.07, result.alignmentShiftMillis, 0.001);
+    EXPECT_FALSE(mixxx::stemoriginal::isImplausibleAlignmentShift(
+            result.alignmentShiftMillis));
+
+    const double delayFrames = 0.09907 * 44100;
+    const CuePointer pHotcue = m_pStem->findHotcueByIndex(1);
+    ASSERT_NE(nullptr, pHotcue);
+    EXPECT_NEAR(44100 + 4 * 22050 + delayFrames, pHotcue->getPosition().value(), 2);
+    const CuePointer pLoop = m_pStem->findHotcueByIndex(2);
+    ASSERT_NE(nullptr, pLoop);
+    EXPECT_NEAR(88200 + delayFrames, pLoop->getPosition().value(), 2);
+    EXPECT_NEAR(88200 + 4 * 22050 + delayFrames, pLoop->getEndPosition().value(), 2);
+
+    // The stem's wrong grid is replaced by the original's, moved by the delay.
+    const mixxx::BeatsPointer pStemBeats = m_pStem->getBeats();
+    ASSERT_NE(nullptr, pStemBeats);
+    EXPECT_NEAR(44100 + delayFrames,
+            pStemBeats->findClosestBeat(mixxx::audio::FramePos(44100)).value(),
+            1);
+    EXPECT_DOUBLE_EQ(120.0, m_pStem->getBpm());
+}
+
+TEST_F(StemOriginalTest, audioOffsetAcrossSampleRates) {
+    m_pOriginal = newTrack(kOriginalLocation, 48000);
+    ASSERT_TRUE(m_pOriginal->trySetBeats(constTempoBeats(48000, 48000, 120)));
+    m_pOriginal->createAndAddCue(mixxx::CueType::HotCue,
+            1,
+            mixxx::audio::FramePos(96000),
+            mixxx::audio::FramePos());
+
+    const auto result = mixxx::stemoriginal::importFromOriginal(
+            *m_pStem, *m_pOriginal, 0.09491);
+    EXPECT_TRUE(result.alignedToAudio);
+    // 2 s + 94.91 ms at the stem's 44.1 kHz
+    const CuePointer pHotcue = m_pStem->findHotcueByIndex(1);
+    ASSERT_NE(nullptr, pHotcue);
+    EXPECT_NEAR((2.0 + 0.09491) * 44100, pHotcue->getPosition().value(), 2);
+    const mixxx::BeatsPointer pStemBeats = m_pStem->getBeats();
+    ASSERT_NE(nullptr, pStemBeats);
+    EXPECT_NEAR((1.0 + 0.09491) * 44100,
+            pStemBeats->findClosestBeat(mixxx::audio::FramePos(44100)).value(),
+            1);
+}
+
+// Real files: set STEM_ALIGN_PAIRS to "original|stem;original|stem;..." to
+// decode and measure actual pairs with Mixxx's own decoders.
+TEST(StemAudioAlignTest, realFilePairsFromEnvironment) {
+    const QString pairs = qEnvironmentVariable("STEM_ALIGN_PAIRS");
+    if (pairs.isEmpty()) {
+        GTEST_SKIP() << "STEM_ALIGN_PAIRS not set";
+    }
+    ASSERT_TRUE(SoundSourceProxy::registerProviders());
+    for (const QString& pair : pairs.split(QChar(';'), Qt::SkipEmptyParts)) {
+        const QStringList paths = pair.split(QChar('|'));
+        ASSERT_EQ(2, paths.size());
+        const auto offset = mixxx::stemaudioalign::measureTrackOffset(
+                Track::newTemporary(paths[0]), Track::newTemporary(paths[1]));
+        if (offset) {
+            printf("REAL %+8.2f ms  corr=%.3f  %s\n",
+                    offset->seconds * 1000.0,
+                    offset->correlation,
+                    qPrintable(paths[1]));
+        } else {
+            printf("REAL  none              %s\n", qPrintable(paths[1]));
+        }
+        fflush(stdout);
+    }
 }

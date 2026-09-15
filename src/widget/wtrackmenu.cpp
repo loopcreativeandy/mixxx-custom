@@ -25,6 +25,7 @@
 #include "library/externaltrackcollection.h"
 #include "library/library.h"
 #include "library/relatedtracks.h"
+#include "library/stemaudioalign.h"
 #include "library/stemoriginal.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
@@ -1546,7 +1547,34 @@ namespace {
 /// stem file's location.
 /// What the import did to the cue positions, collected across the selection so
 /// that it can be reported once at the end.
+/// Running min/max of a set of shifts.
+struct ShiftRange {
+    int count = 0;
+    double minMillis = 0.0;
+    double maxMillis = 0.0;
+
+    void add(double millis) {
+        minMillis = count == 0 ? millis : std::min(minMillis, millis);
+        maxMillis = count == 0 ? millis : std::max(maxMillis, millis);
+        count++;
+    }
+
+    QString toString() const {
+        return qFuzzyCompare(minMillis + 1.0, maxMillis + 1.0)
+                ? QObject::tr("%1 ms").arg(minMillis, 0, 'f', 1)
+                : QObject::tr("%1 to %2 ms")
+                          .arg(minMillis, 0, 'f', 1)
+                          .arg(maxMillis, 0, 'f', 1);
+    }
+};
+
 struct ImportFromOriginalSummary {
+    /// Stem tracks whose cues and grid were moved by the offset measured in
+    /// the audio.
+    ShiftRange audioAligned;
+    /// Of those, the ones whose offset is outside the usual codec delay band.
+    /// Still applied - the audio is the measurement - but worth a look.
+    QStringList unusualAudioShiftTracks;
     int alignedCount = 0;
     double minShiftMillis = 0.0;
     double maxShiftMillis = 0.0;
@@ -1582,12 +1610,28 @@ class ImportFromOriginalTrackPointerOperation : public mixxx::TrackPointerOperat
             // Not a stem track, or no original was found for it.
             return;
         }
+        // Decoding both files takes a moment per track, which is what the
+        // progress dialog is for.
+        const std::optional<mixxx::stemaudioalign::AudioOffset> audioOffset =
+                mixxx::stemaudioalign::measureTrackOffset(it.value(), pTrack);
         const mixxx::stemoriginal::ImportResult result =
-                mixxx::stemoriginal::importFromOriginal(*pTrack, *it.value());
+                mixxx::stemoriginal::importFromOriginal(*pTrack,
+                        *it.value(),
+                        audioOffset ? std::optional<double>(audioOffset->seconds)
+                                    : std::nullopt);
         if (!m_pSummary) {
             return;
         }
-        if (result.alignedToTargetGrid) {
+        if (result.alignedToAudio) {
+            m_pSummary->audioAligned.add(result.alignmentShiftMillis);
+            if (mixxx::stemoriginal::isImplausibleAlignmentShift(
+                        result.alignmentShiftMillis)) {
+                m_pSummary->unusualAudioShiftTracks.append(
+                        QStringLiteral("%1  (%2 ms)")
+                                .arg(pTrack->getInfo())
+                                .arg(result.alignmentShiftMillis, 0, 'f', 1));
+            }
+        } else if (result.alignedToTargetGrid) {
             if (m_pSummary->alignedCount == 0) {
                 m_pSummary->minShiftMillis = result.alignmentShiftMillis;
                 m_pSummary->maxShiftMillis = result.alignmentShiftMillis;
@@ -1694,9 +1738,7 @@ void WTrackMenu::slotImportFromOriginalTrack() {
                 overwrittenTracks.size()));
         msgBox.setInformativeText(
                 tr("Importing from the original track will replace them, "
-                   "together with the key and tags. A beat grid that the stem "
-                   "track already has is kept: it is what the imported cue "
-                   "positions are corrected against.") +
+                   "together with the beat grid, key and tags.") +
                 QStringLiteral("\n\n") + formatTrackList(overwrittenTracks));
         QPushButton* pOverwriteButton =
                 msgBox.addButton(tr("Overwrite"), QMessageBox::AcceptRole);
@@ -1724,6 +1766,23 @@ void WTrackMenu::slotImportFromOriginalTrack() {
             mixxx::ModalTrackBatchOperationProcessor::Mode::ApplyAndSave);
 
     QStringList report;
+    if (pSummary->audioAligned.count > 0) {
+        report.append(tr("%n track(s): cue positions and beat grid were taken "
+                         "from the original and moved by %1, measured by "
+                         "comparing the audio of both files.",
+                "",
+                pSummary->audioAligned.count)
+                              .arg(pSummary->audioAligned.toString()));
+    }
+    if (!pSummary->unusualAudioShiftTracks.isEmpty()) {
+        report.append(tr("%n track(s) have an unusual offset between stem and "
+                         "original. It was measured from the audio and has "
+                         "been applied, but check them on a deck:",
+                              "",
+                              pSummary->unusualAudioShiftTracks.size()) +
+                QStringLiteral("\n") +
+                formatTrackList(pSummary->unusualAudioShiftTracks));
+    }
     if (pSummary->alignedCount > 0) {
         const QString shiftText = qFuzzyCompare(
                                           pSummary->minShiftMillis + 1.0,
@@ -1732,8 +1791,9 @@ void WTrackMenu::slotImportFromOriginalTrack() {
                 : tr("%1 to %2 ms")
                           .arg(pSummary->minShiftMillis, 0, 'f', 1)
                           .arg(pSummary->maxShiftMillis, 0, 'f', 1);
-        report.append(tr("%n track(s): cue positions were corrected by %1 to "
-                         "match the stem file's own beat grid.",
+        report.append(tr("%n track(s): the audio could not be compared, so cue "
+                         "positions were corrected by %1 to match the stem "
+                         "file's own beat grid.",
                 "",
                 pSummary->alignedCount)
                               .arg(shiftText));

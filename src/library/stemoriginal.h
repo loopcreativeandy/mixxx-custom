@@ -113,6 +113,11 @@ bool isImplausibleAlignmentShift(double shiftMillis);
 
 struct ImportResult {
     int cuesCopied = 0;
+    /// True if the imported cue positions and beat grid were shifted by the
+    /// offset measured between the two files' audio. This is the reliable path:
+    /// the original's grid is taken over, moved by that offset, and nothing
+    /// depends on the stem's own analysis.
+    bool alignedToAudio = false;
     bool beatsCopied = false;
     bool bpmCopied = false;
     bool keyCopied = false;
@@ -125,7 +130,7 @@ struct ImportResult {
     /// grid was copied verbatim.
     bool alignmentUnavailable = false;
     /// Median time correction that was applied to the imported cue positions.
-    /// Only meaningful if `alignedToTargetGrid` is true.
+    /// Only meaningful if `alignedToAudio` or `alignedToTargetGrid` is true.
     double alignmentShiftMillis = 0.0;
     /// The BPM the target now runs at after adopting the source's tempo, or
     /// 0.0 if no tempo was adopted. Only set when the target kept its own beat
@@ -137,12 +142,17 @@ struct ImportResult {
 /// `source` onto `target`, replacing whatever `target` had. Sample rate
 /// differences between the two files are compensated for.
 ///
-/// If `target` has a beat grid of its own at a compatible tempo, that grid is
+/// If `audioOffsetSeconds` is given (see stemaudioalign::measureTrackOffset),
+/// every cue and the source's whole beat grid are moved by exactly that much.
+///
+/// Otherwise, if `target` has a beat grid of its own at a compatible tempo, that grid is
 /// kept and the imported cue positions are corrected by the offset between the
 /// two grids, which cancels out the stem file's codec delay. The grid's tempo
 /// is still set to the source's exact BPM - hand-corrected tempo has to reach
 /// the stem track - while its phase stays where the stem file's beats are.
-ImportResult importFromOriginal(Track& target, const Track& source);
+ImportResult importFromOriginal(Track& target,
+        const Track& source,
+        std::optional<double> audioOffsetSeconds = std::nullopt);
 
 } // namespace stemoriginal
 } // namespace mixxx

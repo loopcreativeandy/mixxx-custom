@@ -342,6 +342,16 @@ std::optional<double> alignCueInfo(
     return offsetMillis;
 }
 
+/// Moves a cue - both ends of a saved loop - by a fixed time.
+void shiftCueInfo(CueInfo* pCueInfo, double shiftMillis) {
+    if (const auto startMillis = pCueInfo->getStartPositionMillis()) {
+        pCueInfo->setStartPositionMillis(*startMillis + shiftMillis);
+    }
+    if (const auto endMillis = pCueInfo->getEndPositionMillis()) {
+        pCueInfo->setEndPositionMillis(*endMillis + shiftMillis);
+    }
+}
+
 /// Builds a beat grid for the stem track that runs at the original track's
 /// tempo but keeps the stem file's own beat positions.
 ///
@@ -409,7 +419,9 @@ BeatsPointer retempoedTargetBeats(
 
 } // anonymous namespace
 
-ImportResult importFromOriginal(Track& target, const Track& source) {
+ImportResult importFromOriginal(Track& target,
+        const Track& source,
+        std::optional<double> audioOffsetSeconds) {
     ImportResult result;
 
     auto sourceRate = source.getSampleRate();
@@ -427,11 +439,17 @@ ImportResult importFromOriginal(Track& target, const Track& source) {
     // measuring stick: whatever it is offset by against the original's grid is
     // what the cues have to move by. That only works if the stem has been
     // analyzed and both grids agree on the tempo.
+    //
+    // That is only the fallback now. When the delay could be measured from the
+    // audio itself it is used as is: the grid comparison goes wrong as soon as
+    // either grid is off, which is exactly the case Andy needs this to handle.
+    const bool alignToAudio = audioOffsetSeconds.has_value();
     const double anchorSeconds = std::max(0.0, source.getDuration() / 2.0);
-    const bool alignToTargetGrid = pSourceBeats && pTargetOwnBeats &&
+    const bool alignToTargetGrid = !alignToAudio && pSourceBeats && pTargetOwnBeats &&
             tempoIsCompatible(*pSourceBeats, *pTargetOwnBeats, anchorSeconds);
+    result.alignedToAudio = alignToAudio;
     result.alignedToTargetGrid = alignToTargetGrid;
-    result.alignmentUnavailable = !alignToTargetGrid;
+    result.alignmentUnavailable = !alignToAudio && !alignToTargetGrid;
 
     // The tempo the stem track ends up with is decided before the cues are
     // placed, because that grid is what they are placed against: Andy corrects
@@ -461,7 +479,9 @@ ImportResult importFromOriginal(Track& target, const Track& source) {
             continue;
         }
         mixxx::CueInfo cueInfo = pCue->getCueInfo(sourceRate);
-        if (alignToTargetGrid) {
+        if (alignToAudio) {
+            shiftCueInfo(&cueInfo, *audioOffsetSeconds * 1000.0);
+        } else if (alignToTargetGrid) {
             const std::optional<double> shiftMillis =
                     alignCueInfo(&cueInfo, *pSourceBeats, *pAlignmentGrid);
             if (shiftMillis) {
@@ -472,7 +492,9 @@ ImportResult importFromOriginal(Track& target, const Track& source) {
     }
     target.setCuePoints(targetCues);
     result.cuesCopied = targetCues.size();
-    result.alignmentShiftMillis = medianOf(std::move(shiftsMillis));
+    result.alignmentShiftMillis = alignToAudio
+            ? *audioOffsetSeconds * 1000.0
+            : medianOf(std::move(shiftsMillis));
 
     // Beat grid. A locked BPM on the stem track would reject the new grid, so
     // unlock first and adopt the original's lock state afterwards.
@@ -497,26 +519,33 @@ ImportResult importFromOriginal(Track& target, const Track& source) {
         }
     } else if (pSourceBeats) {
         // Same tempo in wall clock time, possibly a different frames per
-        // second. The grid is rebuilt even when the rates match, because it
+        // second, and moved by the measured audio offset if there is one - the
+        // original's grid is the one Andy checked by hand, and on the stem
+        // file every beat simply comes that much later. The grid is rebuilt even when the rates match, because it
         // has to be re-stamped with kStemImportSubVersion - the original's own
         // sub version is typically empty, which would make the analyzer
         // re-analyze the stem track on every load.
         const double frameRatio = sourceRate == targetRate
                 ? 1.0
                 : static_cast<double>(targetRate) / static_cast<double>(sourceRate);
+        const double offsetFrames = alignToAudio
+                ? *audioOffsetSeconds * static_cast<double>(targetRate)
+                : 0.0;
         std::vector<mixxx::BeatMarker> markers;
         markers.reserve(pSourceBeats->getMarkers().size());
         for (const auto& marker : pSourceBeats->getMarkers()) {
             markers.emplace_back(
                     mixxx::audio::FramePos(
-                            std::round(marker.position().value() * frameRatio)),
+                            std::round(marker.position().value() * frameRatio +
+                                    offsetFrames)),
                     marker.beatsTillNextMarker());
         }
         mixxx::BeatsPointer pTargetBeats = mixxx::Beats::fromBeatMarkers(targetRate,
                 markers,
                 mixxx::audio::FramePos(
                         std::round(pSourceBeats->getLastMarkerPosition().value() *
-                                frameRatio)),
+                                        frameRatio +
+                                offsetFrames)),
                 pSourceBeats->getLastMarkerBpm(),
                 kStemImportSubVersion);
         result.beatsCopied = target.trySetBeats(pTargetBeats);
