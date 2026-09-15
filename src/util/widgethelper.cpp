@@ -1,5 +1,6 @@
 #include "util/widgethelper.h"
 
+#include <QGuiApplication>
 #include <QScreen>
 #include <QStyle>
 
@@ -13,27 +14,36 @@ QPoint mapPopupToScreen(
         const QWidget& widget,
         const QPoint& popupUpperLeft,
         const QSize& popupSize) {
-    const auto* const pScreen = getScreen(widget);
+    // Prefer the screen that actually contains the anchor point. The widget's
+    // screen is only a fallback: on multi-monitor setups it can differ from
+    // where the popup is supposed to appear.
+    const QScreen* pScreen = QGuiApplication::screenAt(popupUpperLeft);
+    if (!pScreen) {
+        pScreen = getScreen(widget);
+    }
     VERIFY_OR_DEBUG_ASSERT(pScreen) {
         // This should never fail
         return popupUpperLeft;
     }
 
-    // the screen geometry is the physical screen of the virtual desktop
-    // this will be offset by it's top and left starting points
-    const auto screenSize = pScreen->geometry();
+    // The screen geometry is in virtual desktop coordinates. Secondary
+    // screens left of or above the primary screen have negative origins,
+    // so clamp to the screen's own edges, not to 0 (that pushed popups
+    // onto another screen or into a gap between screens where they
+    // were invisible).
+    const QRect screenRect = pScreen->availableGeometry();
 
     // math_clamp() cannot be used, because if the dimensions of
     // the popup menu are greater than the screen size a debug
-    // assertion would be triggered!
-    const auto adjustedX = math_max(0,
+    // assertion would be triggered! Keep the left/top edge visible then.
+    const auto adjustedX = math_max(screenRect.left(),
             math_min(
                     popupUpperLeft.x(),
-                    screenSize.right() - popupSize.width()));
-    const auto adjustedY = math_max(0,
+                    screenRect.right() + 1 - popupSize.width()));
+    const auto adjustedY = math_max(screenRect.top(),
             math_min(
                     popupUpperLeft.y(),
-                    screenSize.bottom() - popupSize.height()));
+                    screenRect.bottom() + 1 - popupSize.height()));
     return QPoint(adjustedX, adjustedY);
 }
 
