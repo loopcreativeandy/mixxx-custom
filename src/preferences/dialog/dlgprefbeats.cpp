@@ -99,6 +99,15 @@ DlgPrefBeats::DlgPrefBeats(QWidget* parent, UserSettingsPointer pConfig)
             QOverload<int>::of(&QSpinBox::valueChanged),
             this,
             &DlgPrefBeats::slotBeatClickGainChanged);
+    // Follow the live controls while the dialog is open: Ctrl+Shift+P or a
+    // controller can change them, and Apply/OK must not write a stale value
+    // back over that.
+    m_pBeatClickCO->connectValueChanged(this, [this](double value) {
+        checkBoxBeatClick->setChecked(value > 0);
+    });
+    m_pBeatClickGainCO->connectValueChanged(this, [this](double value) {
+        spinBoxBeatClickGain->setValue(static_cast<int>(std::lround(value)));
+    });
 
     setScrollSafeGuard(comboBoxBeatPlugin);
     setScrollSafeGuard(spinBoxBeatClickGain);

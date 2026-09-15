@@ -65,7 +65,8 @@ TEST_F(ControllerManagerRescanTest, RescanIsRepeatableAndReportsBack) {
         EXPECT_EQ(before + 1, devicesChangedSpy.count());
 
         // Whatever the enumerators found must be reachable without dangling.
-        for (Controller* pController : controllerManager.getControllers()) {
+        const QList<Controller*> controllers = controllerManager.getControllers();
+        for (Controller* pController : controllers) {
             EXPECT_FALSE(pController->getName().isNull());
         }
     }
@@ -76,7 +77,8 @@ namespace {
 
 int countMidiThroughPorts(const ControllerManager& controllerManager) {
     int count = 0;
-    for (Controller* pController : controllerManager.getControllers()) {
+    const QList<Controller*> controllers = controllerManager.getControllers();
+    for (Controller* pController : controllers) {
         if (pController->getName().startsWith(kMidiThroughPortPrefix, Qt::CaseInsensitive)) {
             count++;
         }

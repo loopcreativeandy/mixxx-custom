@@ -87,7 +87,7 @@ TEST_F(RelatedTracksTest, TitlesToleratePartialTypos) {
     // Two edits are only allowed once a title is properly long.
     EXPECT_TRUE(normalizedTitlesMatch(
             QStringLiteral("nao vou desistir"), QStringLiteral("nao vou desistr")));
-    EXPECT_FALSE(normalizedTitlesMatch(QStringLiteral(""), QStringLiteral("")));
+    EXPECT_FALSE(normalizedTitlesMatch(QString(), QString()));
 }
 
 TEST_F(RelatedTracksTest, RemixOfTheSameSongIsRelated) {
@@ -114,14 +114,14 @@ TEST_F(RelatedTracksTest, DifferentSongsAreNotRelated) {
 }
 
 TEST_F(RelatedTracksTest, MissingMetadataNeverMatches) {
-    EXPECT_FALSE(sameSong(QStringLiteral(""),
+    EXPECT_FALSE(sameSong(QString(),
             QStringLiteral("Bella"),
-            QStringLiteral(""),
+            QString(),
             QStringLiteral("Bella")));
     EXPECT_FALSE(sameSong(QStringLiteral("Kaysha"),
-            QStringLiteral(""),
+            QString(),
             QStringLiteral("Kaysha"),
-            QStringLiteral("")));
+            QString()));
     // A title made entirely of version words normalizes to something, but a
     // title made entirely of punctuation does not.
     EXPECT_FALSE(sameSong(QStringLiteral("Kaysha"),

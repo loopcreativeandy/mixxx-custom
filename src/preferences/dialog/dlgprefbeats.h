@@ -52,12 +52,6 @@ class DlgPrefBeats : public DlgPreferencePage, public Ui::DlgBeatsDlg {
 
     UserSettingsPointer m_pConfig;
     BeatDetectionSettings m_bpmSettings;
-    // Beatgrid check click. Backed by persistent engine controls, not by
-    // BeatDetectionSettings, because the engine reads them live.
-    parented_ptr<ControlProxy> m_pBeatClickCO;
-    parented_ptr<ControlProxy> m_pBeatClickGainCO;
-    bool m_bBeatClick;
-    int m_beatClickGainDb;
     QList<mixxx::AnalyzerPluginInfo> m_availablePlugins;
     QString m_selectedAnalyzerId;
     bool m_bAnalyzerEnabled;
@@ -66,4 +60,11 @@ class DlgPrefBeats : public DlgPreferencePage, public Ui::DlgBeatsDlg {
     bool m_bReanalyze;
     bool m_bReanalyzeImported;
     BeatDetectionSettings::StemStrategy m_stemStrategy;
+    // Beatgrid check click. Backed by persistent engine controls, not by
+    // BeatDetectionSettings, because the engine reads them live. Declared
+    // last to match the constructor's initializer order (-Werror=reorder).
+    parented_ptr<ControlProxy> m_pBeatClickCO;
+    parented_ptr<ControlProxy> m_pBeatClickGainCO;
+    bool m_bBeatClick;
+    int m_beatClickGainDb;
 };

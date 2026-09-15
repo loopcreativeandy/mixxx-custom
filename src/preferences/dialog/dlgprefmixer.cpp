@@ -203,6 +203,15 @@ DlgPrefMixer::DlgPrefMixer(
 #endif
             this,
             &DlgPrefMixer::slotAutoHeadphonesToggled);
+    // Follow the live controls while the dialog is open: both can be toggled
+    // from a skin button or a controller, and Apply/OK must not write a stale
+    // checkbox state back over that.
+    m_pHeadphonePreEqCO->connectValueChanged(this, [this](double value) {
+        CheckBoxHeadphonePreEq->setChecked(value > 0);
+    });
+    m_pAutoHeadphonesCO->connectValueChanged(this, [this](double value) {
+        CheckBoxAutoHeadphones->setChecked(value > 0);
+    });
 
     connect(CheckBoxBypass,
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
