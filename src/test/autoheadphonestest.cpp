@@ -18,77 +18,103 @@ DeckState loadedAudibleDeck() {
     return state;
 }
 
+constexpr double kCue = AutoHeadphones::kCueThreshold;
+
 TEST(AutoHeadphonesRuleTest, LoadedDeckWithEverythingUpIsAudible) {
-    EXPECT_TRUE(AutoHeadphones::isAudible(loadedAudibleDeck()));
+    EXPECT_TRUE(AutoHeadphones::isAudible(loadedAudibleDeck(), kCue));
+    EXPECT_TRUE(AutoHeadphones::isAudible(loadedAudibleDeck(),
+            AutoHeadphones::kUncueThreshold));
 }
 
 TEST(AutoHeadphonesRuleTest, EmptyDeckIsNotAudible) {
-    EXPECT_FALSE(AutoHeadphones::isAudible(DeckState{}));
+    EXPECT_FALSE(AutoHeadphones::isAudible(DeckState{}, kCue));
 }
 
-TEST(AutoHeadphonesRuleTest, ChannelFaderAtTwoPercentIsSilent) {
+TEST(AutoHeadphonesRuleTest, ChannelFaderAtTenPercentIsSilent) {
     DeckState state = loadedAudibleDeck();
-    state.volume = 0.02;
-    EXPECT_FALSE(AutoHeadphones::isAudible(state));
-    state.volume = 0.03;
-    EXPECT_TRUE(AutoHeadphones::isAudible(state));
+    state.volume = 0.10;
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
+    state.volume = 0.11;
+    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, MuteAndHeadphonesOnlyAreSilent) {
     DeckState state = loadedAudibleDeck();
     state.muted = true;
-    EXPECT_FALSE(AutoHeadphones::isAudible(state));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
     state = loadedAudibleDeck();
     state.mainMix = false;
-    EXPECT_FALSE(AutoHeadphones::isAudible(state));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, CrossfaderCutIsSilent) {
     DeckState state = loadedAudibleDeck();
     state.crossfaderGain = 0.0;
-    EXPECT_FALSE(AutoHeadphones::isAudible(state));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, EqNeedsAllThreeBandsDownOrKilled) {
     DeckState state = loadedAudibleDeck();
     state.eqLoaded = true;
-    state.eqGains = {0.0, 0.0, 1.0};
-    EXPECT_TRUE(AutoHeadphones::isAudible(state));
+    state.eqGains = {0.0, 0.0, 0.5};
+    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue));
     state.eqKills = {false, false, true};
-    EXPECT_FALSE(AutoHeadphones::isAudible(state));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
     state.eqKills = {false, false, false};
-    state.eqGains = {0.01, 0.0, 0.02};
-    EXPECT_FALSE(AutoHeadphones::isAudible(state));
+    state.eqGains = {0.05, 0.0, 0.10};
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, EqIgnoredWithoutEqEffect) {
     DeckState state = loadedAudibleDeck();
     state.eqLoaded = false;
     state.eqGains = {0.0, 0.0, 0.0};
-    EXPECT_TRUE(AutoHeadphones::isAudible(state));
+    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, StemsNeedAllDownOrMuted) {
     DeckState state = loadedAudibleDeck();
     state.stemCount = 4;
     state.stemVolumes = {0.0, 0.0, 0.0, 0.5};
-    EXPECT_TRUE(AutoHeadphones::isAudible(state));
+    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue));
     state.stemMuted = {false, false, false, true};
-    EXPECT_FALSE(AutoHeadphones::isAudible(state));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, StemControlsIgnoredForNormalTracks) {
     DeckState state = loadedAudibleDeck();
     state.stemCount = 0;
     state.stemVolumes = {0.0, 0.0, 0.0, 0.0};
-    EXPECT_TRUE(AutoHeadphones::isAudible(state));
+    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, StemsBeyondStemCountAreIgnored) {
     DeckState state = loadedAudibleDeck();
     state.stemCount = 2;
     state.stemVolumes = {0.0, 0.0, 1.0, 1.0};
-    EXPECT_FALSE(AutoHeadphones::isAudible(state));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
+}
+
+TEST(AutoHeadphonesRuleTest, HysteresisCuesBelowTenUncuesAboveFifty) {
+    DeckState state = loadedAudibleDeck();
+    state.volume = 0.3;
+    EXPECT_FALSE(AutoHeadphones::nextSilent(std::nullopt, state));
+    EXPECT_FALSE(AutoHeadphones::nextSilent(false, state));
+    // Once cued, 30 % is not enough to come back.
+    EXPECT_TRUE(AutoHeadphones::nextSilent(true, state));
+    state.volume = 0.08;
+    EXPECT_TRUE(AutoHeadphones::nextSilent(false, state));
+    state.volume = 0.51;
+    EXPECT_FALSE(AutoHeadphones::nextSilent(true, state));
+}
+
+TEST(AutoHeadphonesRuleTest, EqKnobOnMidiCentreCountsAsBackUp) {
+    DeckState state = loadedAudibleDeck();
+    state.eqLoaded = true;
+    state.eqGains = {63.0 / 127.0, 0.0, 0.0};
+    EXPECT_FALSE(AutoHeadphones::nextSilent(true, state));
+    state.eqGains = {0.4, 0.4, 0.4};
+    EXPECT_TRUE(AutoHeadphones::nextSilent(true, state));
 }
 
 TEST(AutoHeadphonesRuleTest, PflOnlyWrittenOnChange) {
@@ -152,33 +178,70 @@ TEST_F(AutoHeadphonesWatcherTest, DoesNothingWhileDisabled) {
     EXPECT_EQ(0.0, pfl());
 }
 
-TEST_F(AutoHeadphonesWatcherTest, FollowsFaderAndRespectsManualPress) {
+TEST_F(AutoHeadphonesWatcherTest, FollowsFaderWithHysteresis) {
     set("[Master]", "auto_headphones", 1.0);
     poll();
     EXPECT_EQ(0.0, pfl()); // audible → off
 
+    set("[Channel1]", "volume", 0.3);
+    poll();
+    EXPECT_EQ(0.0, pfl()); // 30 % is still up
+
+    set("[Channel1]", "volume", 0.05);
+    poll();
+    EXPECT_EQ(1.0, pfl()); // below 10 % → cued
+
+    set("[Channel1]", "volume", 0.3);
+    poll();
+    EXPECT_EQ(1.0, pfl()); // fading in, not above 50 % yet
+
+    set("[Channel1]", "volume", 0.6);
+    poll();
+    EXPECT_EQ(0.0, pfl()); // above 50 % → off the headphones
+}
+
+TEST_F(AutoHeadphonesWatcherTest, ManualPressWinsUntilNextLoad) {
+    set("[Master]", "auto_headphones", 1.0);
     set("[Channel1]", "volume", 0.0);
     poll();
-    EXPECT_EQ(1.0, pfl()); // silent → cued
+    EXPECT_EQ(1.0, pfl()); // cued
 
-    // Andy switches the headphones off by hand: stays off while nothing changes.
+    // Andy switches the headphones off by hand: stays off.
     set("[Channel1]", "pfl", 0.0);
     poll();
     EXPECT_EQ(0.0, pfl());
-
-    set("[Channel1]", "volume", 0.5);
+    set("[Channel1]", "volume", 1.0);
     poll();
-    EXPECT_EQ(0.0, pfl());
-    // Pressed by hand while audible: kept.
+    set("[Channel1]", "volume", 0.0);
+    poll();
+    EXPECT_EQ(0.0, pfl()); // pulled down again, override still holds
+
+    // Pressed on by hand, then faded in: stays on.
     set("[Channel1]", "pfl", 1.0);
+    poll();
+    set("[Channel1]", "volume", 1.0);
     poll();
     EXPECT_EQ(1.0, pfl());
 
+    // Next track loaded: the watcher takes over again.
+    m_pWatcher->trackLoaded(0);
+    poll();
+    EXPECT_EQ(0.0, pfl());
     set("[Channel1]", "volume", 0.0);
     poll();
-    set("[Channel1]", "volume", 0.7);
+    EXPECT_EQ(1.0, pfl());
+}
+
+TEST_F(AutoHeadphonesWatcherTest, SwitchingOffAndOnClearsOverride) {
+    set("[Master]", "auto_headphones", 1.0);
     poll();
-    EXPECT_EQ(0.0, pfl()); // faded in → off the headphones
+    set("[Channel1]", "pfl", 1.0);
+    poll();
+    set("[Master]", "auto_headphones", 0.0);
+    poll();
+    set("[Master]", "auto_headphones", 1.0);
+    poll();
+    EXPECT_EQ(0.0, pfl());
 }
 
 TEST_F(AutoHeadphonesWatcherTest, CrossfaderOnTheOtherSideCues) {

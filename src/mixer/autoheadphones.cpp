@@ -110,25 +110,35 @@ struct AutoHeadphones::DeckControls {
     std::array<PollingControlProxy, mixxx::kMaxSupportedStems> stemVolumes;
     std::array<PollingControlProxy, mixxx::kMaxSupportedStems> stemMutes;
 
-    /// Silence state the watcher last acted on; empty = act on the next poll.
-    std::optional<bool> lastSilent;
+    /// What the watcher remembers about this deck. Kept when the controls are
+    /// looked up again, dropped on load and when the feature is switched off.
+    struct Memory {
+        /// Silence state decided last; empty = act on the next poll.
+        std::optional<bool> lastSilent;
+        /// pfl as it was after the last poll; a different value now means the
+        /// button was pressed by hand.
+        std::optional<bool> lastPfl;
+        /// Pressed by hand: leave pfl alone until the next load.
+        bool manualOverride = false;
+    };
+    Memory memory;
 };
 
 // static
-bool AutoHeadphones::isAudible(const DeckState& state) {
+bool AutoHeadphones::isAudible(const DeckState& state, double threshold) {
     if (!state.trackLoaded || !state.mainMix || state.muted) {
         return false;
     }
-    if (state.volume <= kSilentEpsilon) {
+    if (state.volume <= threshold) {
         return false;
     }
-    if (state.crossfaderGain <= kSilentEpsilon) {
+    if (state.crossfaderGain <= threshold) {
         return false;
     }
     if (state.eqLoaded) {
         bool allBandsSilent = true;
         for (std::size_t band = 0; band < state.eqGains.size(); ++band) {
-            if (!state.eqKills[band] && state.eqGains[band] > kSilentEpsilon) {
+            if (!state.eqKills[band] && state.eqGains[band] > threshold) {
                 allBandsSilent = false;
                 break;
             }
@@ -141,7 +151,7 @@ bool AutoHeadphones::isAudible(const DeckState& state) {
         const int stems = std::min(state.stemCount, mixxx::kMaxSupportedStems);
         bool allStemsSilent = true;
         for (int stem = 0; stem < stems; ++stem) {
-            if (!state.stemMuted[stem] && state.stemVolumes[stem] > kSilentEpsilon) {
+            if (!state.stemMuted[stem] && state.stemVolumes[stem] > threshold) {
                 allStemsSilent = false;
                 break;
             }
@@ -151,6 +161,15 @@ bool AutoHeadphones::isAudible(const DeckState& state) {
         }
     }
     return true;
+}
+
+// static
+bool AutoHeadphones::nextSilent(std::optional<bool> lastSilent, const DeckState& state) {
+    if (lastSilent.value_or(false)) {
+        // Cued: stays cued until everything is back above 50 %.
+        return !isAudible(state, kUncueThreshold);
+    }
+    return !isAudible(state, kCueThreshold);
 }
 
 // static
@@ -215,9 +234,9 @@ void AutoHeadphones::syncDeckControls() {
             continue;
         }
         // Re-resolve, keeping what the watcher last did for this deck.
-        const auto lastSilent = pDeck->lastSilent;
+        const auto memory = pDeck->memory;
         pDeck = std::make_unique<DeckControls>(static_cast<int>(deckIndex));
-        pDeck->lastSilent = lastSilent;
+        pDeck->memory = memory;
     }
 }
 
@@ -228,7 +247,9 @@ AutoHeadphones::DeckState AutoHeadphones::readDeck(const DeckControls& deck,
     state.trackLoaded = deck.trackLoaded.toBool();
     state.mainMix = deck.mainMix.toBool();
     state.muted = deck.mute.toBool();
-    state.volume = deck.volume.get();
+    // Positions, not gains: the channel fader has an audio taper, the EQ
+    // knobs a logarithmic scale with unity gain in the centre.
+    state.volume = deck.volume.getParameter();
     switch (static_cast<int>(deck.orientation.get())) {
     case EngineChannel::LEFT:
         state.crossfaderGain = crossfaderLeftGain;
@@ -243,15 +264,15 @@ AutoHeadphones::DeckState AutoHeadphones::readDeck(const DeckControls& deck,
     state.eqLoaded = deck.eqLoaded.valid() && deck.eqLoaded.toBool();
     for (std::size_t band = 0; band < state.eqGains.size(); ++band) {
         state.eqGains[band] = deck.eqParameters[band].valid()
-                ? deck.eqParameters[band].get()
-                : 1.0;
+                ? deck.eqParameters[band].getParameter()
+                : 0.5;
         state.eqKills[band] = deck.eqKills[band].valid() && deck.eqKills[band].toBool();
     }
 #ifdef __STEM__
     state.stemCount = deck.stemCount.valid() ? static_cast<int>(deck.stemCount.get()) : 0;
     for (int stem = 0; stem < mixxx::kMaxSupportedStems; ++stem) {
         state.stemVolumes[stem] = deck.stemVolumes[stem].valid()
-                ? deck.stemVolumes[stem].get()
+                ? deck.stemVolumes[stem].getParameter()
                 : 1.0;
         state.stemMuted[stem] = deck.stemMutes[stem].valid() && deck.stemMutes[stem].toBool();
     }
@@ -265,7 +286,7 @@ void AutoHeadphones::slotPoll() {
     if (!m_enabled.toBool()) {
         // Start from scratch when it is switched on again.
         for (auto& pDeck : m_decks) {
-            pDeck->lastSilent.reset();
+            pDeck->memory = {};
         }
         return;
     }
@@ -289,16 +310,33 @@ void AutoHeadphones::slotPoll() {
             continue;
         }
         const DeckState state = readDeck(*pDeck, leftGain, rightGain);
+        auto& memory = pDeck->memory;
         if (!state.trackLoaded) {
             // Empty deck: leave its pfl alone, and act afresh on the next load.
-            pDeck->lastSilent.reset();
+            memory = {};
             continue;
         }
-        const bool silent = !isAudible(state);
-        const auto pfl = pflToWrite(pDeck->lastSilent, silent);
-        pDeck->lastSilent = silent;
-        if (pfl.has_value() && pDeck->pfl.toBool() != *pfl) {
-            pDeck->pfl.set(*pfl ? 1.0 : 0.0);
+        const bool pflNow = pDeck->pfl.toBool();
+        if (memory.lastPfl.has_value() && *memory.lastPfl != pflNow) {
+            // Headphone button pressed by hand (skin, keyboard, controller).
+            memory.manualOverride = true;
         }
+        memory.lastPfl = pflNow;
+        if (memory.manualOverride) {
+            continue;
+        }
+        const bool silent = nextSilent(memory.lastSilent, state);
+        const auto pfl = pflToWrite(memory.lastSilent, silent);
+        memory.lastSilent = silent;
+        if (pfl.has_value() && pflNow != *pfl) {
+            pDeck->pfl.set(*pfl ? 1.0 : 0.0);
+            memory.lastPfl = *pfl;
+        }
+    }
+}
+
+void AutoHeadphones::trackLoaded(int deckIndex) {
+    if (deckIndex >= 0 && deckIndex < static_cast<int>(m_decks.size())) {
+        m_decks[deckIndex]->memory = {};
     }
 }

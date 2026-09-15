@@ -164,7 +164,7 @@ PlayerManager::PlayerManager(UserSettingsPointer pConfig,
     // This is parented to the PlayerManager so does not need to be deleted
     m_pSamplerBank = new SamplerBank(m_pConfig, this);
     // Parented as well; idle unless [Master],auto_headphones is on.
-    new AutoHeadphones(this);
+    m_pAutoHeadphones = new AutoHeadphones(this);
 
     m_cloneTimer.start();
 }
@@ -394,6 +394,14 @@ void PlayerManager::addDeckInner() {
                 this,
                 &PlayerManager::slotAnalyzeTrack);
     }
+
+    // Auto Headphones: a load ends a manual headphone override on that deck.
+    connect(pDeck,
+            &BaseTrackPlayer::newTrackLoaded,
+            m_pAutoHeadphones,
+            [pAutoHeadphones = m_pAutoHeadphones, deckIndex](TrackPointer) {
+                pAutoHeadphones->trackLoaded(deckIndex);
+            });
 
     m_players[handleGroup.handle()] = pDeck;
     m_decks.append(pDeck);

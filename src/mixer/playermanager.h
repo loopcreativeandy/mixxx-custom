@@ -14,6 +14,7 @@
 #include "util/parented_ptr.h"
 #include "util/performancetimer.h"
 
+class AutoHeadphones;
 class Auxiliary;
 class BaseTrackPlayer;
 class ControlObject;
@@ -291,6 +292,8 @@ class PlayerManager : public PlayerManagerInterface {
     EffectsManager* m_pEffectsManager;
     EngineMixer* m_pEngine;
     SamplerBank* m_pSamplerBank;
+    // Parented to this; notified when a deck gets a new track.
+    AutoHeadphones* m_pAutoHeadphones = nullptr;
     std::unique_ptr<ControlObject> m_pCONumDecks;
     std::unique_ptr<ControlObject> m_pCONumSamplers;
     std::unique_ptr<ControlObject> m_pCONumPreviewDecks;
