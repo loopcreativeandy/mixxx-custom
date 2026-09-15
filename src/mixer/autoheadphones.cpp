@@ -113,73 +113,76 @@ struct AutoHeadphones::DeckControls {
     /// What the watcher remembers about this deck. Kept when the controls are
     /// looked up again, dropped on load and when the feature is switched off.
     struct Memory {
-        /// Silence state decided last; empty = act on the next poll.
-        std::optional<bool> lastSilent;
+        Mode mode = Mode::Auto;
         /// pfl as it was after the last poll; a different value now means the
         /// button was pressed by hand.
         std::optional<bool> lastPfl;
-        /// Pressed by hand: leave pfl alone until the next load.
-        bool manualOverride = false;
     };
     Memory memory;
 };
 
 // static
-bool AutoHeadphones::isAudible(
-        const DeckState& state, double faderThreshold, double knobThreshold) {
+double AutoHeadphones::loudness(const DeckState& state) {
     if (!state.trackLoaded || !state.mainMix || state.muted) {
-        return false;
+        return 0.0;
     }
-    if (state.volume <= faderThreshold) {
-        return false;
-    }
-    if (state.crossfaderGain <= faderThreshold) {
-        return false;
-    }
+    double result = state.volume * state.crossfaderGain;
     if (state.eqLoaded) {
-        bool allBandsSilent = true;
+        double sum = 0.0;
         for (std::size_t band = 0; band < state.eqGains.size(); ++band) {
-            if (!state.eqKills[band] && state.eqGains[band] > knobThreshold) {
-                allBandsSilent = false;
-                break;
+            if (!state.eqKills[band]) {
+                sum += state.eqGains[band];
             }
         }
-        if (allBandsSilent) {
-            return false;
-        }
+        // Average knob position relative to the centre (unity gain).
+        result *= sum / state.eqGains.size() / 0.5;
     }
     if (state.stemCount > 0) {
         const int stems = std::min(state.stemCount, mixxx::kMaxSupportedStems);
-        bool allStemsSilent = true;
+        double sum = 0.0;
         for (int stem = 0; stem < stems; ++stem) {
-            if (!state.stemMuted[stem] && state.stemVolumes[stem] > knobThreshold) {
-                allStemsSilent = false;
-                break;
+            if (!state.stemMuted[stem]) {
+                sum += state.stemVolumes[stem];
             }
         }
-        if (allStemsSilent) {
-            return false;
+        result *= sum / stems;
+    }
+    return result;
+}
+
+// static
+std::optional<int> AutoHeadphones::chooseQuietest(
+        const std::vector<std::optional<double>>& loudness,
+        std::optional<int> current) {
+    std::optional<int> quietest;
+    int loadedDecks = 0;
+    for (int deck = 0; deck < static_cast<int>(loudness.size()); ++deck) {
+        if (!loudness[deck].has_value()) {
+            continue;
+        }
+        ++loadedDecks;
+        if (!quietest.has_value() || *loudness[deck] < *loudness[*quietest]) {
+            quietest = deck;
         }
     }
-    return true;
-}
-
-// static
-bool AutoHeadphones::nextSilent(std::optional<bool> lastSilent, const DeckState& state) {
-    if (lastSilent.value_or(false)) {
-        // Cued: stays cued until the deck is clearly back up.
-        return !isAudible(state, kUncueThreshold, kUncueKnobThreshold);
-    }
-    return !isAudible(state, kCueThreshold, kCueThreshold);
-}
-
-// static
-std::optional<bool> AutoHeadphones::pflToWrite(std::optional<bool> lastSilent, bool silent) {
-    if (lastSilent.has_value() && *lastSilent == silent) {
-        // Nothing changed: leave a hand-pressed pfl button alone.
+    if (loadedDecks < 2) {
         return std::nullopt;
     }
-    return silent;
+    if (current.has_value() && *current >= 0 &&
+            *current < static_cast<int>(loudness.size()) &&
+            loudness[*current].has_value() &&
+            *loudness[*quietest] >= *loudness[*current] - kSwitchMargin) {
+        return current;
+    }
+    return quietest;
+}
+
+// static
+AutoHeadphones::Mode AutoHeadphones::modeAfterPress(bool pflNow, bool autoWantsPfl) {
+    if (pflNow == autoWantsPfl) {
+        return Mode::Auto;
+    }
+    return pflNow ? Mode::ManualOn : Mode::ManualOff;
 }
 
 AutoHeadphones::AutoHeadphones(QObject* pParent)
@@ -194,7 +197,9 @@ AutoHeadphones::AutoHeadphones(QObject* pParent)
           m_xfaderMode(optionalControl(QString(EngineXfader::kXfaderConfigKey),
                   QStringLiteral("xFaderMode"))),
           m_xfaderReverse(optionalControl(QString(EngineXfader::kXfaderConfigKey),
-                  QStringLiteral("xFaderReverse"))) {
+                  QStringLiteral("xFaderReverse"))),
+          m_numPreviewDecks(optionalControl(QStringLiteral("[App]"),
+                  QStringLiteral("num_preview_decks"))) {
     connect(&m_timer, &QTimer::timeout, this, &AutoHeadphones::slotPoll);
     m_timer.start(kPollIntervalMs);
 }
@@ -218,6 +223,17 @@ void AutoHeadphones::syncDeckControls() {
         m_xfaderReverse = optionalControl(xfaderGroup, QStringLiteral("xFaderReverse"));
     }
 
+    if (!m_numPreviewDecks.valid()) {
+        m_numPreviewDecks = optionalControl(
+                QStringLiteral("[App]"), QStringLiteral("num_preview_decks"));
+    }
+    const int numPreviewDecks = std::max(0, static_cast<int>(m_numPreviewDecks.get()));
+    while (static_cast<int>(m_previewPlay.size()) < numPreviewDecks) {
+        m_previewPlay.push_back(optionalControl(
+                PlayerManager::groupForPreviewDeck(static_cast<int>(m_previewPlay.size())),
+                QStringLiteral("play")));
+    }
+
     const int numDecks = std::max(0, static_cast<int>(m_numDecks.get()));
     while (static_cast<int>(m_decks.size()) < numDecks) {
         m_decks.push_back(std::make_unique<DeckControls>(static_cast<int>(m_decks.size())));
@@ -228,6 +244,13 @@ void AutoHeadphones::syncDeckControls() {
     const bool retryOptional = ++m_pollsSinceRetry >= kRetryOptionalPolls;
     if (retryOptional) {
         m_pollsSinceRetry = 0;
+        for (std::size_t i = 0; i < m_previewPlay.size(); ++i) {
+            if (!m_previewPlay[i].valid()) {
+                m_previewPlay[i] = optionalControl(
+                        PlayerManager::groupForPreviewDeck(static_cast<int>(i)),
+                        QStringLiteral("play"));
+            }
+        }
     }
     for (std::size_t deckIndex = 0; deckIndex < m_decks.size(); ++deckIndex) {
         auto& pDeck = m_decks[deckIndex];
@@ -289,6 +312,7 @@ void AutoHeadphones::slotPoll() {
         for (auto& pDeck : m_decks) {
             pDeck->memory = {};
         }
+        m_autoDeck.reset();
         return;
     }
 
@@ -306,33 +330,53 @@ void AutoHeadphones::slotPoll() {
                 &rightGain);
     }
 
-    for (auto& pDeck : m_decks) {
+    bool previewPlaying = false;
+    for (const auto& play : m_previewPlay) {
+        if (play.valid() && play.toBool()) {
+            previewPlaying = true;
+            break;
+        }
+    }
+
+    std::vector<std::optional<double>> deckLoudness(m_decks.size());
+    for (std::size_t deckIndex = 0; deckIndex < m_decks.size(); ++deckIndex) {
+        const auto& pDeck = m_decks[deckIndex];
         if (!pDeck->deckValid()) {
             continue;
         }
         const DeckState state = readDeck(*pDeck, leftGain, rightGain);
+        if (state.trackLoaded) {
+            deckLoudness[deckIndex] = loudness(state);
+        }
+    }
+    m_autoDeck = chooseQuietest(deckLoudness, m_autoDeck);
+
+    for (std::size_t deckIndex = 0; deckIndex < m_decks.size(); ++deckIndex) {
+        auto& pDeck = m_decks[deckIndex];
+        if (!pDeck->deckValid()) {
+            continue;
+        }
         auto& memory = pDeck->memory;
-        if (!state.trackLoaded) {
-            // Empty deck: leave its pfl alone, and act afresh on the next load.
+        if (!deckLoudness[deckIndex].has_value()) {
+            // Empty deck: leave its pfl alone, automatic again on the next load.
             memory = {};
             continue;
         }
-        const bool pflNow = pDeck->pfl.toBool();
+        const bool autoWantsPfl = !previewPlaying &&
+                m_autoDeck == static_cast<int>(deckIndex);
+        bool pflNow = pDeck->pfl.toBool();
         if (memory.lastPfl.has_value() && *memory.lastPfl != pflNow) {
             // Headphone button pressed by hand (skin, keyboard, controller).
-            memory.manualOverride = true;
+            memory.mode = modeAfterPress(pflNow, autoWantsPfl);
+        }
+        const bool wantPfl = memory.mode == Mode::Auto
+                ? autoWantsPfl
+                : memory.mode == Mode::ManualOn;
+        if (wantPfl != pflNow) {
+            pDeck->pfl.set(wantPfl ? 1.0 : 0.0);
+            pflNow = wantPfl;
         }
         memory.lastPfl = pflNow;
-        if (memory.manualOverride) {
-            continue;
-        }
-        const bool silent = nextSilent(memory.lastSilent, state);
-        const auto pfl = pflToWrite(memory.lastSilent, silent);
-        memory.lastSilent = silent;
-        if (pfl.has_value() && pflNow != *pfl) {
-            pDeck->pfl.set(*pfl ? 1.0 : 0.0);
-            memory.lastPfl = *pfl;
-        }
     }
 }
 
