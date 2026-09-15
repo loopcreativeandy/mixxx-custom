@@ -125,20 +125,21 @@ struct AutoHeadphones::DeckControls {
 };
 
 // static
-bool AutoHeadphones::isAudible(const DeckState& state, double threshold) {
+bool AutoHeadphones::isAudible(
+        const DeckState& state, double faderThreshold, double knobThreshold) {
     if (!state.trackLoaded || !state.mainMix || state.muted) {
         return false;
     }
-    if (state.volume <= threshold) {
+    if (state.volume <= faderThreshold) {
         return false;
     }
-    if (state.crossfaderGain <= threshold) {
+    if (state.crossfaderGain <= faderThreshold) {
         return false;
     }
     if (state.eqLoaded) {
         bool allBandsSilent = true;
         for (std::size_t band = 0; band < state.eqGains.size(); ++band) {
-            if (!state.eqKills[band] && state.eqGains[band] > threshold) {
+            if (!state.eqKills[band] && state.eqGains[band] > knobThreshold) {
                 allBandsSilent = false;
                 break;
             }
@@ -151,7 +152,7 @@ bool AutoHeadphones::isAudible(const DeckState& state, double threshold) {
         const int stems = std::min(state.stemCount, mixxx::kMaxSupportedStems);
         bool allStemsSilent = true;
         for (int stem = 0; stem < stems; ++stem) {
-            if (!state.stemMuted[stem] && state.stemVolumes[stem] > threshold) {
+            if (!state.stemMuted[stem] && state.stemVolumes[stem] > knobThreshold) {
                 allStemsSilent = false;
                 break;
             }
@@ -166,10 +167,10 @@ bool AutoHeadphones::isAudible(const DeckState& state, double threshold) {
 // static
 bool AutoHeadphones::nextSilent(std::optional<bool> lastSilent, const DeckState& state) {
     if (lastSilent.value_or(false)) {
-        // Cued: stays cued until everything is back above 50 %.
-        return !isAudible(state, kUncueThreshold);
+        // Cued: stays cued until the deck is clearly back up.
+        return !isAudible(state, kUncueThreshold, kUncueKnobThreshold);
     }
-    return !isAudible(state, kCueThreshold);
+    return !isAudible(state, kCueThreshold, kCueThreshold);
 }
 
 // static

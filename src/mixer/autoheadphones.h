@@ -30,9 +30,13 @@ class AutoHeadphones : public QObject {
     /// (0..1, EQ centre = 0.5), the crossfader by the gain of the deck's side.
     /// At or below this a deck is cued.
     static constexpr double kCueThreshold = 0.10;
-    /// Above this (everything) a cued deck is uncued. 50 %, minus a hair so a
-    /// MIDI knob parked on its centre (63/127 = 0.496) counts as back up.
+    /// A cued deck is uncued once the channel fader and the crossfader side
+    /// are above this. 50 %, minus a hair so a MIDI control parked on its
+    /// centre (63/127 = 0.496) counts.
     static constexpr double kUncueThreshold = 0.49;
+    /// ...and at least one EQ knob and one stem fader (where they apply) are
+    /// above this. Each knob counts on its own, so the bar is lower than 50 %.
+    static constexpr double kUncueKnobThreshold = 0.40;
     static constexpr int kPollIntervalMs = 50;
     /// Missing optional controls are looked up again every 2 s.
     static constexpr int kRetryOptionalPolls = 40;
@@ -58,13 +62,14 @@ class AutoHeadphones : public QObject {
         std::array<bool, mixxx::kMaxSupportedStems> stemMuted = {false, false, false, false};
     };
 
-    /// Loaded, and every one of the checks is above `threshold`.
-    static bool isAudible(const DeckState& state, double threshold);
+    /// Loaded, channel fader and crossfader side above `faderThreshold`, and
+    /// at least one EQ band / stem above `knobThreshold`.
+    static bool isAudible(const DeckState& state, double faderThreshold, double knobThreshold);
 
     /// Hysteresis. `lastSilent` is the silence state the watcher decided last
     /// time (empty after a load or when the feature was just enabled). A deck
     /// becomes silent at kCueThreshold and audible again only above
-    /// kUncueThreshold.
+    /// kUncueThreshold (faders) / kUncueKnobThreshold (EQ knobs, stems).
     static bool nextSilent(std::optional<bool> lastSilent, const DeckState& state);
 
     /// Edge logic: returns the pfl value to write, or nothing when pfl must be

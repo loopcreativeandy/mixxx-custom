@@ -21,78 +21,79 @@ DeckState loadedAudibleDeck() {
 constexpr double kCue = AutoHeadphones::kCueThreshold;
 
 TEST(AutoHeadphonesRuleTest, LoadedDeckWithEverythingUpIsAudible) {
-    EXPECT_TRUE(AutoHeadphones::isAudible(loadedAudibleDeck(), kCue));
+    EXPECT_TRUE(AutoHeadphones::isAudible(loadedAudibleDeck(), kCue, kCue));
     EXPECT_TRUE(AutoHeadphones::isAudible(loadedAudibleDeck(),
-            AutoHeadphones::kUncueThreshold));
+            AutoHeadphones::kUncueThreshold,
+            AutoHeadphones::kUncueKnobThreshold));
 }
 
 TEST(AutoHeadphonesRuleTest, EmptyDeckIsNotAudible) {
-    EXPECT_FALSE(AutoHeadphones::isAudible(DeckState{}, kCue));
+    EXPECT_FALSE(AutoHeadphones::isAudible(DeckState{}, kCue, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, ChannelFaderAtTenPercentIsSilent) {
     DeckState state = loadedAudibleDeck();
     state.volume = 0.10;
-    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue, kCue));
     state.volume = 0.11;
-    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, MuteAndHeadphonesOnlyAreSilent) {
     DeckState state = loadedAudibleDeck();
     state.muted = true;
-    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue, kCue));
     state = loadedAudibleDeck();
     state.mainMix = false;
-    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, CrossfaderCutIsSilent) {
     DeckState state = loadedAudibleDeck();
     state.crossfaderGain = 0.0;
-    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, EqNeedsAllThreeBandsDownOrKilled) {
     DeckState state = loadedAudibleDeck();
     state.eqLoaded = true;
     state.eqGains = {0.0, 0.0, 0.5};
-    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue, kCue));
     state.eqKills = {false, false, true};
-    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue, kCue));
     state.eqKills = {false, false, false};
     state.eqGains = {0.05, 0.0, 0.10};
-    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, EqIgnoredWithoutEqEffect) {
     DeckState state = loadedAudibleDeck();
     state.eqLoaded = false;
     state.eqGains = {0.0, 0.0, 0.0};
-    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, StemsNeedAllDownOrMuted) {
     DeckState state = loadedAudibleDeck();
     state.stemCount = 4;
     state.stemVolumes = {0.0, 0.0, 0.0, 0.5};
-    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue, kCue));
     state.stemMuted = {false, false, false, true};
-    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, StemControlsIgnoredForNormalTracks) {
     DeckState state = loadedAudibleDeck();
     state.stemCount = 0;
     state.stemVolumes = {0.0, 0.0, 0.0, 0.0};
-    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_TRUE(AutoHeadphones::isAudible(state, kCue, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, StemsBeyondStemCountAreIgnored) {
     DeckState state = loadedAudibleDeck();
     state.stemCount = 2;
     state.stemVolumes = {0.0, 0.0, 1.0, 1.0};
-    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue));
+    EXPECT_FALSE(AutoHeadphones::isAudible(state, kCue, kCue));
 }
 
 TEST(AutoHeadphonesRuleTest, HysteresisCuesBelowTenUncuesAboveFifty) {
@@ -108,13 +109,27 @@ TEST(AutoHeadphonesRuleTest, HysteresisCuesBelowTenUncuesAboveFifty) {
     EXPECT_FALSE(AutoHeadphones::nextSilent(true, state));
 }
 
-TEST(AutoHeadphonesRuleTest, EqKnobOnMidiCentreCountsAsBackUp) {
+TEST(AutoHeadphonesRuleTest, OneEqKnobAboveFortyPercentUncues) {
     DeckState state = loadedAudibleDeck();
     state.eqLoaded = true;
-    state.eqGains = {63.0 / 127.0, 0.0, 0.0};
-    EXPECT_FALSE(AutoHeadphones::nextSilent(true, state));
-    state.eqGains = {0.4, 0.4, 0.4};
+    state.eqGains = {0.39, 0.39, 0.39};
     EXPECT_TRUE(AutoHeadphones::nextSilent(true, state));
+    state.eqGains = {0.41, 0.0, 0.0};
+    EXPECT_FALSE(AutoHeadphones::nextSilent(true, state));
+    // The channel fader still needs 50 %.
+    state.volume = 0.45;
+    EXPECT_TRUE(AutoHeadphones::nextSilent(true, state));
+    state.volume = 63.0 / 127.0;
+    EXPECT_FALSE(AutoHeadphones::nextSilent(true, state));
+}
+
+TEST(AutoHeadphonesRuleTest, OneStemAboveFortyPercentUncues) {
+    DeckState state = loadedAudibleDeck();
+    state.stemCount = 4;
+    state.stemVolumes = {0.3, 0.3, 0.3, 0.3};
+    EXPECT_TRUE(AutoHeadphones::nextSilent(true, state));
+    state.stemVolumes = {0.0, 0.0, 0.45, 0.0};
+    EXPECT_FALSE(AutoHeadphones::nextSilent(true, state));
 }
 
 TEST(AutoHeadphonesRuleTest, PflOnlyWrittenOnChange) {
