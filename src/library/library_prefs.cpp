@@ -53,6 +53,11 @@ const ConfigKey mixxx::library::prefs::kHistoryTrackDuplicateDistanceConfigKey =
                 mixxx::library::prefs::kConfigGroup,
                 QStringLiteral("history_track_duplicate_distance")};
 
+const ConfigKey mixxx::library::prefs::kHistoryPracticeModeConfigKey =
+        ConfigKey{
+                mixxx::library::prefs::kConfigGroup,
+                QStringLiteral("history_practice_mode")};
+
 const ConfigKey mixxx::library::prefs::kSearchDebouncingTimeoutMillisConfigKey =
         ConfigKey{
                 mixxx::library::prefs::kConfigGroup,

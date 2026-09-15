@@ -242,6 +242,7 @@ void DlgPrefLibrary::populateDirList() {
 
 void DlgPrefLibrary::slotResetToDefaults() {
     checkBox_library_scan->setChecked(false);
+    checkBox_history_practice_mode->setChecked(kHistoryPracticeModeDefault);
     spinbox_history_track_duplicate_distance->setValue(
             kHistoryTrackDuplicateDistanceDefault);
     spinbox_history_min_tracks_to_keep->setValue(1);
@@ -281,6 +282,8 @@ void DlgPrefLibrary::slotUpdate() {
     checkBox_library_scan_summary->setChecked(m_pConfig->getValue(
             kShowScanSummaryConfigKey, true));
 
+    checkBox_history_practice_mode->setChecked(m_pConfig->getValue(
+            kHistoryPracticeModeConfigKey, kHistoryPracticeModeDefault));
     spinbox_history_track_duplicate_distance->setValue(m_pConfig->getValue(
             kHistoryTrackDuplicateDistanceConfigKey,
             kHistoryTrackDuplicateDistanceDefault));
@@ -525,6 +528,8 @@ void DlgPrefLibrary::slotApply() {
     m_pConfig->set(kShowScanSummaryConfigKey,
             ConfigValue((int)checkBox_library_scan_summary->isChecked()));
 
+    m_pConfig->set(kHistoryPracticeModeConfigKey,
+            ConfigValue{checkBox_history_practice_mode->isChecked()});
     m_pConfig->set(kHistoryTrackDuplicateDistanceConfigKey,
             ConfigValue(spinbox_history_track_duplicate_distance->value()));
     m_pConfig->set(kHistoryMinTracksToKeepConfigKey,

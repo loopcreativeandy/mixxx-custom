@@ -614,6 +614,23 @@ void SetlogFeature::slotPlayingTrackChanged(TrackPointer currentPlayingTrack) {
         return;
     }
 
+    // Andy: in practice mode the track only gets the session played flag (and
+    // so do its related copies). No play count, no last played date, no
+    // history entry - those stay a record of real performances. The recent
+    // tracks window is left alone too, so a practiced track still counts when
+    // it is played for real right after practice mode is switched off.
+    if (m_pConfig->getValue(mixxx::library::prefs::kHistoryPracticeModeConfigKey,
+                mixxx::library::prefs::kHistoryPracticeModeDefault)) {
+        currentPlayingTrack->updatePlayedStatusKeepPlayCount(true);
+        mixxx::relatedtracks::propagatePlayedState(
+                m_pLibrary->trackCollectionManager(),
+                m_pConfig,
+                *currentPlayingTrack,
+                true,
+                mixxx::relatedtracks::PlayCountMode::FlagOnly);
+        return;
+    }
+
     TrackId currentPlayingTrackId(currentPlayingTrack->getId());
     bool track_played_recently = false;
     if (currentPlayingTrackId.isValid()) {

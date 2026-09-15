@@ -44,6 +44,13 @@ extern const ConfigKey kHistoryTrackDuplicateDistanceConfigKey;
 
 const int kHistoryTrackDuplicateDistanceDefault = 6;
 
+/// Andy: practice mode - tracks played while browsing, cueing and tagging are
+/// marked played for the session only: no play count, no last played date,
+/// no session history entry.
+extern const ConfigKey kHistoryPracticeModeConfigKey;
+
+const bool kHistoryPracticeModeDefault = false;
+
 const bool kEditMetadataSelectedClickDefault = false;
 
 extern const ConfigKey kSyncTrackMetadataConfigKey;

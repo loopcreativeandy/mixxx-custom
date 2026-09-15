@@ -381,6 +381,17 @@
      </property>
      <layout class="QGridLayout" name="gridLayout_history">
 
+      <item row="0" column="0" colspan="3">
+       <widget class="QCheckBox" name="checkBox_history_practice_mode">
+        <property name="toolTip">
+         <string>For browsing, cueing and tagging: played tracks are only marked as played for this session. The play count, the last played date and the session history stay untouched.</string>
+        </property>
+        <property name="text">
+         <string>Practice mode: don't count plays (no play count, last played or history)</string>
+        </property>
+       </widget>
+      </item>
+
       <item row="1" column="0">
        <widget class="QLabel" name="label_history_track_duplicate_distance">
         <property name="text">
@@ -699,6 +710,7 @@
   <tabstop>checkBox_enable_search_completions</tabstop>
   <tabstop>checkBox_enable_search_history_shortcuts</tabstop>
   <tabstop>comboBox_search_bpm_fuzzy_range</tabstop>
+  <tabstop>checkBox_history_practice_mode</tabstop>
   <tabstop>spinbox_history_track_duplicate_distance</tabstop>
   <tabstop>spinbox_history_min_tracks_to_keep</tabstop>
   <tabstop>checkBox_show_rhythmbox</tabstop>
