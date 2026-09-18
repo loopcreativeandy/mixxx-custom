@@ -5,6 +5,8 @@
 #include <QList>
 #include <QMap>
 #include <QObject>
+#include <optional>
+#include <vector>
 
 #include "analyzer/trackanalysisscheduler.h"
 #include "engine/channelhandle.h"
@@ -90,6 +92,35 @@ class PlayerManager : public PlayerManagerInterface {
 
     // Add an auxiliary input to the PlayerManager
     void addAuxiliary();
+
+    /// A playing deck at or below this loudness counts as muted and may be
+    /// loaded over. AutoHeadphones::loudness() is exactly 0 for a deck whose
+    /// fader is down, whose EQs are all down/killed, whose stems are all down,
+    /// that is muted or that is not routed to main; the margin only absorbs
+    /// float noise, it is not "quiet enough".
+    static constexpr double kMutedLoudness = 0.001;
+
+    /// Picks the deck a "load into the next available deck" should target.
+    /// One entry per *visible* deck: `playing` is its play CO, `loudness` its
+    /// AutoHeadphones loudness, empty for a deck with no track. `lastTarget` is
+    /// the deck the previous load went to, -1 for none. Returns -1 when no deck
+    /// may be loaded over.
+    ///
+    /// Andy's rule (2026-09-18), replacing the "first empty, then first
+    /// stopped" rule of CP41:
+    ///
+    ///  1. Repeated loads *alternate* over the decks that are not playing:
+    ///     1, 2, 1, 2, … so a second load does not land on deck 1 again. A deck
+    ///     that is playing is skipped, so with deck 1 live every load goes to
+    ///     deck 2.
+    ///  2. If every deck is playing, the load goes to one that is playing but
+    ///     **inaudible**, quietest first. Before, he had to stop that deck by
+    ///     hand first and had already stopped the wrong one that way.
+    ///  3. If every deck is playing *and* audible, the load is refused —
+    ///     unchanged CP41 behaviour, and why we never spill into a hidden deck.
+    static int chooseLoadTargetDeck(const std::vector<bool>& playing,
+            const std::vector<std::optional<double>>& loudness,
+            int lastTarget);
 
     // Returns true if the group is a deck group. If index is non-NULL,
     // populates it with the deck number (1-indexed).
@@ -294,6 +325,10 @@ class PlayerManager : public PlayerManagerInterface {
     SamplerBank* m_pSamplerBank;
     // Parented to this; notified when a deck gets a new track.
     AutoHeadphones* m_pAutoHeadphones = nullptr;
+    // Deck index the last "load into the next available deck" went to, so the
+    // next one alternates instead of landing on deck 1 again (findLoadTarget-
+    // DeckInList). -1 = no load yet; guarded by m_mutex like the load slots.
+    int m_lastLoadTargetDeck = -1;
     std::unique_ptr<ControlObject> m_pCONumDecks;
     std::unique_ptr<ControlObject> m_pCONumSamplers;
     std::unique_ptr<ControlObject> m_pCONumPreviewDecks;

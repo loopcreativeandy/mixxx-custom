@@ -1,6 +1,7 @@
 #include "mixer/playermanager.h"
 
 #include <QRegularExpression>
+#include <algorithm>
 
 #include "audio/types.h"
 #include "control/controlobject.h"
@@ -88,13 +89,14 @@ T* findFirstStoppedPlayerInList(const QList<T*>& players) {
     return nullptr;
 }
 
-/// Returns the deck a library "load" action should target: the lowest-numbered
-/// *visible* deck without a loaded track, falling back to the lowest-numbered
-/// visible stopped deck. Skins with a 2/4-deck toggle expose
-/// [Skin],show_4decks; when that control exists and is off, decks 3/4 are
-/// hidden and are never targeted.
+/// Returns the deck a library "load" action should target, per
+/// PlayerManager::chooseLoadTargetDeck(). `*pLastTarget` carries the rotation
+/// across calls and is updated when a deck is picked.
+///
+/// Skins with a 2/4-deck toggle expose [Skin],show_4decks; when that control
+/// exists and is off, decks 3/4 are hidden and are never targeted.
 template<class T>
-T* findLoadTargetDeckInList(const QList<T*>& decks) {
+T* findLoadTargetDeckInList(const QList<T*>& decks, int* pLastTarget) {
     int visibleCount = decks.size();
     ControlObject* pShow4Decks = ControlObject::getControl(
             ConfigKey(QStringLiteral("[Skin]"), QStringLiteral("show_4decks")),
@@ -102,18 +104,38 @@ T* findLoadTargetDeckInList(const QList<T*>& decks) {
     if (pShow4Decks != nullptr && !pShow4Decks->toBool()) {
         visibleCount = qMin(2, visibleCount);
     }
+    if (visibleCount <= 0) {
+        return nullptr;
+    }
 
-    for (int i = 0; i < visibleCount; ++i) {
-        T* pPlayer = decks[i];
+    // A deck whose controls are missing is reported as playing and audible, so
+    // the chooser never lands on it.
+    std::vector<bool> playing(visibleCount, true);
+    std::vector<std::optional<double>> loudness(visibleCount);
+    for (int deckIndex = 0; deckIndex < visibleCount; ++deckIndex) {
+        T* pPlayer = decks[deckIndex];
         VERIFY_OR_DEBUG_ASSERT(pPlayer != nullptr) {
             continue;
         }
-        if (!pPlayer->getLoadedTrack()) {
-            return pPlayer;
+        ControlObject* pPlayControl = ControlObject::getControl(
+                ConfigKey(pPlayer->getGroup(), QStringLiteral("play")));
+        VERIFY_OR_DEBUG_ASSERT(pPlayControl != nullptr) {
+            continue;
         }
+        playing[deckIndex] = pPlayControl->toBool();
+        loudness[deckIndex] = AutoHeadphones::loudnessForDeck(deckIndex);
     }
 
-    return findFirstStoppedPlayerInList(decks.mid(0, visibleCount));
+    const int target = PlayerManager::chooseLoadTargetDeck(playing,
+            loudness,
+            pLastTarget != nullptr ? *pLastTarget : -1);
+    if (target < 0) {
+        return nullptr;
+    }
+    if (pLastTarget != nullptr) {
+        *pLastTarget = target;
+    }
+    return decks[target];
 }
 
 inline QString getDefaultSamplerPath(UserSettingsPointer pConfig) {
@@ -247,6 +269,48 @@ QStringList PlayerManager::getVisualPlayerGroups() {
 }
 
 // static
+// static
+int PlayerManager::chooseLoadTargetDeck(const std::vector<bool>& playing,
+        const std::vector<std::optional<double>>& loudness,
+        int lastTarget) {
+    const int deckCount = static_cast<int>(
+            std::min(playing.size(), loudness.size()));
+    if (deckCount <= 0) {
+        return -1;
+    }
+    // Start one past the deck the previous load went to, and wrap. A remembered
+    // deck that is out of range (deck count shrank, or no load yet) restarts
+    // the rotation at deck 1.
+    const int previous = (lastTarget >= 0 && lastTarget < deckCount) ? lastTarget : -1;
+    const auto nextInRotation = [previous, deckCount](int step) {
+        return (previous + step) % deckCount;
+    };
+
+    // Pass 1: the next deck in the rotation that is not playing.
+    for (int step = 1; step <= deckCount; ++step) {
+        const int deckIndex = nextInRotation(step);
+        if (!playing[deckIndex]) {
+            return deckIndex;
+        }
+    }
+
+    // Pass 2: everything is playing — the quietest deck, but only if it is
+    // inaudible. Ties go to whichever comes first in the rotation.
+    int quietestIndex = -1;
+    double quietestLoudness = 0.0;
+    for (int step = 1; step <= deckCount; ++step) {
+        const int deckIndex = nextInRotation(step);
+        if (!loudness[deckIndex].has_value() || *loudness[deckIndex] > kMutedLoudness) {
+            continue;
+        }
+        if (quietestIndex < 0 || *loudness[deckIndex] < quietestLoudness) {
+            quietestIndex = deckIndex;
+            quietestLoudness = *loudness[deckIndex];
+        }
+    }
+    return quietestIndex;
+}
+
 bool PlayerManager::isDeckGroup(const QString& group, int* number) {
     return extractIntFromRegex(kDeckRegex, group, number);
 }
@@ -770,7 +834,7 @@ void PlayerManager::slotLoadToSampler(const QString& location, int sampler) {
 
 void PlayerManager::slotLoadTrackIntoNextAvailableDeck(TrackPointer pTrack) {
     auto locker = lockMutex(&m_mutex);
-    BaseTrackPlayer* pDeck = findLoadTargetDeckInList(m_decks);
+    BaseTrackPlayer* pDeck = findLoadTargetDeckInList(m_decks, &m_lastLoadTargetDeck);
     if (pDeck == nullptr) {
         qDebug() << "PlayerManager: No stopped deck found, not loading track!";
         return;
@@ -799,7 +863,7 @@ void PlayerManager::slotLoadTrackIntoNextAvailableDeck(TrackPointer pTrack) {
 
 void PlayerManager::slotLoadLocationIntoNextAvailableDeck(const QString& location, bool play) {
     auto locker = lockMutex(&m_mutex);
-    BaseTrackPlayer* pDeck = findLoadTargetDeckInList(m_decks);
+    BaseTrackPlayer* pDeck = findLoadTargetDeckInList(m_decks, &m_lastLoadTargetDeck);
     if (pDeck == nullptr) {
         qDebug() << "PlayerManager: No stopped deck found, not loading track!";
         return;

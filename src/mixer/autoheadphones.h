@@ -72,6 +72,13 @@ class AutoHeadphones : public QObject {
     /// muted or not routed to main). EQ at centre counts as 1, boosts above.
     static double loudness(const DeckState& state);
 
+    /// Same rule, read straight from main deck `deckIndex`'s controls, for
+    /// callers outside the poll loop (PlayerManager picks the load target with
+    /// it). `std::nullopt` when that deck does not exist or has no track.
+    /// Builds its control proxies on the spot — fine at load/click rate, not
+    /// for a hot loop.
+    static std::optional<double> loudnessForDeck(int deckIndex);
+
     /// Picks the deck for the headphones. `loudness` has one entry per main
     /// deck, empty for an empty deck; `current` is the previous pick. Keeps
     /// `current` unless another deck is quieter by more than kSwitchMargin.
@@ -99,9 +106,9 @@ class AutoHeadphones : public QObject {
     struct DeckControls;
 
     void syncDeckControls();
-    DeckState readDeck(const DeckControls& deck,
+    static DeckState readDeck(const DeckControls& deck,
             double crossfaderLeftGain,
-            double crossfaderRightGain) const;
+            double crossfaderRightGain);
 
     QTimer m_timer;
     PollingControlProxy m_enabled;

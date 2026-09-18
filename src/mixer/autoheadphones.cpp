@@ -25,6 +25,25 @@ QString stemGroup(const QString& deckGroup, int stemIdx) {
             QChar(']');
 }
 
+/// The gains the engine applies to the two crossfader sides right now. 1.0/1.0
+/// while the crossfader controls do not exist yet (early startup).
+void readCrossfaderGains(CSAMPLE_GAIN* pLeftGain, CSAMPLE_GAIN* pRightGain) {
+    *pLeftGain = 1.0f;
+    *pRightGain = 1.0f;
+    PollingControlProxy crossfader = optionalControl(kMasterGroup, QStringLiteral("crossfader"));
+    if (!crossfader.valid()) {
+        return;
+    }
+    const QString xfaderGroup(EngineXfader::kXfaderConfigKey);
+    EngineXfader::getXfadeGains(crossfader.get(),
+            optionalControl(xfaderGroup, QStringLiteral("xFaderCurve")).get(),
+            optionalControl(xfaderGroup, QStringLiteral("xFaderCalibration")).get(),
+            optionalControl(xfaderGroup, QStringLiteral("xFaderMode")).get(),
+            optionalControl(xfaderGroup, QStringLiteral("xFaderReverse")).toBool(),
+            pLeftGain,
+            pRightGain);
+}
+
 } // namespace
 
 /// Proxies for one main deck. Decks, their EQ slots and their stem groups are
@@ -151,6 +170,25 @@ double AutoHeadphones::loudness(const DeckState& state) {
 }
 
 // static
+std::optional<double> AutoHeadphones::loudnessForDeck(int deckIndex) {
+    if (deckIndex < 0) {
+        return std::nullopt;
+    }
+    const DeckControls deck(deckIndex);
+    if (!deck.deckValid()) {
+        return std::nullopt;
+    }
+    CSAMPLE_GAIN leftGain = 1.0f;
+    CSAMPLE_GAIN rightGain = 1.0f;
+    readCrossfaderGains(&leftGain, &rightGain);
+    const DeckState state = readDeck(deck, leftGain, rightGain);
+    if (!state.trackLoaded) {
+        return std::nullopt;
+    }
+    return loudness(state);
+}
+
+// static
 std::optional<int> AutoHeadphones::chooseQuietest(
         const std::vector<std::optional<double>>& loudness,
         std::optional<int> current) {
@@ -264,9 +302,10 @@ void AutoHeadphones::syncDeckControls() {
     }
 }
 
+// static
 AutoHeadphones::DeckState AutoHeadphones::readDeck(const DeckControls& deck,
         double crossfaderLeftGain,
-        double crossfaderRightGain) const {
+        double crossfaderRightGain) {
     DeckState state;
     state.trackLoaded = deck.trackLoaded.toBool();
     state.mainMix = deck.mainMix.toBool();

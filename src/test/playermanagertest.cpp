@@ -277,3 +277,111 @@ TEST_F(PlayerManagerTest, UnReplaceTest) {
     ASSERT_NE(nullptr, deck1->getLoadedTrack());
     ASSERT_EQ(testId1, deck1->getLoadedTrack()->getId());
 }
+
+namespace {
+
+/// `PlayerManager::chooseLoadTargetDeck()` — Andy's load-target rule (CP94).
+/// Pure, so no PlayerManager instance and no engine are needed.
+constexpr bool kPlaying = true;
+constexpr bool kStopped = false;
+/// A loaded, fully audible deck.
+const std::optional<double> kAudible = 1.0;
+/// A loaded deck that is playing but cannot be heard (fader/EQs/stems down).
+const std::optional<double> kSilent = 0.0;
+/// No track in the deck.
+const std::optional<double> kEmpty = std::nullopt;
+
+int chooseTarget(const std::vector<bool>& playing,
+        const std::vector<std::optional<double>>& loudness,
+        int lastTarget) {
+    return PlayerManager::chooseLoadTargetDeck(playing, loudness, lastTarget);
+}
+
+TEST(LoadTargetDeckTest, FirstLoadGoesToDeckOne) {
+    EXPECT_EQ(0, chooseTarget({kStopped, kStopped}, {kEmpty, kEmpty}, -1));
+}
+
+TEST(LoadTargetDeckTest, RepeatedLoadsAlternate) {
+    // Andy's ask: 1, 2, 1, 2, … while nothing plays — not 1, 2, 1, 1, …
+    int last = -1;
+    std::vector<int> targets;
+    for (int i = 0; i < 5; ++i) {
+        last = chooseTarget({kStopped, kStopped}, {kEmpty, kAudible}, last);
+        targets.push_back(last);
+    }
+    EXPECT_EQ(std::vector<int>({0, 1, 0, 1, 0}), targets);
+}
+
+TEST(LoadTargetDeckTest, FourDecksRotate) {
+    int last = -1;
+    std::vector<int> targets;
+    for (int i = 0; i < 5; ++i) {
+        last = chooseTarget({kStopped, kStopped, kStopped, kStopped},
+                {kEmpty, kEmpty, kEmpty, kEmpty},
+                last);
+        targets.push_back(last);
+    }
+    EXPECT_EQ(std::vector<int>({0, 1, 2, 3, 0}), targets);
+}
+
+TEST(LoadTargetDeckTest, PlayingDecksAreSkipped) {
+    // Deck 1 is live: every load has to go to deck 2, over and over.
+    int last = -1;
+    for (int i = 0; i < 3; ++i) {
+        last = chooseTarget({kPlaying, kStopped}, {kAudible, kAudible}, last);
+        EXPECT_EQ(1, last);
+    }
+}
+
+TEST(LoadTargetDeckTest, RotationSkipsPastAPlayingDeck) {
+    // 4 decks, deck 3 live, last load went to deck 2 -> next free is deck 4.
+    EXPECT_EQ(3,
+            chooseTarget({kStopped, kStopped, kPlaying, kStopped},
+                    {kAudible, kAudible, kAudible, kAudible},
+                    1));
+}
+
+TEST(LoadTargetDeckTest, AllPlayingAndAudibleRefusesToLoad) {
+    EXPECT_EQ(-1, chooseTarget({kPlaying, kPlaying}, {kAudible, kAudible}, 0));
+}
+
+TEST(LoadTargetDeckTest, AllPlayingReplacesTheMutedDeck) {
+    // The whole point of the second half of the rule: no need to stop the
+    // muted deck by hand first (and risk stopping the wrong one).
+    EXPECT_EQ(1, chooseTarget({kPlaying, kPlaying}, {kAudible, kSilent}, 0));
+    EXPECT_EQ(0, chooseTarget({kPlaying, kPlaying}, {kSilent, kAudible}, 0));
+}
+
+TEST(LoadTargetDeckTest, AlmostSilentStillCountsAsAudible) {
+    // Only a deck at/below kMutedLoudness may be loaded over — a deck that is
+    // merely quiet is still someone's mix.
+    EXPECT_EQ(-1,
+            chooseTarget({kPlaying, kPlaying},
+                    {kAudible, PlayerManager::kMutedLoudness * 10.0},
+                    0));
+    EXPECT_EQ(1,
+            chooseTarget({kPlaying, kPlaying},
+                    {kAudible, PlayerManager::kMutedLoudness},
+                    0));
+}
+
+TEST(LoadTargetDeckTest, TwoMutedDecksTakeTheQuieterOne) {
+    EXPECT_EQ(2,
+            chooseTarget({kPlaying, kPlaying, kPlaying},
+                    {kAudible, PlayerManager::kMutedLoudness, 0.0},
+                    0));
+}
+
+TEST(LoadTargetDeckTest, StoppedDeckWinsOverAMutedPlayingOne) {
+    // Pass 1 always runs first: nothing gets replaced while a deck is free.
+    EXPECT_EQ(1, chooseTarget({kPlaying, kStopped}, {kSilent, kAudible}, 0));
+}
+
+TEST(LoadTargetDeckTest, StaleOrEmptyRotationStateIsSafe) {
+    // Deck count shrank (4 -> 2) with the rotation still pointing at deck 4.
+    EXPECT_EQ(0, chooseTarget({kStopped, kStopped}, {kEmpty, kEmpty}, 3));
+    // No decks at all.
+    EXPECT_EQ(-1, chooseTarget({}, {}, -1));
+}
+
+} // namespace
