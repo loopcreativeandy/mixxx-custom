@@ -627,6 +627,19 @@ QVariant BaseTrackTableModel::roleValue(
     // will be empty
     case Qt::DisplayRole:
         switch (field) {
+        case ColumnCache::COLUMN_LIBRARYTABLE_SIMILARITY: {
+            if (rawValue.isNull()) {
+                return QVariant();
+            }
+            bool ok = false;
+            const double score = rawValue.toDouble(&ok);
+            if (!ok) {
+                return QVariant();
+            }
+            // Neighbour scores sit close together, so two decimals would collapse
+            // distinct ranks onto the same number.
+            return QString::number(score, 'f', 3);
+        }
         case ColumnCache::COLUMN_LIBRARYTABLE_DURATION: {
             if (rawValue.isNull()) {
                 return QVariant();
@@ -893,6 +906,7 @@ QVariant BaseTrackTableModel::roleValue(
         // it is left-aligned like every other text column (CP58). Upstream
         // right-aligns COLUMN_LIBRARYTABLE_TRACKNUMBER here; deliberately kept out.
         case ColumnCache::COLUMN_PLAYLISTTRACKSTABLE_POSITION:
+        case ColumnCache::COLUMN_LIBRARYTABLE_SIMILARITY:
         case ColumnCache::COLUMN_LIBRARYTABLE_REPLAYGAIN: {
             // We need to cast to int due to a bug similar to
             // https://bugreports.qt.io/browse/QTBUG-67582

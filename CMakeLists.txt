@@ -1445,6 +1445,9 @@ add_library(
   src/library/trackset/crate/cratetablemodel.cpp
   src/library/trackset/playlistfeature.cpp
   src/library/trackset/setlogfeature.cpp
+  src/library/similarity/similarityindex.cpp
+  src/library/trackset/similar/similarfeature.cpp
+  src/library/trackset/similar/similartablemodel.cpp
   src/library/trackset/smartplaylist/smartplaylistfeature.cpp
   src/library/trackset/smartplaylist/smartplayliststorage.cpp
   src/library/trackset/smartplaylist/smartplaylisttablemodel.cpp
@@ -2792,6 +2795,8 @@ if(BUILD_TESTING)
     src/test/performancetimer_test.cpp
     src/test/playcountertest.cpp
     src/test/playermanagertest.cpp
+    src/test/similarityindextest.cpp
+    src/test/similartablemodeltest.cpp
     src/test/rubberbandworkerpooltest.cpp
     src/test/playlisttest.cpp
     src/test/controllermanager_rescan_test.cpp

@@ -4,6 +4,7 @@
 #include <QList>
 #include <QObject>
 #include <QPointer>
+#include <memory>
 
 #include "analyzer/trackanalysisscheduler.h"
 #include "library/library_decl.h"
@@ -12,6 +13,7 @@
 #endif
 #include "preferences/usersettings.h"
 #include "track/track_decl.h"
+#include "track/trackid.h"
 #include "util/db/dbconnectionpool.h"
 #include "util/parented_ptr.h"
 
@@ -30,6 +32,8 @@ class AutoDJFeature;
 class RecordingManager;
 class SidebarModel;
 class SmartPlaylistFeature;
+class SimilarFeature;
+class SimilarityIndex;
 class TrackCollectionManager;
 class WSearchLineEdit;
 class WLibrarySidebar;
@@ -107,6 +111,16 @@ class Library: public QObject {
     /// Triggers a new search in the internal track collection
     /// and shows the results by switching the view.
     void searchTracksInCollection(const QString& query);
+
+    /// andy-custom: shows the tracks most similar to `seedTrackId` in the "Similar"
+    /// sidebar item and switches to it.
+    void showSimilarTracks(TrackId seedTrackId);
+
+    /// andy-custom: the similarity index, for callers that need to know whether a track
+    /// can be used as a seed before offering the action. Never null.
+    SimilarityIndex* similarityIndex() const {
+        return m_pSimilarityIndex.get();
+    }
 
     bool requestAddDir(const QString& directory);
     bool requestRemoveDir(const QString& directory, LibraryRemovalType removalType);
@@ -204,6 +218,8 @@ class Library: public QObject {
     AutoDJFeature* m_pAutoDJFeature;
     CrateFeature* m_pCrateFeature;
     SmartPlaylistFeature* m_pSmartPlaylistFeature;
+    SimilarFeature* m_pSimilarFeature;
+    std::unique_ptr<SimilarityIndex> m_pSimilarityIndex;
     AnalysisFeature* m_pAnalysisFeature;
     BrowseFeature* m_pBrowseFeature;
     QFont m_trackTableFont;

@@ -31,6 +31,8 @@
 #include "library/trackset/playlistfeature.h"
 #include "library/trackset/setlogfeature.h"
 #include "library/trackset/smartplaylist/smartplaylistfeature.h"
+#include "library/similarity/similarityindex.h"
+#include "library/trackset/similar/similarfeature.h"
 #include "library/traktor/traktorfeature.h"
 #include "mixer/playermanager.h"
 #include "moc_library.cpp"
@@ -136,6 +138,14 @@ Library::Library(
     // crates so the three track-set roots are neighbours in the sidebar.
     m_pSmartPlaylistFeature = new SmartPlaylistFeature(this, m_pConfig);
     addFeature(m_pSmartPlaylistFeature);
+
+    // andy-custom: nearest neighbours of a track, read from an external index. The
+    // index object is shared with WTrackMenu, which needs to know whether a track can
+    // be a seed before it offers the action.
+    m_pSimilarityIndex = std::make_unique<SimilarityIndex>(m_pConfig);
+    m_pSimilarityIndex->setTrackCollectionManager(m_pTrackCollectionManager);
+    m_pSimilarFeature = new SimilarFeature(this, m_pConfig, m_pSimilarityIndex.get());
+    addFeature(m_pSimilarFeature);
 
     m_pBrowseFeature = new BrowseFeature(
             this, m_pConfig, pRecordingManager);
@@ -755,6 +765,13 @@ void Library::setRowHeight(int rowHeight) {
 void Library::setEditMetadataSelectedClick(bool enabled) {
     m_editMetadataSelectedClick = enabled;
     emit setSelectedClick(enabled);
+}
+
+void Library::showSimilarTracks(TrackId seedTrackId) {
+    VERIFY_OR_DEBUG_ASSERT(m_pSimilarFeature) {
+        return;
+    }
+    m_pSimilarFeature->showSimilarTo(seedTrackId);
 }
 
 void Library::searchTracksInCollection(const QString& query) {

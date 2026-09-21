@@ -69,6 +69,10 @@ class ColumnCache : public QObject {
 
         COLUMN_REKORDBOX_ANALYZE_PATH,
 
+        // Only present in the "Similar" view (andy-custom). Appended rather than
+        // inserted so no existing enum value shifts.
+        COLUMN_LIBRARYTABLE_SIMILARITY,
+
         // NUM_COLUMNS should always be the last item.
         NUM_COLUMNS
     };

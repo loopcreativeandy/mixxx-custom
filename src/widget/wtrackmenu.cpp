@@ -25,6 +25,7 @@
 #include "library/externaltrackcollection.h"
 #include "library/library.h"
 #include "library/relatedtracks.h"
+#include "library/similarity/similarityindex.h"
 #include "library/stemaudioalign.h"
 #include "library/stemoriginal.h"
 #include "library/trackcollection.h"
@@ -406,6 +407,11 @@ void WTrackMenu::createActions() {
         connect(m_pSelectInLibraryAct, &QAction::triggered, this, &WTrackMenu::slotSelectInLibrary);
     }
 
+    if (featureIsEnabled(Feature::FindSimilar)) {
+        m_pFindSimilarAct = make_parented<QAction>(tr("Find Similar"), this);
+        connect(m_pFindSimilarAct, &QAction::triggered, this, &WTrackMenu::slotFindSimilar);
+    }
+
     if (featureIsEnabled(Feature::Metadata)) {
         m_pImportMetadataFromFileAct =
                 make_parented<QAction>(tr("Import From File Tags"), m_pMetadataMenu);
@@ -641,11 +647,18 @@ void WTrackMenu::setupActions() {
         addMenu(m_pSearchRelatedMenu);
     }
 
+    // andy-custom: right next to the tag-based "search related tracks", because it
+    // answers the same question by a different route.
+    if (featureIsEnabled(Feature::FindSimilar)) {
+        addAction(m_pFindSimilarAct);
+    }
+
     if (featureIsEnabled(Feature::SelectInLibrary)) {
         addAction(m_pSelectInLibraryAct);
     }
 
     if (featureIsEnabled(Feature::SearchRelated) ||
+            featureIsEnabled(Feature::FindSimilar) ||
             featureIsEnabled(Feature::SelectInLibrary)) {
         addSeparator();
     }
@@ -1268,6 +1281,22 @@ void WTrackMenu::updateMenus() {
         m_pSelectInLibraryAct->setEnabled(enabled);
     }
 
+    if (featureIsEnabled(Feature::FindSimilar)) {
+        // One seed, one result list. And a track the index knows nothing about would
+        // silently return somebody else's neighbours, so say why it is unavailable
+        // instead of offering it.
+        const bool hasVector = singleTrackSelected && pTrack &&
+                m_pLibrary->similarityIndex()->hasVectorFor(pTrack->getId());
+        m_pFindSimilarAct->setEnabled(hasVector);
+        if (!singleTrackSelected) {
+            m_pFindSimilarAct->setText(tr("Find Similar"));
+        } else {
+            m_pFindSimilarAct->setText(hasVector
+                            ? tr("Find Similar")
+                            : tr("Find Similar (no similarity data)"));
+        }
+    }
+
     if (featureIsEnabled(Feature::Metadata)) {
         // Might be needed to resize Menu to fit the star rating
         // QResizeEvent resizeEvent(QSize(), m_pStarRatingAction->sizeHint());
@@ -1467,6 +1496,14 @@ void WTrackMenu::slotSelectInLibrary() {
     if (m_pTrack) {
         emit m_pLibrary->selectTrack(m_pTrack->getId());
     }
+}
+
+void WTrackMenu::slotFindSimilar() {
+    const auto pTrack = getFirstTrackPointer();
+    if (!pTrack) {
+        return;
+    }
+    m_pLibrary->showSimilarTracks(pTrack->getId());
 }
 
 namespace {

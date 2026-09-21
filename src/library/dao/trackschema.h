@@ -54,6 +54,11 @@ const QString LIBRARYTABLE_COVERART_DIGEST = QStringLiteral("coverart_digest");
 const QString LIBRARYTABLE_COVERART_HASH = QStringLiteral("coverart_hash");
 const QString LIBRARYTABLE_CRATE = QStringLiteral("crate");
 
+// Not a column of the library table: the similarity score is carried by the temporary
+// view behind the "Similar" sidebar item (andy-custom). It shares the LIBRARYTABLE_
+// prefix so it lines up with the ColumnCache enum, like the playlist columns below.
+const QString LIBRARYTABLE_SIMILARITY = QStringLiteral("similarity");
+
 const QString TRACKLOCATIONSTABLE_ID = QStringLiteral("id");
 const QString TRACKLOCATIONSTABLE_LOCATION = QStringLiteral("location");
 const QString TRACKLOCATIONSTABLE_FILENAME = QStringLiteral("filename");

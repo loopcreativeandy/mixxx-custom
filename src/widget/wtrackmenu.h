@@ -58,11 +58,13 @@ class WTrackMenu : public QMenu {
         SelectInLibrary = 1 << 15,
         Analyze = 1 << 16,
         FindOnWeb = 1 << 17,
+        /// andy-custom: nearest neighbours from the external similarity index.
+        FindSimilar = 1 << 18,
         TrackModelFeatures = Remove | HideUnhidePurge,
         All = AutoDJ | LoadTo | Playlist | Crate | Remove | Metadata | Reset | Analyze |
                 BPM | Color | HideUnhidePurge | RemoveFromDisk | FileBrowser |
                 Properties | SearchRelated | UpdateReplayGainFromPregain | SelectInLibrary |
-                FindOnWeb
+                FindOnWeb | FindSimilar
     };
     Q_DECLARE_FLAGS(Features, Feature)
 
@@ -70,6 +72,7 @@ class WTrackMenu : public QMenu {
     // Used by WTrackProperty, WTrackText & WTrackWidgetGroup.
     static constexpr WTrackMenu::Features kDeckTrackMenuFeatures{
             WTrackMenu::Feature::SearchRelated |
+            WTrackMenu::Feature::FindSimilar |
             WTrackMenu::Feature::Playlist |
             WTrackMenu::Feature::Crate |
             WTrackMenu::Feature::Metadata |
@@ -134,6 +137,7 @@ class WTrackMenu : public QMenu {
     // File
     void slotOpenInFileBrowser();
     void slotSelectInLibrary();
+    void slotFindSimilar();
 
     // Track rating
     void slotSetRating(int rating);
@@ -309,6 +313,7 @@ class WTrackMenu : public QMenu {
     parented_ptr<QMenu> m_pColorMenu;
     parented_ptr<WCoverArtMenu> m_pCoverMenu;
     parented_ptr<WSearchRelatedTracksMenu> m_pSearchRelatedMenu;
+    parented_ptr<QAction> m_pFindSimilarAct;
     parented_ptr<WFindOnWebMenu> m_pFindOnWebMenu;
 #if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
     QMenu* m_pRemoveFromDiskMenu{};
