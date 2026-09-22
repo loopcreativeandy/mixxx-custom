@@ -9,6 +9,7 @@
 #include <QUuid>
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 #include "library/dao/directorydao.h"
 #include "library/queryutil.h"
@@ -339,7 +340,8 @@ void SimilarityIndex::matchLibrary(const QList<LibraryTrack>& tracks) {
             ? m_pConfig->getValue(
                       ConfigKey(kConfigGroup, kConfigExcludedDirs), kDefaultExcludedDirs)
             : kDefaultExcludedDirs;
-    for (const QString& dir : configured.split(QChar(','), Qt::SkipEmptyParts)) {
+    const QStringList configuredDirs = configured.split(QChar(','), Qt::SkipEmptyParts);
+    for (const QString& dir : configuredDirs) {
         const QString trimmed = dir.trimmed().toLower();
         if (!trimmed.isEmpty()) {
             excludedDirs.append(trimmed);
@@ -450,7 +452,7 @@ QList<SimilarityIndex::Neighbour> SimilarityIndex::nearest(TrackId seedTrackId, 
         for (int i = 0; i < m_dimension; ++i) {
             score += static_cast<double>(pSeed[i]) * static_cast<double>(pOther[i]);
         }
-        for (const TrackId& trackId : m_trackIdsByRow[row]) {
+        for (const TrackId& trackId : m_trackIdsByRow.at(row)) {
             if (trackId == seedTrackId || !isEligibleResult(trackId)) {
                 continue;
             }
@@ -491,7 +493,7 @@ SimilarityIndex::Status SimilarityIndex::status() {
     status.libraryTrackCount = m_libraryTrackCount;
     status.matchedCount = m_rowByTrackId.size();
     int claimed = 0;
-    for (const QList<TrackId>& trackIds : m_trackIdsByRow) {
+    for (const QList<TrackId>& trackIds : std::as_const(m_trackIdsByRow)) {
         if (!trackIds.isEmpty()) {
             ++claimed;
         }
