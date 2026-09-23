@@ -70,18 +70,19 @@ void SimilarTableModel::setupSimilarTable() {
             tableColumns,
             m_pTrackCollectionManager->internalCollection()->getTrackSource());
     setSearch(QString());
-    setDefaultSort(fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_SIMILARITY),
-            Qt::DescendingOrder);
+    setDefaultSort(fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_SIMILARITY_RANK),
+            Qt::AscendingOrder);
     setSort(defaultSortColumn(), defaultSortOrder());
 }
 
-void SimilarTableModel::setResults(const QList<SimilarityIndex::Neighbour>& results) {
+void SimilarTableModel::setResults(
+        const QList<SimilarityIndex::Neighbour>& results, TrackId seedTrackId) {
     QSqlQuery query(m_database);
     if (!query.exec(QStringLiteral("DELETE FROM ") + kTableName)) {
         LOG_FAILED_QUERY(query);
         return;
     }
-    if (!results.isEmpty()) {
+    if (!results.isEmpty() || seedTrackId.isValid()) {
         query.prepare(QStringLiteral("INSERT INTO ") + kTableName +
                 QStringLiteral(" (") + LIBRARYTABLE_ID + QStringLiteral(", ") +
                 LIBRARYTABLE_SIMILARITY + QStringLiteral(", ") +
@@ -97,6 +98,22 @@ void SimilarTableModel::setResults(const QList<SimilarityIndex::Neighbour>& resu
                         const SimilarityIndex::Neighbour& rhs) {
                     return lhs.score > rhs.score;
                 });
+        // The seed itself on top as rank 0 (Andy, 2026-09-23), so it is clear
+        // what the list is similar *to*. Similarity 1.0 by definition.
+        if (seedTrackId.isValid()) {
+            ranked.erase(std::remove_if(ranked.begin(),
+                                 ranked.end(),
+                                 [seedTrackId](const SimilarityIndex::Neighbour& result) {
+                                     return result.trackId == seedTrackId;
+                                 }),
+                    ranked.end());
+            query.bindValue(QStringLiteral(":id"), seedTrackId.toVariant());
+            query.bindValue(QStringLiteral(":rank"), 0);
+            query.bindValue(QStringLiteral(":score"), 1.0);
+            if (!query.exec()) {
+                LOG_FAILED_QUERY(query);
+            }
+        }
         int rank = 0;
         for (const auto& result : std::as_const(ranked)) {
             query.bindValue(QStringLiteral(":id"), result.trackId.toVariant());
@@ -111,7 +128,9 @@ void SimilarTableModel::setResults(const QList<SimilarityIndex::Neighbour>& resu
     }
     // Opening the view starts unfiltered; the search bar then filters within the hits.
     setSearch(QString());
-    setSort(fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_SIMILARITY), Qt::DescendingOrder);
+    // By rank rather than by score: a duplicate file scores 1.0 too and could
+    // otherwise sit above the seed.
+    setSort(fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_SIMILARITY_RANK), Qt::AscendingOrder);
     select();
 }
 

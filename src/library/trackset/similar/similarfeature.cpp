@@ -59,9 +59,10 @@ QString SimilarFeature::getRootViewHtml() const {
     const QString description =
             tr("Right-click a track in the library and choose <b>Find Similar</b>. "
                "Every track with a similarity of at least %1 appears here - and "
-               "always at least the %2 closest - ranked from 1 = most similar, with "
-               "the similarity in its own sortable column. Typing in the search bar "
-               "filters within the results.")
+               "always at least the %2 closest - ranked from 1 = most similar, "
+               "with the similarity in its own sortable column. Rank 0 on top is "
+               "the track itself. Typing in the search bar filters within the "
+               "results.")
                     .arg(QString::number(m_pSimilarityIndex->minScore(), 'f', 2),
                             QString::number(m_pSimilarityIndex->minResults()));
 
@@ -149,7 +150,7 @@ void SimilarFeature::showSimilarTo(TrackId seedTrackId) {
     }
     m_hasResults = true;
     emit saveModelState();
-    m_similarTableModel.setResults(results);
+    m_similarTableModel.setResults(results, seedTrackId);
     emit featureSelect(this, QModelIndex());
     emit showTrackModel(&m_similarTableModel);
     emit enableCoverArtDisplay(true);

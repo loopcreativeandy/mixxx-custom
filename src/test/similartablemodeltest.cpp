@@ -205,4 +205,26 @@ TEST_F(SimilarTableModelTest, ranksFromOneByScoreAndKeepsTheRankWhenResorted) {
             m_model.columnIndexFromSortColumnId(TrackModel::SortColumnId::SimilarityRank));
 }
 
+// Andy, 2026-09-23: the seed on top as rank 0, so it is clear what the list
+// is similar to - even when a duplicate also scores 1.0.
+TEST_F(SimilarTableModelTest, theSeedIsOnTopAsRankZero) {
+    addThreeTracks();
+    m_model.setResults(
+            QList<SimilarityIndex::Neighbour>{
+                    {m_trackB->getId(), 1.0}, // a duplicate of the seed
+                    {m_trackC->getId(), 0.8},
+                    {m_trackA->getId(), 0.9}, // the seed itself must not appear twice
+            },
+            m_trackA->getId());
+
+    const QList<TrackId> expected{m_trackA->getId(), m_trackB->getId(), m_trackC->getId()};
+    EXPECT_EQ(expected, idsInOrder());
+    const int rankColumn =
+            m_model.fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_SIMILARITY_RANK);
+    EXPECT_EQ(0, m_model.data(m_model.index(0, rankColumn)).toInt());
+    EXPECT_EQ(1, m_model.data(m_model.index(1, rankColumn)).toInt());
+    EXPECT_DOUBLE_EQ(1.0,
+            m_model.data(m_model.index(0, similarityColumn()), Qt::EditRole).toDouble());
+}
+
 } // anonymous namespace

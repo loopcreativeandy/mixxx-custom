@@ -19,8 +19,10 @@ class SimilarTableModel : public LibraryTableModel {
             TrackCollectionManager* pTrackCollectionManager);
     ~SimilarTableModel() override = default;
 
-    /// Replaces the result set and re-selects, best match first.
-    void setResults(const QList<SimilarityIndex::Neighbour>& results);
+    /// Replaces the result set and re-selects, best match first. A valid
+    /// `seedTrackId` is shown on top as rank 0 with similarity 1.0.
+    void setResults(const QList<SimilarityIndex::Neighbour>& results,
+            TrackId seedTrackId = TrackId());
 
     /// Like the library, minus ReceiveDrops: membership comes from a query, so tracks
     /// cannot be dropped in here.
