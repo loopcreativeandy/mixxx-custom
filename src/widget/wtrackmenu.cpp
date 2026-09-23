@@ -3577,59 +3577,85 @@ bool WTrackMenu::featureIsEnabled(Feature flag) const {
         return !m_eTrackModelFeatures.testFlag(flag);
     }
 
+    const std::optional<bool> enabled = featureEnabledForTrackModel(flag,
+            [this](TrackModel::Capabilities capabilities) {
+                return m_pTrackModel->hasCapabilities(capabilities);
+            },
+            m_pLibrary != nullptr,
+            m_pTrack != nullptr);
+    VERIFY_OR_DEBUG_ASSERT(enabled.has_value()) {
+        return false;
+    }
+    return *enabled;
+}
+
+// static
+std::optional<bool> WTrackMenu::featureEnabledForTrackModel(Feature flag,
+        const std::function<bool(TrackModel::Capabilities)>& hasCapabilities,
+        bool hasLibrary,
+        bool hasTrack) {
     switch (flag) {
     case Feature::AutoDJ:
-        return m_pTrackModel->hasCapabilities(TrackModel::Capability::AddToAutoDJ);
+        return hasCapabilities(TrackModel::Capability::AddToAutoDJ);
     case Feature::LoadTo:
-        return m_pTrackModel->hasCapabilities(
+        return hasCapabilities(
                        TrackModel::Capability::LoadToDeck) ||
-                m_pTrackModel->hasCapabilities(
+                hasCapabilities(
                         TrackModel::Capability::LoadToSampler) ||
-                m_pTrackModel->hasCapabilities(
+                hasCapabilities(
                         TrackModel::Capability::LoadToPreviewDeck);
     case Feature::Playlist:
     case Feature::Crate:
-        return m_pTrackModel->hasCapabilities(
+        return hasCapabilities(
                 TrackModel::Capability::AddToTrackSet);
     case Feature::Remove:
-        return m_pTrackModel->hasCapabilities(
+        return hasCapabilities(
                        TrackModel::Capability::Remove) ||
-                m_pTrackModel->hasCapabilities(
+                hasCapabilities(
                         TrackModel::Capability::RemovePlaylist) ||
-                m_pTrackModel->hasCapabilities(
+                hasCapabilities(
                         TrackModel::Capability::RemoveCrate);
     case Feature::Metadata:
-        return m_pTrackModel->hasCapabilities(TrackModel::Capability::EditMetadata);
+        return hasCapabilities(TrackModel::Capability::EditMetadata);
     case Feature::Analyze:
-        return m_pTrackModel->hasCapabilities(
+        return hasCapabilities(
                 TrackModel::Capability::EditMetadata |
                 TrackModel::Capability::Analyze);
     case Feature::Reset:
-        return m_pTrackModel->hasCapabilities(
+        return hasCapabilities(
                 TrackModel::Capability::EditMetadata |
                 TrackModel::Capability::ResetPlayed);
     case Feature::BPM:
-        return m_pTrackModel->hasCapabilities(TrackModel::Capability::EditMetadata);
+        return hasCapabilities(TrackModel::Capability::EditMetadata);
     case Feature::Color:
-        return m_pTrackModel->hasCapabilities(TrackModel::Capability::EditMetadata);
+        return hasCapabilities(TrackModel::Capability::EditMetadata);
     case Feature::HideUnhidePurge:
-        return m_pTrackModel->hasCapabilities(TrackModel::Capability::Hide) ||
-                m_pTrackModel->hasCapabilities(TrackModel::Capability::Unhide) ||
-                m_pTrackModel->hasCapabilities(TrackModel::Capability::Purge);
+        return hasCapabilities(TrackModel::Capability::Hide) ||
+                hasCapabilities(TrackModel::Capability::Unhide) ||
+                hasCapabilities(TrackModel::Capability::Purge);
     case Feature::RemoveFromDisk:
-        return m_pTrackModel->hasCapabilities(TrackModel::Capability::RemoveFromDisk);
+        return hasCapabilities(TrackModel::Capability::RemoveFromDisk);
     case Feature::FileBrowser:
         return true;
     case Feature::FindOnWeb:
         return true;
     case Feature::Properties:
-        return m_pTrackModel->hasCapabilities(TrackModel::Capability::Properties);
+        return hasCapabilities(TrackModel::Capability::Properties);
     case Feature::SearchRelated:
-        return m_pLibrary != nullptr;
+        return hasLibrary;
     case Feature::SelectInLibrary:
-        return m_pTrack != nullptr;
-    default:
-        DEBUG_ASSERT(!"unreachable");
+        return hasTrack;
+    // andy-custom: every new Feature needs a case here. Without one, any view
+    // backed by a track model (all library/playlist/crate tables) falls into
+    // `default` and silently drops the entry in release builds - which is how
+    // Find Similar went missing from the library menu in CP95.
+    case Feature::FindSimilar:
+        return hasLibrary;
+    case Feature::SwapWithStem:
+        // Needs a playing position to transfer, i.e. a deck; a library row has
+        // none. Deck menus have no track model and never reach this switch.
         return false;
+    default:
+        return std::nullopt;
     }
 }

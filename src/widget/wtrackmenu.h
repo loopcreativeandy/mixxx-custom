@@ -3,12 +3,15 @@
 #include <QMenu>
 #include <QModelIndex>
 #include <QPointer>
+#include <functional>
 #include <memory>
+#include <optional>
 
 #include "analyzer/analyzertrack.h"
 #include "control/pollingcontrolproxy.h"
 #include "library/coverart.h"
 #include "library/dao/playlistdao.h"
+#include "library/trackmodel.h"
 #include "library/trackprocessing.h"
 #include "preferences/usersettings.h"
 #include "track/beats.h"
@@ -23,7 +26,6 @@ class DlgTrackInfoMulti;
 //class DlgDeleteFilesConfirmation;
 class ExternalTrackCollection;
 class Library;
-class TrackModel;
 class WColorPickerAction;
 class WCoverArtMenu;
 class WFindOnWebMenu;
@@ -114,6 +116,15 @@ class WTrackMenu : public QMenu {
     }
 
     void updateMenus();
+
+    /// Whether `flag` is available in a view backed by a track model with the
+    /// given capabilities. Returns nullopt for a Feature that has no rule yet -
+    /// every Feature in `All` must have one, otherwise it silently vanishes
+    /// from all library/playlist/crate menus (StemSwap/FindSimilar tests pin it).
+    static std::optional<bool> featureEnabledForTrackModel(Feature flag,
+            const std::function<bool(TrackModel::Capabilities)>& hasCapabilities,
+            bool hasLibrary,
+            bool hasTrack);
     // WARNING: This function hides non-virtual QMenu::popup().
     // This has been done on purpose to ensure menu doesn't popup without loaded track(s).
     void popup(const QPoint& pos, QAction* at = nullptr);
