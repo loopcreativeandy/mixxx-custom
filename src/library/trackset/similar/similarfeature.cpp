@@ -58,10 +58,12 @@ QString SimilarFeature::getRootViewHtml() const {
     const QString title = tr("Similar");
     const QString description =
             tr("Right-click a track in the library and choose <b>Find Similar</b>. "
-               "Every track with a similarity of at least %1 appears here, ranked "
-               "from 1 = most similar, with the similarity in its own sortable "
-               "column. Typing in the search bar filters within the results.")
-                    .arg(QString::number(m_pSimilarityIndex->minScore(), 'f', 2));
+               "Every track with a similarity of at least %1 appears here - and "
+               "always at least the %2 closest - ranked from 1 = most similar, with "
+               "the similarity in its own sortable column. Typing in the search bar "
+               "filters within the results.")
+                    .arg(QString::number(m_pSimilarityIndex->minScore(), 'f', 2),
+                            QString::number(m_pSimilarityIndex->minResults()));
 
     QString statusHtml;
     SimilarityIndex::Status status = m_pSimilarityIndex->status();
@@ -125,7 +127,9 @@ void SimilarFeature::activate() {
 
 void SimilarFeature::showSimilarTo(TrackId seedTrackId) {
     const QList<SimilarityIndex::Neighbour> results =
-            m_pSimilarityIndex->nearestAbove(seedTrackId, m_pSimilarityIndex->minScore());
+            m_pSimilarityIndex->nearestAbove(seedTrackId,
+                    m_pSimilarityIndex->minScore(),
+                    m_pSimilarityIndex->minResults());
     m_noMatchesFor.clear();
     if (results.isEmpty()) {
         // Either no vector for the seed or everything was filtered out. Say so in the

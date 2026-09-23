@@ -450,6 +450,38 @@ TEST_F(SimilarityIndexTest, minScoreDefaultsToPointNineAndIsConfigurable) {
     }
 }
 
+// Same day: "at least 10, or up to the threshold" - the minimum wins when few
+// tracks reach the threshold, the threshold when many do.
+TEST_F(SimilarityIndexTest, nearestAboveFillsUpToTheMinimumCount) {
+    writeFourNeighbours();
+    SimilarityIndex index(config());
+    ASSERT_TRUE(index.openForTesting(indexPath()));
+    index.setLibraryTracksForTesting(fourNeighbourLibrary());
+
+    // Only "near" (1.0) reaches 0.9; the minimum of 3 adds the next closest.
+    QList<SimilarityIndex::Neighbour> results = index.nearestAbove(trackId(1), 0.9, 3);
+    ASSERT_EQ(3, results.size());
+    EXPECT_EQ(trackId(2), results.at(0).trackId);
+    EXPECT_EQ(trackId(3), results.at(1).trackId);
+    EXPECT_EQ(trackId(4), results.at(2).trackId);
+
+    // Threshold above the minimum: the threshold decides.
+    EXPECT_EQ(3, index.nearestAbove(trackId(1), 0.5, 1).size());
+    // A minimum larger than the library: everything there is, no more.
+    EXPECT_EQ(4, index.nearestAbove(trackId(1), 0.99, 10).size());
+    // The seed with nothing above the threshold still gets its minimum.
+    EXPECT_EQ(2, index.nearestAbove(trackId(4), 0.99, 2).size());
+}
+
+TEST_F(SimilarityIndexTest, minResultsDefaultsToTenAndIsConfigurable) {
+    SimilarityIndex index(config());
+    EXPECT_EQ(10, index.minResults());
+    config()->set(ConfigKey("[Similarity]", "min_results"), ConfigValue(QStringLiteral("25")));
+    EXPECT_EQ(25, index.minResults());
+    config()->set(ConfigKey("[Similarity]", "min_results"), ConfigValue(QStringLiteral("-4")));
+    EXPECT_EQ(0, index.minResults());
+}
+
 TEST(SimilaritySeedTest, aTrackWithItsOwnVectorSeedsItself) {
     const TrackId own = trackId(1);
     const TrackId original = trackId(2);

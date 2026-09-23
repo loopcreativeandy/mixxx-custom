@@ -30,6 +30,7 @@ const char* kConfigGroup = "[Similarity]";
 const char* kConfigIndexPath = "index_path";
 const char* kConfigResultCount = "result_count";
 const char* kConfigMinScore = "min_score";
+const char* kConfigMinResults = "min_results";
 const char* kConfigMinDuration = "min_duration_seconds";
 const char* kConfigMaxDuration = "max_duration_seconds";
 const char* kConfigExcludedDirs = "excluded_directories";
@@ -39,6 +40,9 @@ constexpr int kDefaultResultCount = 50;
 // similarity, however many that is. Measured on his index (3754 tracks):
 // median 86 hits per seed, 6 % of seeds get none, the busiest 643.
 constexpr double kDefaultMinScore = 0.9;
+// ...but never fewer than this many, so the view is not empty for a track
+// with no close neighbours (Andy, same day).
+constexpr int kDefaultMinResults = 10;
 // A duration window is the only filter available without a dedicated tag, and it can
 // only honestly catch the extremes: silence clips and spoken excerpts at the bottom,
 // hour-long recordings at the top. Measured against a real library, anything narrower
@@ -107,6 +111,14 @@ double SimilarityIndex::minScore() const {
         return minScore;
     }
     return kDefaultMinScore;
+}
+
+int SimilarityIndex::minResults() const {
+    const int minResults = m_pConfig
+            ? m_pConfig->getValue(ConfigKey(kConfigGroup, kConfigMinResults),
+                      kDefaultMinResults)
+            : kDefaultMinResults;
+    return std::clamp(minResults, 0, 1000);
 }
 
 void SimilarityIndex::invalidate() {
@@ -462,12 +474,18 @@ bool SimilarityIndex::hasVectorFor(TrackId trackId) {
 }
 
 QList<SimilarityIndex::Neighbour> SimilarityIndex::nearestAbove(
-        TrackId seedTrackId, double minScore) {
-    return nearest(seedTrackId, std::numeric_limits<int>::max(), minScore);
+        TrackId seedTrackId, double minScore, int minCount) {
+    QList<Neighbour> results = nearest(seedTrackId, std::numeric_limits<int>::max());
+    int keep = 0;
+    while (keep < results.size() &&
+            (keep < minCount || results.at(keep).score >= minScore)) {
+        ++keep;
+    }
+    results.resize(keep);
+    return results;
 }
 
-QList<SimilarityIndex::Neighbour> SimilarityIndex::nearest(
-        TrackId seedTrackId, int count, double minScore) {
+QList<SimilarityIndex::Neighbour> SimilarityIndex::nearest(TrackId seedTrackId, int count) {
     QList<Neighbour> results;
     if (count <= 0 || !seedTrackId.isValid() || !ensureLoaded()) {
         return results;
@@ -491,9 +509,6 @@ QList<SimilarityIndex::Neighbour> SimilarityIndex::nearest(
         double score = 0.0;
         for (int i = 0; i < m_dimension; ++i) {
             score += static_cast<double>(pSeed[i]) * static_cast<double>(pOther[i]);
-        }
-        if (score < minScore) {
-            continue;
         }
         for (const TrackId& trackId : m_trackIdsByRow.at(row)) {
             if (trackId == seedTrackId || !isEligibleResult(trackId)) {
