@@ -1,5 +1,6 @@
 #include "widget/wtrackmenu.h"
 
+#include <QApplication>
 #include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QHash>
@@ -16,6 +17,7 @@
 #include "analyzer/analyzersilence.h"
 #include "analyzer/analyzertrack.h"
 #include "control/controlobject.h"
+#include "control/controlproxy.h"
 #include "library/coverartutils.h"
 #include "library/dao/trackschema.h"
 #include "library/dlgtagfetcher.h"
@@ -28,6 +30,7 @@
 #include "library/similarity/similarityindex.h"
 #include "library/stemaudioalign.h"
 #include "library/stemoriginal.h"
+#include "library/stemswap.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "library/trackmodel.h"
@@ -73,6 +76,11 @@ const QString samplerTrString(int i) {
 }
 
 const char* kOrigTrTextProperty = "origTrText";
+
+/// How many playlists the "Add to Playlist" submenu shows before it offers
+/// "Show All Playlists" instead (Andy, 2026-09-23: the unlimited list covered
+/// his entire screen).
+constexpr int kPlaylistMenuPageSize = 20;
 const char* kBpmScaleProperty = "bpmScale";
 
 void appendBpmPreviewtoBpmAction(QAction* pAction, const double bpm) {
@@ -125,6 +133,7 @@ WTrackMenu::WTrackMenu(
           m_bSearchRelatedMenuLoaded(false),
           m_bFindOnWebMenuLoaded(false),
           m_bPlaylistMenuLoaded(false),
+          m_bPlaylistMenuShowAll(false),
           m_bCrateMenuLoaded(false),
           m_eActiveFeatures(flags),
           m_eTrackModelFeatures(Feature::TrackModelFeatures) {
@@ -412,6 +421,15 @@ void WTrackMenu::createActions() {
         connect(m_pFindSimilarAct, &QAction::triggered, this, &WTrackMenu::slotFindSimilar);
     }
 
+    if (featureIsEnabled(Feature::SwapWithStem)) {
+        m_pSwapWithStemAct = make_parented<QAction>(tr("Swap with Stem Track"), this);
+        m_pSwapWithStemAct->setToolTip(
+                tr("Load the stem/original counterpart of this track into another "
+                   "deck at the same position, aligned to the measured audio "
+                   "offset. The playing deck is not touched - fade over by hand."));
+        connect(m_pSwapWithStemAct, &QAction::triggered, this, &WTrackMenu::slotSwapWithStem);
+    }
+
     if (featureIsEnabled(Feature::Metadata)) {
         m_pImportMetadataFromFileAct =
                 make_parented<QAction>(tr("Import From File Tags"), m_pMetadataMenu);
@@ -653,12 +671,19 @@ void WTrackMenu::setupActions() {
         addAction(m_pFindSimilarAct);
     }
 
+    // andy-custom: the live stem swap belongs with the other "get me a different
+    // version of this track" entries.
+    if (featureIsEnabled(Feature::SwapWithStem)) {
+        addAction(m_pSwapWithStemAct);
+    }
+
     if (featureIsEnabled(Feature::SelectInLibrary)) {
         addAction(m_pSelectInLibraryAct);
     }
 
     if (featureIsEnabled(Feature::SearchRelated) ||
             featureIsEnabled(Feature::FindSimilar) ||
+            featureIsEnabled(Feature::SwapWithStem) ||
             featureIsEnabled(Feature::SelectInLibrary)) {
         addSeparator();
     }
@@ -1137,6 +1162,8 @@ void WTrackMenu::updateMenus() {
         // Playlist menu is lazy loaded on hover by slotPopulatePlaylistMenu
         // to avoid unnecessary database queries
         m_bPlaylistMenuLoaded = false;
+        // Each time the track menu opens, start from the short list again.
+        m_bPlaylistMenuShowAll = false;
     }
 
     if (featureIsEnabled(Feature::Crate)) {
@@ -1295,6 +1322,42 @@ void WTrackMenu::updateMenus() {
                             ? tr("Find Similar")
                             : tr("Find Similar (no similarity data)"));
         }
+    }
+
+    if (featureIsEnabled(Feature::SwapWithStem)) {
+        // Only meaningful from a deck (we need a position to transfer) and only
+        // for a single track that actually has a counterpart in the library.
+        bool swapEnabled = false;
+        QString swapText = tr("Swap with Stem Track");
+        if (!singleTrackSelected || !pTrack) {
+            // keep the plain label, disabled
+        } else if (m_deckGroup.isEmpty()) {
+            swapText = tr("Swap with Stem Track (only from a deck)");
+        } else {
+            const bool isStem =
+                    mixxx::stemoriginal::isStemFileLocation(pTrack->getLocation());
+            auto* pTrackCollectionManager = m_pLibrary->trackCollectionManager();
+            if (pTrackCollectionManager) {
+                const QSqlDatabase database =
+                        pTrackCollectionManager->internalCollection()->database();
+                const TrackId counterpartId =
+                        mixxx::stemoriginal::findCounterpartTrackId(database,
+                                *pTrack,
+                                isStem ? mixxx::stemoriginal::Counterpart::Original
+                                       : mixxx::stemoriginal::Counterpart::Stem);
+                swapEnabled = counterpartId.isValid();
+            }
+            if (!swapEnabled) {
+                swapText = isStem
+                        ? tr("Swap with Original Track (none found)")
+                        : tr("Swap with Stem Track (none found)");
+            } else {
+                swapText = isStem ? tr("Swap with Original Track")
+                                  : tr("Swap with Stem Track");
+            }
+        }
+        m_pSwapWithStemAct->setEnabled(swapEnabled);
+        m_pSwapWithStemAct->setText(swapText);
     }
 
     if (featureIsEnabled(Feature::Metadata)) {
@@ -1504,6 +1567,127 @@ void WTrackMenu::slotFindSimilar() {
         return;
     }
     m_pLibrary->showSimilarTracks(pTrack->getId());
+}
+
+void WTrackMenu::slotSwapWithStem() {
+    const auto pTrack = getFirstTrackPointer();
+    if (!pTrack || m_deckGroup.isEmpty()) {
+        return;
+    }
+    auto* pTrackCollectionManager = m_pLibrary->trackCollectionManager();
+    VERIFY_OR_DEBUG_ASSERT(pTrackCollectionManager) {
+        return;
+    }
+
+    const bool sourceIsStem =
+            mixxx::stemoriginal::isStemFileLocation(pTrack->getLocation());
+    const QSqlDatabase database =
+            pTrackCollectionManager->internalCollection()->database();
+    const TrackId counterpartId = mixxx::stemoriginal::findCounterpartTrackId(
+            database,
+            *pTrack,
+            sourceIsStem ? mixxx::stemoriginal::Counterpart::Original
+                         : mixxx::stemoriginal::Counterpart::Stem);
+    if (!counterpartId.isValid()) {
+        return;
+    }
+    const TrackPointer pCounterpart =
+            pTrackCollectionManager->getTrackById(counterpartId);
+    if (!pCounterpart) {
+        return;
+    }
+
+    // Pick a target deck: any visible deck that is not playing and is not the
+    // deck we are swapping from. Deliberately never steals a playing deck -
+    // this runs while Andy is live.
+    const int numDecks = static_cast<int>(m_pNumDecks.get());
+    QString targetGroup;
+    for (int i = 0; i < numDecks; ++i) {
+        const QString group = PlayerManager::groupForDeck(i);
+        if (group == m_deckGroup) {
+            continue;
+        }
+        if (ControlObject::get(ConfigKey(group, QStringLiteral("play"))) > 0.0) {
+            continue;
+        }
+        targetGroup = group;
+        break;
+    }
+    if (targetGroup.isEmpty()) {
+        QMessageBox::information(this,
+                tr("Swap with Stem Track"),
+                tr("No free deck available. Stop or eject a deck first - the "
+                   "playing deck is never replaced."));
+        return;
+    }
+
+    // Where are we now, in seconds of the source file?
+    const double sourceDurationSeconds = pTrack->getDuration();
+    const double playPosition = ControlObject::get(
+            ConfigKey(m_deckGroup, QStringLiteral("playposition")));
+    if (!(sourceDurationSeconds > 0.0) || playPosition < 0.0) {
+        return;
+    }
+    const double sourcePositionSeconds = playPosition * sourceDurationSeconds;
+
+    // The codec delay between the two files. Measuring decodes the first
+    // seconds of both, so it is not instant - but it is the only reliable
+    // number (the grids can both be wrong). Falls back to no correction.
+    const TrackPointer pOriginal = sourceIsStem ? pCounterpart : pTrack;
+    const TrackPointer pStem = sourceIsStem ? pTrack : pCounterpart;
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const std::optional<mixxx::stemaudioalign::AudioOffset> offset =
+            mixxx::stemaudioalign::measureTrackOffset(pOriginal, pStem);
+    QApplication::restoreOverrideCursor();
+
+    const double audioOffsetSeconds = offset ? offset->seconds : 0.0;
+    const auto targetSeconds = mixxx::stemswap::targetPositionSeconds(
+            sourcePositionSeconds,
+            audioOffsetSeconds,
+            sourceIsStem ? mixxx::stemswap::Direction::StemToOriginal
+                         : mixxx::stemswap::Direction::OriginalToStem);
+    if (!targetSeconds) {
+        QMessageBox::information(this,
+                tr("Swap with Stem Track"),
+                tr("That position does not exist in the other file yet."));
+        return;
+    }
+
+    const double targetDurationSeconds = pCounterpart->getDuration();
+    const double clamped =
+            mixxx::stemswap::clampToTrack(*targetSeconds, targetDurationSeconds);
+
+    if (!(targetDurationSeconds > 0.0)) {
+        return;
+    }
+    const double targetFraction = clamped / targetDurationSeconds;
+
+    // Load stopped, seek once the track is actually in the buffer, then start.
+    // The load is asynchronous (the reader decodes on a worker thread), so
+    // seeking right away would be swallowed by the load itself - wait for the
+    // deck's own "track_loaded" control to go true. The playing deck is never
+    // touched; Andy fades over by hand.
+#ifdef __STEM__
+    emit loadTrackToPlayer(pCounterpart, targetGroup, mixxx::StemChannelSelection(), false);
+#else
+    emit loadTrackToPlayer(pCounterpart, targetGroup, false);
+#endif
+
+    auto* pLoadedProxy = new ControlProxy(
+            ConfigKey(targetGroup, QStringLiteral("track_loaded")), this);
+    // Single-shot: seek + play on the first transition to loaded, then retire.
+    pLoadedProxy->connectValueChanged(
+            this, [pLoadedProxy, targetGroup, targetFraction](double loaded) {
+                if (loaded <= 0.0) {
+                    return;
+                }
+                ControlObject::set(
+                        ConfigKey(targetGroup, QStringLiteral("playposition")),
+                        targetFraction);
+                ControlObject::set(
+                        ConfigKey(targetGroup, QStringLiteral("play")), 1.0);
+                pLoadedProxy->deleteLater();
+            });
 }
 
 namespace {
@@ -1932,7 +2116,13 @@ void WTrackMenu::slotPopulatePlaylistMenu() {
     const QList<QPair<int, QString>> playlists =
             playlistDao.getPlaylists(PlaylistDAO::PLHT_NOT_HIDDEN);
 
-    for (const auto& [id, name] : playlists) {
+    // Show only the first page until the user asks for all of them, so a large
+    // collection cannot produce a submenu taller than the screen.
+    const int shownCount = m_bPlaylistMenuShowAll
+            ? playlists.size()
+            : std::min<int>(playlists.size(), kPlaylistMenuPageSize);
+
+    for (const auto& [id, name] : playlists.mid(0, shownCount)) {
         // No leak because making the menu the parent means they will be
         // auto-deleted
         int plId = id;
@@ -1950,6 +2140,28 @@ void WTrackMenu::slotPopulatePlaylistMenu() {
                 });
     }
     m_pPlaylistMenu->addSeparator();
+    if (shownCount < playlists.size()) {
+        auto showAllAction = make_parented<QAction>(
+                tr("Show All Playlists (%1 more)…")
+                        .arg(playlists.size() - shownCount),
+                m_pPlaylistMenu);
+        m_pPlaylistMenu->addAction(showAllAction);
+        // Rebuild the submenu in place, now without the limit. Triggering an
+        // action closes the whole track menu, so the rebuild is queued: it has
+        // to happen after Qt is done tearing the menu down, otherwise we would
+        // be deleting the actions that are still being handled.
+        connect(showAllAction, &QAction::triggered, this, [this] {
+            m_bPlaylistMenuShowAll = true;
+            m_bPlaylistMenuLoaded = false;
+            QMetaObject::invokeMethod(
+                    this,
+                    [this] {
+                        slotPopulatePlaylistMenu();
+                        m_pPlaylistMenu->exec(QCursor::pos());
+                    },
+                    Qt::QueuedConnection);
+        });
+    }
     auto newPlaylistAction = make_parented<QAction>(tr("Create New Playlist"), m_pPlaylistMenu);
     m_pPlaylistMenu->addAction(newPlaylistAction);
     connect(newPlaylistAction, &QAction::triggered, this, [this] { addSelectionToPlaylist(-1); });

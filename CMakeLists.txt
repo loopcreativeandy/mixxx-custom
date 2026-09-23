@@ -1419,6 +1419,7 @@ add_library(
   src/library/relatedtracks.cpp
   src/library/stemaudioalign.cpp
   src/library/stemoriginal.cpp
+  src/library/stemswap.cpp
   src/library/tabledelegates/bpmdelegate.cpp
   src/library/tabledelegates/checkboxdelegate.cpp
   src/library/tabledelegates/colordelegate.cpp
@@ -2797,6 +2798,7 @@ if(BUILD_TESTING)
     src/test/playermanagertest.cpp
     src/test/similarityindextest.cpp
     src/test/similartablemodeltest.cpp
+    src/test/stemswaptest.cpp
     src/test/rubberbandworkerpooltest.cpp
     src/test/playlisttest.cpp
     src/test/controllermanager_rescan_test.cpp

@@ -60,11 +60,14 @@ class WTrackMenu : public QMenu {
         FindOnWeb = 1 << 17,
         /// andy-custom: nearest neighbours from the external similarity index.
         FindSimilar = 1 << 18,
+        /// andy-custom: bring this track's stem/original counterpart up in
+        /// another deck at the same musical position.
+        SwapWithStem = 1 << 19,
         TrackModelFeatures = Remove | HideUnhidePurge,
         All = AutoDJ | LoadTo | Playlist | Crate | Remove | Metadata | Reset | Analyze |
                 BPM | Color | HideUnhidePurge | RemoveFromDisk | FileBrowser |
                 Properties | SearchRelated | UpdateReplayGainFromPregain | SelectInLibrary |
-                FindOnWeb | FindSimilar
+                FindOnWeb | FindSimilar | SwapWithStem
     };
     Q_DECLARE_FLAGS(Features, Feature)
 
@@ -85,6 +88,7 @@ class WTrackMenu : public QMenu {
             WTrackMenu::Feature::Properties |
             WTrackMenu::Feature::UpdateReplayGainFromPregain |
             WTrackMenu::Feature::FindOnWeb |
+            WTrackMenu::Feature::SwapWithStem |
             WTrackMenu::Feature::SelectInLibrary};
 
     WTrackMenu(QWidget* parent,
@@ -138,6 +142,7 @@ class WTrackMenu : public QMenu {
     void slotOpenInFileBrowser();
     void slotSelectInLibrary();
     void slotFindSimilar();
+    void slotSwapWithStem();
 
     // Track rating
     void slotSetRating(int rating);
@@ -314,6 +319,7 @@ class WTrackMenu : public QMenu {
     parented_ptr<WCoverArtMenu> m_pCoverMenu;
     parented_ptr<WSearchRelatedTracksMenu> m_pSearchRelatedMenu;
     parented_ptr<QAction> m_pFindSimilarAct;
+    parented_ptr<QAction> m_pSwapWithStemAct;
     parented_ptr<WFindOnWebMenu> m_pFindOnWebMenu;
 #if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
     QMenu* m_pRemoveFromDiskMenu{};
@@ -420,6 +426,10 @@ class WTrackMenu : public QMenu {
     bool m_bSearchRelatedMenuLoaded;
     bool m_bFindOnWebMenuLoaded;
     bool m_bPlaylistMenuLoaded;
+    /// Andy (2026-09-23): with a few hundred playlists the submenu covered the whole
+    /// screen. Only the first kPlaylistMenuPageSize entries are shown until "Show All
+    /// Playlists" is clicked, which re-populates the menu without a limit.
+    bool m_bPlaylistMenuShowAll;
     bool m_bCrateMenuLoaded;
 
     Features m_eActiveFeatures;
