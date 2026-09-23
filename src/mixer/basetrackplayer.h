@@ -106,6 +106,16 @@ class BaseTrackPlayerImpl : public BaseTrackPlayer {
     /// For testing, loads a fake track.
     TrackPointer loadFakeTrack(bool bPlay, double filebpm);
 
+    /// andy-custom (CP97, stem swap): load `pTrack` - a *different file* of the
+    /// recording playing in `sourceGroup`, i.e. its stem or its original - as a
+    /// clone of that deck. Tempo, pitch and loop state are copied like Clone
+    /// Deck does, and the position is transferred sample-exactly in the engine
+    /// through the time domain, shifted by `signedOffsetSeconds` (the codec
+    /// delay between the two files, see stemswap::signedOffsetSeconds()).
+    void loadCounterpartAligned(TrackPointer pTrack,
+            const QString& sourceGroup,
+            double signedOffsetSeconds);
+
   public slots:
 #ifdef __STEM__
     void slotLoadTrack(TrackPointer track,
@@ -169,6 +179,10 @@ class BaseTrackPlayerImpl : public BaseTrackPlayer {
     EngineDeck* m_pChannel;
     bool m_replaygainPending;
     EngineChannel* m_pChannelToCloneFrom;
+    /// Set only while a loadCounterpartAligned() load is in flight: loop
+    /// markers copied from the other deck must then be converted too.
+    bool m_bCloneInTimeDomain;
+    double m_cloneTimeOffsetSeconds;
 
     PerformanceTimer m_ejectTimer;
 

@@ -214,6 +214,10 @@ void PlayerManager::bindToLibrary(Library* pLibrary) {
     const auto locker = lockMutex(&m_mutex);
     connect(pLibrary, &Library::loadTrackToPlayer, this, &PlayerManager::slotLoadTrackToPlayer);
     connect(pLibrary,
+            &Library::loadCounterpartAlignedToPlayer,
+            this,
+            &PlayerManager::slotLoadCounterpartAligned);
+    connect(pLibrary,
             &Library::loadTrack,
             this,
             &PlayerManager::slotLoadTrackIntoNextAvailableDeck);
@@ -697,6 +701,19 @@ Auxiliary* PlayerManager::getAuxiliary(unsigned int auxiliary) const {
         return nullptr;
     }
     return m_auxiliaries[auxiliary - 1];
+}
+
+void PlayerManager::slotLoadCounterpartAligned(TrackPointer pTrack,
+        const QString& targetGroup,
+        const QString& sourceGroup,
+        double signedOffsetSeconds) {
+    auto* pPlayer = qobject_cast<BaseTrackPlayerImpl*>(getPlayer(targetGroup));
+    if (!pPlayer) {
+        kLogger.warning() << "Invalid target group" << targetGroup
+                          << "for slotLoadCounterpartAligned";
+        return;
+    }
+    pPlayer->loadCounterpartAligned(std::move(pTrack), sourceGroup, signedOffsetSeconds);
 }
 
 void PlayerManager::slotCloneDeck(const QString& source_group, const QString& target_group) {

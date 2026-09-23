@@ -2,120 +2,97 @@
 
 #include <gtest/gtest.h>
 
-#include <cmath>
 #include <limits>
 
 namespace {
 
 using mixxx::stemswap::Direction;
-using mixxx::stemswap::clampToTrack;
-using mixxx::stemswap::targetPositionSeconds;
+using mixxx::stemswap::signedOffsetSeconds;
+using mixxx::stemswap::transferEngineSamplePosition;
+using mixxx::stemswap::transferFramePosition;
 
 /// The codec delay measured on Andy's library with Mixxx's own decoders
 /// (CP93): ~72 ms for 48 kHz sources.
-constexpr double kTypicalOffset = 0.07189;
+constexpr double kTypicalDelay = 0.07189;
+constexpr double k48k = 48000.0;
+constexpr double k44k = 44100.0;
 
-TEST(StemSwapTest, OriginalToStemAddsTheOffset) {
-    const auto result = targetPositionSeconds(60.0, kTypicalOffset, Direction::OriginalToStem);
-    ASSERT_TRUE(result.has_value());
-    EXPECT_DOUBLE_EQ(60.0 + kTypicalOffset, *result);
+const double kNaN = std::numeric_limits<double>::quiet_NaN();
+const double kInf = std::numeric_limits<double>::infinity();
+
+TEST(StemSwapTest, OffsetSignFollowsTheDirection) {
+    EXPECT_DOUBLE_EQ(kTypicalDelay, signedOffsetSeconds(kTypicalDelay, Direction::OriginalToStem));
+    EXPECT_DOUBLE_EQ(-kTypicalDelay, signedOffsetSeconds(kTypicalDelay, Direction::StemToOriginal));
 }
 
-TEST(StemSwapTest, StemToOriginalSubtractsTheOffset) {
-    const auto result = targetPositionSeconds(60.0, kTypicalOffset, Direction::StemToOriginal);
-    ASSERT_TRUE(result.has_value());
-    EXPECT_DOUBLE_EQ(60.0 - kTypicalOffset, *result);
+/// A failed or absurd measurement must degrade to "no correction", never to a
+/// wild seek. Regression guard for the -ffast-math trap: std::isfinite() is
+/// folded to `true` in this build, so a naive check lets these through.
+TEST(StemSwapTest, UnusableOffsetBecomesZero) {
+    EXPECT_DOUBLE_EQ(0.0, signedOffsetSeconds(kNaN, Direction::OriginalToStem));
+    EXPECT_DOUBLE_EQ(0.0, signedOffsetSeconds(kInf, Direction::OriginalToStem));
+    EXPECT_DOUBLE_EQ(0.0, signedOffsetSeconds(-kInf, Direction::StemToOriginal));
+    EXPECT_DOUBLE_EQ(0.0, signedOffsetSeconds(5.0, Direction::OriginalToStem));
 }
 
-/// The two directions must undo each other exactly, otherwise swapping back and
-/// forth would walk the position away from the music.
-TEST(StemSwapTest, RoundTripReturnsToTheStartingPosition) {
-    const double start = 123.456;
-    const auto toStem = targetPositionSeconds(start, kTypicalOffset, Direction::OriginalToStem);
-    ASSERT_TRUE(toStem.has_value());
-    const auto backToOriginal =
-            targetPositionSeconds(*toStem, kTypicalOffset, Direction::StemToOriginal);
-    ASSERT_TRUE(backToOriginal.has_value());
-    EXPECT_DOUBLE_EQ(start, *backToOriginal);
+TEST(StemSwapTest, SameRateAddsTheOffsetInFrames) {
+    const double frame = 60.0 * k48k;
+    EXPECT_DOUBLE_EQ((60.0 + kTypicalDelay) * k48k,
+            transferFramePosition(frame, k48k, k48k, kTypicalDelay));
 }
 
-/// Inside the stem's leading codec delay there is no corresponding moment in the
-/// original yet, so the swap must refuse rather than clamp silently to 0.
-TEST(StemSwapTest, StemToOriginalRefusesInsideTheLeadingDelay) {
-    const auto result = targetPositionSeconds(0.02, kTypicalOffset, Direction::StemToOriginal);
-    EXPECT_FALSE(result.has_value());
+/// Half his library is 48 kHz mp3 with 44.1 kHz stems. Upstream Clone Deck
+/// copies raw frames, which would put the stem ~9 % too early - at one minute
+/// in, over five seconds off.
+TEST(StemSwapTest, DifferentRatesGoThroughSeconds) {
+    const double sourceFrame = 60.0 * k48k;
+    EXPECT_DOUBLE_EQ((60.0 + kTypicalDelay) * k44k,
+            transferFramePosition(sourceFrame, k48k, k44k, kTypicalDelay));
 }
 
-TEST(StemSwapTest, StartOfOriginalMapsIntoTheStem) {
-    const auto result = targetPositionSeconds(0.0, kTypicalOffset, Direction::OriginalToStem);
-    ASSERT_TRUE(result.has_value());
-    EXPECT_DOUBLE_EQ(kTypicalOffset, *result);
+/// Swapping there and back must land on the starting frame, otherwise repeated
+/// swaps would walk away from the music.
+TEST(StemSwapTest, RoundTripReturnsToTheStartingFrame) {
+    const double start = 123.456 * k48k;
+    const double inStem = transferFramePosition(
+            start, k48k, k44k, signedOffsetSeconds(kTypicalDelay, Direction::OriginalToStem));
+    const double back = transferFramePosition(
+            inStem, k44k, k48k, signedOffsetSeconds(kTypicalDelay, Direction::StemToOriginal));
+    EXPECT_NEAR(start, back, 1e-6);
 }
 
-TEST(StemSwapTest, ZeroOffsetIsAPlainPositionTransfer) {
-    const auto result = targetPositionSeconds(42.0, 0.0, Direction::OriginalToStem);
-    ASSERT_TRUE(result.has_value());
-    EXPECT_DOUBLE_EQ(42.0, *result);
+/// Inside the stem's leading delay there is no matching moment in the original.
+TEST(StemSwapTest, LeadingDelayLandsAtTheStart) {
+    const double frame = 0.02 * k44k;
+    EXPECT_DOUBLE_EQ(0.0, transferFramePosition(frame, k44k, k48k, -kTypicalDelay));
 }
 
-/// A failed measurement must not be able to produce a wild seek.
-///
-/// Regression guard: the first version used std::isfinite(), which Mixxx's
-/// -ffast-math build folds into a constant `true` - the check was dead code and
-/// an infinity sailed straight through into a seek.
-TEST(StemSwapTest, RefusesNonFiniteInput) {
-    const double nan = std::numeric_limits<double>::quiet_NaN();
-    const double inf = std::numeric_limits<double>::infinity();
-    EXPECT_FALSE(targetPositionSeconds(nan, kTypicalOffset, Direction::OriginalToStem).has_value());
-    EXPECT_FALSE(targetPositionSeconds(60.0, nan, Direction::OriginalToStem).has_value());
-    EXPECT_FALSE(targetPositionSeconds(inf, kTypicalOffset, Direction::OriginalToStem).has_value());
-    EXPECT_FALSE(targetPositionSeconds(60.0, inf, Direction::OriginalToStem).has_value());
-}
-
-TEST(StemSwapTest, RefusesNegativeSourcePosition) {
-    EXPECT_FALSE(targetPositionSeconds(-1.0, kTypicalOffset, Direction::OriginalToStem)
-                         .has_value());
-}
-
-/// The outlier from Andy's library (CKay, +47.9 ms) must behave the same way -
-/// nothing in here assumes a particular constant.
+/// The CKay outlier (+47.9 ms): nothing may assume a particular constant.
 TEST(StemSwapTest, WorksWithAnOutlierOffset) {
     const double outlier = 0.04789;
-    const auto result = targetPositionSeconds(30.0, outlier, Direction::OriginalToStem);
-    ASSERT_TRUE(result.has_value());
-    EXPECT_DOUBLE_EQ(30.0 + outlier, *result);
+    EXPECT_DOUBLE_EQ((30.0 + outlier) * k48k,
+            transferFramePosition(30.0 * k48k, k48k, k48k, outlier));
 }
 
-TEST(StemSwapTest, ClampKeepsPositionsInsideTheTrack) {
-    EXPECT_DOUBLE_EQ(0.0, clampToTrack(-5.0, 100.0));
-    EXPECT_DOUBLE_EQ(100.0, clampToTrack(150.0, 100.0));
-    EXPECT_DOUBLE_EQ(50.0, clampToTrack(50.0, 100.0));
+TEST(StemSwapTest, UnusableInputSeeksToTheStart) {
+    EXPECT_DOUBLE_EQ(0.0, transferFramePosition(kNaN, k48k, k48k, kTypicalDelay));
+    EXPECT_DOUBLE_EQ(0.0, transferFramePosition(kInf, k48k, k48k, kTypicalDelay));
+    EXPECT_DOUBLE_EQ(0.0, transferFramePosition(-100.0, k48k, k48k, kTypicalDelay));
+    EXPECT_DOUBLE_EQ(0.0, transferFramePosition(1000.0, 0.0, k48k, kTypicalDelay));
+    EXPECT_DOUBLE_EQ(0.0, transferFramePosition(1000.0, k48k, kNaN, kTypicalDelay));
+    EXPECT_DOUBLE_EQ(0.0, transferFramePosition(1000.0, k48k, k48k, kNaN));
 }
 
-/// An unknown duration must not collapse the position to zero.
-TEST(StemSwapTest, ClampPassesThroughWhenDurationIsUnknown) {
-    EXPECT_DOUBLE_EQ(50.0, clampToTrack(50.0, 0.0));
-    EXPECT_DOUBLE_EQ(50.0, clampToTrack(50.0, -1.0));
+/// Loop markers are interleaved stereo sample positions (frames * 2).
+TEST(StemSwapTest, LoopMarkersAreConvertedInEngineSamples) {
+    const double sourceSamples = 2.0 * 10.0 * k48k;
+    EXPECT_DOUBLE_EQ(2.0 * (10.0 + kTypicalDelay) * k44k,
+            transferEngineSamplePosition(sourceSamples, k48k, k44k, kTypicalDelay));
 }
 
-/// std::clamp would hand a NaN straight back; a NaN fraction reaching the
-/// playposition control is an unpredictable seek on a live deck.
-TEST(StemSwapTest, ClampCollapsesNonFinitePositionsToTheStart) {
-    const double nan = std::numeric_limits<double>::quiet_NaN();
-    EXPECT_DOUBLE_EQ(0.0, clampToTrack(nan, 100.0));
-    EXPECT_DOUBLE_EQ(100.0, clampToTrack(std::numeric_limits<double>::infinity(), 100.0));
-    EXPECT_DOUBLE_EQ(0.0, clampToTrack(-std::numeric_limits<double>::infinity(), 100.0));
-}
-
-/// A stem is normally a few tens of milliseconds longer than its original; a
-/// swap late in the track must not seek past the end.
-TEST(StemSwapTest, LatePositionClampsToTheTargetEnd) {
-    const double originalDuration = 200.0;
-    const auto result = targetPositionSeconds(
-            originalDuration, kTypicalOffset, Direction::OriginalToStem);
-    ASSERT_TRUE(result.has_value());
-    EXPECT_GT(*result, originalDuration);
-    EXPECT_DOUBLE_EQ(originalDuration, clampToTrack(*result, originalDuration));
+/// -1 is Mixxx's "no loop marker"; it must stay a no-marker, not become 0.
+TEST(StemSwapTest, MissingLoopMarkerStaysMissing) {
+    EXPECT_DOUBLE_EQ(-1.0, transferEngineSamplePosition(-1.0, k48k, k44k, kTypicalDelay));
 }
 
 } // namespace

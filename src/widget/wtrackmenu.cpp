@@ -17,7 +17,6 @@
 #include "analyzer/analyzersilence.h"
 #include "analyzer/analyzertrack.h"
 #include "control/controlobject.h"
-#include "control/controlproxy.h"
 #include "library/coverartutils.h"
 #include "library/dao/trackschema.h"
 #include "library/dlgtagfetcher.h"
@@ -1621,15 +1620,6 @@ void WTrackMenu::slotSwapWithStem() {
         return;
     }
 
-    // Where are we now, in seconds of the source file?
-    const double sourceDurationSeconds = pTrack->getDuration();
-    const double playPosition = ControlObject::get(
-            ConfigKey(m_deckGroup, QStringLiteral("playposition")));
-    if (!(sourceDurationSeconds > 0.0) || playPosition < 0.0) {
-        return;
-    }
-    const double sourcePositionSeconds = playPosition * sourceDurationSeconds;
-
     // The codec delay between the two files. Measuring decodes the first
     // seconds of both, so it is not instant - but it is the only reliable
     // number (the grids can both be wrong). Falls back to no correction.
@@ -1639,55 +1629,21 @@ void WTrackMenu::slotSwapWithStem() {
     const std::optional<mixxx::stemaudioalign::AudioOffset> offset =
             mixxx::stemaudioalign::measureTrackOffset(pOriginal, pStem);
     QApplication::restoreOverrideCursor();
-
-    const double audioOffsetSeconds = offset ? offset->seconds : 0.0;
-    const auto targetSeconds = mixxx::stemswap::targetPositionSeconds(
-            sourcePositionSeconds,
-            audioOffsetSeconds,
+    const double signedOffset = mixxx::stemswap::signedOffsetSeconds(
+            offset ? offset->seconds : 0.0,
             sourceIsStem ? mixxx::stemswap::Direction::StemToOriginal
                          : mixxx::stemswap::Direction::OriginalToStem);
-    if (!targetSeconds) {
-        QMessageBox::information(this,
-                tr("Swap with Stem Track"),
-                tr("That position does not exist in the other file yet."));
-        return;
-    }
 
-    const double targetDurationSeconds = pCounterpart->getDuration();
-    const double clamped =
-            mixxx::stemswap::clampToTrack(*targetSeconds, targetDurationSeconds);
+    // Safety net (Andy, 2026-09-23): the counterpart starts playing on its own,
+    // so its fader goes all the way down *before* the load. It must never be
+    // audible until he brings it up himself.
+    ControlObject::set(ConfigKey(targetGroup, QStringLiteral("volume")), 0.0);
 
-    if (!(targetDurationSeconds > 0.0)) {
-        return;
-    }
-    const double targetFraction = clamped / targetDurationSeconds;
-
-    // Load stopped, seek once the track is actually in the buffer, then start.
-    // The load is asynchronous (the reader decodes on a worker thread), so
-    // seeking right away would be swallowed by the load itself - wait for the
-    // deck's own "track_loaded" control to go true. The playing deck is never
-    // touched; Andy fades over by hand.
-#ifdef __STEM__
-    emit loadTrackToPlayer(pCounterpart, targetGroup, mixxx::StemChannelSelection(), false);
-#else
-    emit loadTrackToPlayer(pCounterpart, targetGroup, false);
-#endif
-
-    auto* pLoadedProxy = new ControlProxy(
-            ConfigKey(targetGroup, QStringLiteral("track_loaded")), this);
-    // Single-shot: seek + play on the first transition to loaded, then retire.
-    pLoadedProxy->connectValueChanged(
-            this, [pLoadedProxy, targetGroup, targetFraction](double loaded) {
-                if (loaded <= 0.0) {
-                    return;
-                }
-                ControlObject::set(
-                        ConfigKey(targetGroup, QStringLiteral("playposition")),
-                        targetFraction);
-                ControlObject::set(
-                        ConfigKey(targetGroup, QStringLiteral("play")), 1.0);
-                pLoadedProxy->deleteLater();
-            });
+    // Clone Deck, but for a different file: tempo, pitch and loop state follow
+    // the playing deck, and the engine seeks sample-exactly at load time, so
+    // the time the load itself takes does not put the new deck behind. The
+    // playing deck is never touched.
+    m_pLibrary->loadCounterpartAligned(pCounterpart, targetGroup, m_deckGroup, signedOffset);
 }
 
 namespace {

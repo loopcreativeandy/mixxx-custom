@@ -13,6 +13,7 @@
 #include "engine/enginebuffer.h"
 #include "engine/enginemixer.h"
 #include "engine/sync/enginesync.h"
+#include "library/stemswap.h"
 #include "mixer/playerinfo.h"
 #include "mixer/playermanager.h"
 #include "moc_basetrackplayer.cpp"
@@ -53,7 +54,9 @@ BaseTrackPlayerImpl::BaseTrackPlayerImpl(
           m_pLoadedTrack(),
           m_pPrevFailedTrackId(),
           m_replaygainPending(false),
-          m_pChannelToCloneFrom(nullptr) {
+          m_pChannelToCloneFrom(nullptr),
+          m_bCloneInTimeDomain(false),
+          m_cloneTimeOffsetSeconds(0.0) {
     auto channel = std::make_unique<EngineDeck>(handleGroup,
             pConfig,
             pMixingEngine,
@@ -390,10 +393,22 @@ void BaseTrackPlayerImpl::loadTrack(TrackPointer pTrack) {
     } else {
         // copy loop in and out points from other deck because any new loops
         // won't be saved yet
-        m_pLoopInPoint->set(ControlObject::get(
-                ConfigKey(m_pChannelToCloneFrom->getGroup(), "loop_start_position")));
-        m_pLoopOutPoint->set(ControlObject::get(
-                ConfigKey(m_pChannelToCloneFrom->getGroup(), "loop_end_position")));
+        const QString cloneGroup = m_pChannelToCloneFrom->getGroup();
+        double loopIn = ControlObject::get(ConfigKey(cloneGroup, "loop_start_position"));
+        double loopOut = ControlObject::get(ConfigKey(cloneGroup, "loop_end_position"));
+        if (m_bCloneInTimeDomain && m_pLoadedTrack) {
+            // andy-custom (CP97): the other deck holds a different file of the
+            // same recording, so its sample positions mean something else here.
+            const double sourceRate =
+                    ControlObject::get(ConfigKey(cloneGroup, "track_samplerate"));
+            const double targetRate = m_pLoadedTrack->getSampleRate().toDouble();
+            loopIn = mixxx::stemswap::transferEngineSamplePosition(
+                    loopIn, sourceRate, targetRate, m_cloneTimeOffsetSeconds);
+            loopOut = mixxx::stemswap::transferEngineSamplePosition(
+                    loopOut, sourceRate, targetRate, m_cloneTimeOffsetSeconds);
+        }
+        m_pLoopInPoint->set(loopIn);
+        m_pLoopOutPoint->set(loopOut);
 
 #ifdef __STEM__
         auto* pDeckToClone = qobject_cast<EngineDeck*>(m_pChannelToCloneFrom);
@@ -623,6 +638,7 @@ void BaseTrackPlayerImpl::slotLoadFailed(TrackPointer pTrack, const QString& rea
         qDebug() << "Failed to load track (NULL track object)" << reason;
     }
     m_pChannelToCloneFrom = nullptr;
+    m_bCloneInTimeDomain = false;
 
     // Alert user.
     // The QMessageBox blocks the event loop (and the GUI since it's modal dialog),
@@ -784,6 +800,7 @@ void BaseTrackPlayerImpl::slotTrackLoaded(TrackPointer pNewTrack,
     }
 
     m_pChannelToCloneFrom = nullptr;
+    m_bCloneInTimeDomain = false;
 
     // Update the PlayerInfo class that is used in EngineBroadcast to replace
     // the metadata of a stream
@@ -842,6 +859,25 @@ void BaseTrackPlayerImpl::slotCloneChannel(EngineChannel* pChannel) {
     slotLoadTrack(pTrack,
 #ifdef __STEM__
             pChannel->getEngineBuffer()->getStemMask(),
+#endif
+            play);
+}
+
+void BaseTrackPlayerImpl::loadCounterpartAligned(TrackPointer pTrack,
+        const QString& sourceGroup,
+        double signedOffsetSeconds) {
+    EngineChannel* pChannel = m_pEngineMixer->getChannel(sourceGroup);
+    if (!pTrack || !pChannel || pChannel == m_pChannel) {
+        return;
+    }
+    m_pChannelToCloneFrom = pChannel;
+    m_bCloneInTimeDomain = true;
+    m_cloneTimeOffsetSeconds = signedOffsetSeconds;
+    m_pChannel->getEngineBuffer()->setCloneTimeOffset(signedOffsetSeconds);
+    const bool play = ControlObject::toBool(ConfigKey(sourceGroup, "play"));
+    slotLoadTrack(pTrack,
+#ifdef __STEM__
+            mixxx::StemChannelSelection(),
 #endif
             play);
 }

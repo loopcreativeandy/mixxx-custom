@@ -767,6 +767,14 @@ void Library::setEditMetadataSelectedClick(bool enabled) {
     emit setSelectedClick(enabled);
 }
 
+void Library::loadCounterpartAligned(TrackPointer pTrack,
+        const QString& targetGroup,
+        const QString& sourceGroup,
+        double signedOffsetSeconds) {
+    emit loadCounterpartAlignedToPlayer(
+            std::move(pTrack), targetGroup, sourceGroup, signedOffsetSeconds);
+}
+
 void Library::showSimilarTracks(TrackId seedTrackId) {
     VERIFY_OR_DEBUG_ASSERT(m_pSimilarFeature) {
         return;

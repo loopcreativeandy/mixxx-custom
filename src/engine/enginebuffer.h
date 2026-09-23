@@ -4,6 +4,7 @@
 
 #include <QAtomicInt>
 #include <QMutex>
+#include <atomic>
 #include <initializer_list>
 
 #include "audio/frame.h"
@@ -153,6 +154,20 @@ class EngineBuffer : public EngineObject {
     void ejectTrack();
 
     mixxx::audio::FramePos getExactPlayPos() const;
+    /// Sample rate of the loaded track as seen by the engine thread. Only valid
+    /// while called from the engine thread (e.g. another deck's processSeek()).
+    mixxx::audio::SampleRate getEngineTrackSampleRate() const {
+        return m_trackSampleRateOld;
+    }
+    /// andy-custom (CP97, stem swap): make the next clone seek convert the
+    /// other deck's position through the time domain - its frames -> seconds
+    /// -> + `signedOffsetSeconds` -> frames at this track's sample rate -
+    /// instead of copying the raw frame number. Needed when the two decks hold
+    /// *different files* of the same recording. Consumed by that one seek.
+    void setCloneTimeOffset(double signedOffsetSeconds) {
+        m_cloneTimeOffsetSeconds.store(signedOffsetSeconds, std::memory_order_relaxed);
+        m_cloneInTimeDomain.store(true, std::memory_order_release);
+    }
     double getVisualPlayPos() const;
     mixxx::audio::FramePos getTrackEndPosition() const;
     void setTrackEndPosition(mixxx::audio::FramePos position);
@@ -497,6 +512,9 @@ class EngineBuffer : public EngineObject {
     /// indicates a clone seek on a bosition from another deck
     static constexpr QueuedSeek kCloneSeek = {mixxx::audio::kInvalidFramePos, SEEK_CLONE};
     QAtomicPointer<EngineChannel> m_pChannelToCloneFrom;
+    /// See setCloneTimeOffset().
+    std::atomic<bool> m_cloneInTimeDomain{false};
+    std::atomic<double> m_cloneTimeOffsetSeconds{0.0};
 
     // Is true if the previous buffer was silent due to pausing
     QAtomicInt m_iTrackLoading;

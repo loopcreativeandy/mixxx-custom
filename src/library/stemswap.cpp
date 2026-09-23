@@ -1,68 +1,79 @@
 #include "library/stemswap.h"
 
-#include <algorithm>
-#include <cmath>
-
 namespace mixxx {
 namespace stemswap {
 
 namespace {
 
-/// No track is longer than this; anything beyond it (including an infinity, and
-/// any NaN, which fails every comparison) is a broken measurement, not a
-/// position. Written as explicit comparisons because -ffast-math makes
-/// std::isfinite()/std::isnan() unusable here.
-constexpr double kMaxUsableSeconds = 24.0 * 60.0 * 60.0;
+// NOTE: Mixxx is built with -ffast-math. Under it std::isfinite()/std::isnan()
+// fold to constants, std::clamp passes a NaN through, and even `!(x > 0.0)` may
+// be rewritten as if NaNs did not exist. Every guard below is therefore a
+// *positive* range test: only a value proven to be inside a sane band gets
+// through, which is false for NaN and both infinities either way.
 
-bool isUsableSeconds(double value) {
-    return value >= -kMaxUsableSeconds && value <= kMaxUsableSeconds;
+/// No track is longer than a day; anything beyond is a broken value.
+constexpr double kMaxUsableSeconds = 24.0 * 60.0 * 60.0;
+/// A codec delay is tens of milliseconds. A full second would already mean the
+/// measurement matched the wrong part of the song.
+constexpr double kMaxUsableOffsetSeconds = 1.0;
+constexpr double kMinSampleRate = 1000.0;
+constexpr double kMaxSampleRate = 1000000.0;
+
+bool isUsableSampleRate(double rate) {
+    return rate >= kMinSampleRate && rate <= kMaxSampleRate;
+}
+
+bool isUsableOffset(double seconds) {
+    return seconds >= -kMaxUsableOffsetSeconds && seconds <= kMaxUsableOffsetSeconds;
 }
 
 } // anonymous namespace
 
-std::optional<double> targetPositionSeconds(
-        double sourcePositionSeconds,
-        double audioOffsetSeconds,
-        Direction direction) {
-    // NOTE: Mixxx is built with -ffast-math, under which std::isfinite() is
-    // optimized into a constant `true` and cannot be used to reject NaN/inf.
-    // Compare against the finite range explicitly instead - those comparisons
-    // survive because they are false for NaN and for infinities either way.
-    if (!isUsableSeconds(sourcePositionSeconds) || sourcePositionSeconds < 0.0) {
-        return std::nullopt;
+double signedOffsetSeconds(double stemDelaySeconds, Direction direction) {
+    if (!isUsableOffset(stemDelaySeconds)) {
+        return 0.0;
     }
-    if (!isUsableSeconds(audioOffsetSeconds)) {
-        return std::nullopt;
-    }
-    // The offset is always "the stem is this much later than the original", so
+    // The delay is always "the stem is this much later than the original", so
     // it is added going to the stem and subtracted coming back from it.
-    const double corrected = direction == Direction::OriginalToStem
-            ? sourcePositionSeconds + audioOffsetSeconds
-            : sourcePositionSeconds - audioOffsetSeconds;
-    if (corrected < 0.0) {
-        // Only reachable inside the leading codec delay of the stem file: that
-        // audio simply does not exist in the original.
-        return std::nullopt;
-    }
-    return corrected;
+    return direction == Direction::OriginalToStem ? stemDelaySeconds : -stemDelaySeconds;
 }
 
-double clampToTrack(double positionSeconds, double targetDurationSeconds) {
-    if (!(targetDurationSeconds > 0.0)) {
-        return positionSeconds;
+double transferFramePosition(double sourceFrame,
+        double sourceSampleRate,
+        double targetSampleRate,
+        double signedOffsetSeconds) {
+    if (!isUsableSampleRate(sourceSampleRate) || !isUsableSampleRate(targetSampleRate)) {
+        return 0.0;
     }
-    // Only a value proven to sit inside the track is passed through; anything
-    // else (NaN, either infinity, a negative position) collapses to a safe end
-    // of the range. Phrased as a positive range test because -ffast-math lets
-    // the compiler rewrite a negated comparison as if NaNs did not exist.
-    if (positionSeconds >= 0.0 && positionSeconds <= targetDurationSeconds) {
-        return positionSeconds;
+    if (!isUsableOffset(signedOffsetSeconds)) {
+        return 0.0;
     }
-    if (positionSeconds > targetDurationSeconds) {
-        return targetDurationSeconds;
+    const double sourceSeconds = sourceFrame / sourceSampleRate;
+    if (!(sourceSeconds >= 0.0 && sourceSeconds <= kMaxUsableSeconds)) {
+        return 0.0;
     }
-    // Negative, or not a number at all.
+    const double targetSeconds = sourceSeconds + signedOffsetSeconds;
+    if (targetSeconds >= 0.0) {
+        return targetSeconds * targetSampleRate;
+    }
+    // Inside the stem's leading delay: the moment does not exist in the target.
     return 0.0;
+}
+
+double transferEngineSamplePosition(double sourceEngineSamplePos,
+        double sourceSampleRate,
+        double targetSampleRate,
+        double signedOffsetSeconds) {
+    if (sourceEngineSamplePos >= 0.0) {
+        return 2.0 *
+                transferFramePosition(sourceEngineSamplePos / 2.0,
+                        sourceSampleRate,
+                        targetSampleRate,
+                        signedOffsetSeconds);
+    }
+    // -1 (kNoTrigger) = no marker set. Anything else that is not a
+    // non-negative number is equally "no marker".
+    return sourceEngineSamplePos < 0.0 ? sourceEngineSamplePos : -1.0;
 }
 
 } // namespace stemswap

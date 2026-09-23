@@ -241,6 +241,11 @@ class PlayerManager : public PlayerManagerInterface {
     void slotLoadLocationToPlayerMaybePlay(const QString& location, const QString& group);
 
     void slotCloneDeck(const QString& source_group, const QString& target_group);
+    /// andy-custom (CP97): stem/original swap into `targetGroup`.
+    void slotLoadCounterpartAligned(TrackPointer pTrack,
+            const QString& targetGroup,
+            const QString& sourceGroup,
+            double signedOffsetSeconds);
 
     // Slots for loading tracks to decks
     void slotLoadTrackIntoNextAvailableDeck(TrackPointer pTrack);

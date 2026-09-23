@@ -2799,6 +2799,7 @@ if(BUILD_TESTING)
     src/test/similarityindextest.cpp
     src/test/similartablemodeltest.cpp
     src/test/stemswaptest.cpp
+    src/test/stemswapdecktest.cpp
     src/test/rubberbandworkerpooltest.cpp
     src/test/playlisttest.cpp
     src/test/controllermanager_rescan_test.cpp

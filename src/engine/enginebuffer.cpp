@@ -33,6 +33,7 @@
 #include "util/logger.h"
 #include "util/sample.h"
 #include "util/timer.h"
+#include "library/stemswap.h"
 #include "waveform/visualplayposition.h"
 
 #ifdef __RUBBERBAND__
@@ -650,6 +651,7 @@ void EngineBuffer::slotTrackLoadFailed(TrackPointer pTrack,
         const QString& reason) {
     m_iTrackLoading = 0;
     m_pChannelToCloneFrom = nullptr;
+    m_cloneInTimeDomain.store(false, std::memory_order_relaxed);
 
     // Loading of a new track failed.
     // eject the currently loaded track (the old Track) as well
@@ -1450,7 +1452,22 @@ void EngineBuffer::processSeek(bool paused) {
             VERIFY_OR_DEBUG_ASSERT(pOtherChannel) {
                 return;
             }
-            position = pOtherChannel->getEngineBuffer()->getExactPlayPos();
+            const EngineBuffer* pOtherBuffer = pOtherChannel->getEngineBuffer();
+            position = pOtherBuffer->getExactPlayPos();
+            // andy-custom (CP97): a different file of the same recording, e.g.
+            // a stem and its original - convert via seconds + codec delay.
+            if (m_cloneInTimeDomain.exchange(false, std::memory_order_acquire)) {
+                const auto otherRate = pOtherBuffer->getEngineTrackSampleRate();
+                if (otherRate.isValid() && m_trackSampleRateOld.isValid() &&
+                        position.isValid()) {
+                    position = mixxx::audio::FramePos(
+                            mixxx::stemswap::transferFramePosition(position.value(),
+                                    otherRate.toDouble(),
+                                    m_trackSampleRateOld.toDouble(),
+                                    m_cloneTimeOffsetSeconds.load(
+                                            std::memory_order_relaxed)));
+                }
+            }
         } break;
         default:
             DEBUG_ASSERT(!"Unhandled seek request type");
@@ -1661,6 +1678,11 @@ void EngineBuffer::loadTrack(TrackPointer pTrack,
         m_pReader->newTrack(pTrack);
 #endif
         atomicStoreRelaxed(m_pChannelToCloneFrom, pChannelToCloneFrom);
+        if (!pChannelToCloneFrom) {
+            // A plain load cancels a time-domain clone request that never
+            // reached its seek (CP97).
+            m_cloneInTimeDomain.store(false, std::memory_order_relaxed);
+        }
     } else {
         // Loading a null track means "eject"
         ejectTrack();

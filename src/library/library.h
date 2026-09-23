@@ -115,6 +115,12 @@ class Library: public QObject {
     /// andy-custom: shows the tracks most similar to `seedTrackId` in the "Similar"
     /// sidebar item and switches to it.
     void showSimilarTracks(TrackId seedTrackId);
+    /// andy-custom (CP97): load `pTrack` into `targetGroup` as an aligned clone
+    /// of `sourceGroup` - see BaseTrackPlayerImpl::loadCounterpartAligned().
+    void loadCounterpartAligned(TrackPointer pTrack,
+            const QString& targetGroup,
+            const QString& sourceGroup,
+            double signedOffsetSeconds);
 
     /// andy-custom: the similarity index, for callers that need to know whether a track
     /// can be used as a seed before offering the action. Never null.
@@ -161,6 +167,10 @@ class Library: public QObject {
     void showTrackModel(QAbstractItemModel* model, bool restoreState = true);
     void switchToView(const QString& view);
     void loadTrack(TrackPointer pTrack);
+    void loadCounterpartAlignedToPlayer(TrackPointer pTrack,
+            const QString& targetGroup,
+            const QString& sourceGroup,
+            double signedOffsetSeconds);
 #ifdef __STEM__
     void loadTrackToPlayer(TrackPointer pTrack,
             const QString& group,
