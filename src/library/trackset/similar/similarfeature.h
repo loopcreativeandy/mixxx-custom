@@ -52,5 +52,8 @@ class SimilarFeature : public BaseTrackSetFeature {
     SimilarityIndex* const m_pSimilarityIndex;
     SimilarTableModel m_similarTableModel;
     bool m_hasResults;
+    /// The seed of the last query when nothing reached the threshold, for the
+    /// root view; empty otherwise.
+    QString m_noMatchesFor;
     QPointer<WLibraryTextBrowser> m_pRootView;
 };

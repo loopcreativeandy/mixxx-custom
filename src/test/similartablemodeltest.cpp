@@ -167,4 +167,42 @@ TEST_F(SimilarTableModelTest, keepsItsOwnHeaderStateSeparateFromTheLibrary) {
                     TrackModel::SortColumnId::Similarity));
 }
 
+// Andy, 2026-09-23: a rank column, 1 = most similar.
+TEST_F(SimilarTableModelTest, ranksFromOneByScoreAndKeepsTheRankWhenResorted) {
+    addThreeTracks();
+    m_model.setResults(QList<SimilarityIndex::Neighbour>{
+            {m_trackB->getId(), 0.907},
+            {m_trackA->getId(), 0.912},
+            {m_trackC->getId(), 0.950},
+    });
+    const int rankColumn =
+            m_model.fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_SIMILARITY_RANK);
+    ASSERT_GE(rankColumn, 0);
+    const auto rankOf = [&](const TrackPointer& pTrack) {
+        for (int row = 0; row < m_model.rowCount(); ++row) {
+            if (m_model.getTrackId(m_model.index(row, 0)) == pTrack->getId()) {
+                return m_model.data(m_model.index(row, rankColumn)).toInt();
+            }
+        }
+        return -1;
+    };
+    EXPECT_EQ(1, rankOf(m_trackC));
+    EXPECT_EQ(2, rankOf(m_trackA));
+    EXPECT_EQ(3, rankOf(m_trackB));
+
+    // Sorting by rank is sorting by similarity...
+    m_model.sort(rankColumn, Qt::AscendingOrder);
+    const QList<TrackId> byRank{m_trackC->getId(), m_trackA->getId(), m_trackB->getId()};
+    EXPECT_EQ(byRank, idsInOrder());
+    // ...and the rank belongs to the track, not to the row.
+    m_model.sort(similarityColumn(), Qt::AscendingOrder);
+    EXPECT_EQ(1, rankOf(m_trackC));
+    EXPECT_EQ(3, rankOf(m_trackB));
+
+    EXPECT_EQ(TrackModel::SortColumnId::SimilarityRank,
+            m_model.sortColumnIdFromColumnIndex(rankColumn));
+    EXPECT_EQ(rankColumn,
+            m_model.columnIndexFromSortColumnId(TrackModel::SortColumnId::SimilarityRank));
+}
+
 } // anonymous namespace

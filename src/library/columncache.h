@@ -72,6 +72,8 @@ class ColumnCache : public QObject {
         // Only present in the "Similar" view (andy-custom). Appended rather than
         // inserted so no existing enum value shifts.
         COLUMN_LIBRARYTABLE_SIMILARITY,
+        // 1 = most similar (andy-custom, Similar view only).
+        COLUMN_LIBRARYTABLE_SIMILARITY_RANK,
 
         // NUM_COLUMNS should always be the last item.
         NUM_COLUMNS

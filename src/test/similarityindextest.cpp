@@ -406,6 +406,50 @@ TEST_F(SimilarityIndexTest, aRealColumnSortsNumericallyDespiteACollateClause) {
 // Seed choice (andy-custom, 2026-09-23): a stem file borrows its original's
 // vector - the index is built from the originals only.
 
+// Andy, 2026-09-23: no fixed count - every track at or above the threshold.
+TEST_F(SimilarityIndexTest, nearestAboveReturnsEveryTrackAtOrAboveTheThreshold) {
+    writeFourNeighbours();
+    SimilarityIndex index(config());
+    ASSERT_TRUE(index.openForTesting(indexPath()));
+    index.setLibraryTracksForTesting(fourNeighbourLibrary());
+
+    // 0.8 is exactly on the threshold: included.
+    const QList<SimilarityIndex::Neighbour> results = index.nearestAbove(trackId(1), 0.79);
+    ASSERT_EQ(2, results.size());
+    EXPECT_EQ(trackId(2), results.at(0).trackId);
+    EXPECT_EQ(trackId(3), results.at(1).trackId);
+
+    EXPECT_EQ(3, index.nearestAbove(trackId(1), 0.5).size());
+    EXPECT_EQ(4, index.nearestAbove(trackId(1), -1.0).size());
+}
+
+TEST_F(SimilarityIndexTest, nearestAboveCanBeEmpty) {
+    writeFourNeighbours();
+    SimilarityIndex index(config());
+    ASSERT_TRUE(index.openForTesting(indexPath()));
+    index.setLibraryTracksForTesting(fourNeighbourLibrary());
+
+    // "far" (0.6) as the seed: nothing else is that close to it at 0.99.
+    EXPECT_TRUE(index.nearestAbove(trackId(4), 0.99).isEmpty());
+}
+
+TEST_F(SimilarityIndexTest, minScoreDefaultsToPointNineAndIsConfigurable) {
+    SimilarityIndex index(config());
+    EXPECT_DOUBLE_EQ(0.9, index.minScore());
+
+    config()->set(ConfigKey("[Similarity]", "min_score"), ConfigValue(QStringLiteral("0.85")));
+    EXPECT_DOUBLE_EQ(0.85, index.minScore());
+
+    // Nonsense falls back to the default rather than hiding or flooding the view.
+    for (const QString& bad : {QStringLiteral("5"),
+                 QStringLiteral("-3"),
+                 QStringLiteral("nan"),
+                 QStringLiteral("inf")}) {
+        config()->set(ConfigKey("[Similarity]", "min_score"), ConfigValue(bad));
+        EXPECT_DOUBLE_EQ(0.9, index.minScore()) << bad.toStdString();
+    }
+}
+
 TEST(SimilaritySeedTest, aTrackWithItsOwnVectorSeedsItself) {
     const TrackId own = trackId(1);
     const TrackId original = trackId(2);

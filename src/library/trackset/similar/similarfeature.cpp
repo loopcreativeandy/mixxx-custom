@@ -4,6 +4,7 @@
 #include "library/similarity/similarityindex.h"
 #include "library/trackcollectionmanager.h"
 #include "library/treeitem.h"
+#include "track/track.h"
 #include "moc_similarfeature.cpp"
 #include "widget/wlibrary.h"
 #include "widget/wlibrarytextbrowser.h"
@@ -56,10 +57,11 @@ void SimilarFeature::updateRootView() {
 QString SimilarFeature::getRootViewHtml() const {
     const QString title = tr("Similar");
     const QString description =
-            tr("Right-click a track in the library and choose <b>Find Similar</b>. The "
-               "closest matching tracks appear here, most similar first, with their "
-               "similarity in its own sortable column. Typing in the search bar filters "
-               "within the results.");
+            tr("Right-click a track in the library and choose <b>Find Similar</b>. "
+               "Every track with a similarity of at least %1 appears here, ranked "
+               "from 1 = most similar, with the similarity in its own sortable "
+               "column. Typing in the search bar filters within the results.")
+                    .arg(QString::number(m_pSimilarityIndex->minScore(), 'f', 2));
 
     QString statusHtml;
     SimilarityIndex::Status status = m_pSimilarityIndex->status();
@@ -93,8 +95,20 @@ QString SimilarFeature::getRootViewHtml() const {
         }
     }
 
-    return QStringLiteral("<html><body><h2>%1</h2><p>%2</p><p><i>%3</i></p></body></html>")
-            .arg(title, description, statusHtml);
+    QString noMatchesHtml;
+    if (!m_noMatchesFor.isEmpty()) {
+        noMatchesHtml = QStringLiteral("<p><b>%1</b></p>")
+                                .arg(tr("No track is at least %1 similar to %2.")
+                                                .arg(QString::number(
+                                                             m_pSimilarityIndex->minScore(),
+                                                             'f',
+                                                             2),
+                                                        m_noMatchesFor.toHtmlEscaped()));
+    }
+
+    return QStringLiteral(
+            "<html><body><h2>%1</h2>%2<p>%3</p><p><i>%4</i></p></body></html>")
+            .arg(title, noMatchesHtml, description, statusHtml);
 }
 
 void SimilarFeature::activate() {
@@ -111,10 +125,18 @@ void SimilarFeature::activate() {
 
 void SimilarFeature::showSimilarTo(TrackId seedTrackId) {
     const QList<SimilarityIndex::Neighbour> results =
-            m_pSimilarityIndex->nearest(seedTrackId, m_pSimilarityIndex->resultCount());
+            m_pSimilarityIndex->nearestAbove(seedTrackId, m_pSimilarityIndex->minScore());
+    m_noMatchesFor.clear();
     if (results.isEmpty()) {
         // Either no vector for the seed or everything was filtered out. Say so in the
         // root view rather than showing an empty track table with no explanation.
+        // With a vector, the threshold is why - name the track so it is clear the
+        // query did run.
+        if (m_pSimilarityIndex->hasVectorFor(seedTrackId)) {
+            const TrackPointer pSeed = m_pLibrary->trackCollectionManager()->getTrackById(
+                    seedTrackId);
+            m_noMatchesFor = pSeed ? pSeed->getInfo() : tr("this track");
+        }
         m_hasResults = false;
         updateRootView();
         emit featureSelect(this, QModelIndex());

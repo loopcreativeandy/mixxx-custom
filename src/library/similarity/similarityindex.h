@@ -62,6 +62,10 @@ class SimilarityIndex {
     /// Number of results a query returns, from the config.
     int resultCount() const;
 
+    /// Lowest similarity the Similar view shows (andy-custom, 2026-09-23):
+    /// `[Similarity] min_score` in mixxx.cfg, default 0.9.
+    double minScore() const;
+
     /// True if `trackId` can be used as a seed. Triggers the lazy load.
     bool hasVectorFor(TrackId trackId);
 
@@ -77,7 +81,12 @@ class SimilarityIndex {
 
     /// The `count` most similar tracks, best first, seed excluded. Empty when the
     /// seed has no vector or the index is unavailable.
-    QList<Neighbour> nearest(TrackId seedTrackId, int count);
+    /// Only scores of at least `minScore` count.
+    QList<Neighbour> nearest(TrackId seedTrackId, int count, double minScore = -2.0);
+
+    /// Every track with a similarity of at least `minScore`, best first, seed
+    /// excluded - as many as there are, possibly none.
+    QList<Neighbour> nearestAbove(TrackId seedTrackId, double minScore);
 
     /// Status for the sidebar's empty state. Triggers the lazy load.
     Status status();

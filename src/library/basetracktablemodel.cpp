@@ -907,6 +907,7 @@ QVariant BaseTrackTableModel::roleValue(
         // right-aligns COLUMN_LIBRARYTABLE_TRACKNUMBER here; deliberately kept out.
         case ColumnCache::COLUMN_PLAYLISTTRACKSTABLE_POSITION:
         case ColumnCache::COLUMN_LIBRARYTABLE_SIMILARITY:
+        case ColumnCache::COLUMN_LIBRARYTABLE_SIMILARITY_RANK:
         case ColumnCache::COLUMN_LIBRARYTABLE_REPLAYGAIN: {
             // We need to cast to int due to a bug similar to
             // https://bugreports.qt.io/browse/QTBUG-67582

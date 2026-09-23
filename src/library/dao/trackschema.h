@@ -58,6 +58,7 @@ const QString LIBRARYTABLE_CRATE = QStringLiteral("crate");
 // view behind the "Similar" sidebar item (andy-custom). It shares the LIBRARYTABLE_
 // prefix so it lines up with the ColumnCache enum, like the playlist columns below.
 const QString LIBRARYTABLE_SIMILARITY = QStringLiteral("similarity");
+const QString LIBRARYTABLE_SIMILARITY_RANK = QStringLiteral("similarity_rank");
 
 const QString TRACKLOCATIONSTABLE_ID = QStringLiteral("id");
 const QString TRACKLOCATIONSTABLE_LOCATION = QStringLiteral("location");

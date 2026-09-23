@@ -1,6 +1,7 @@
 #include "library/trackset/similar/similartablemodel.h"
 
 #include <QSqlQuery>
+#include <algorithm>
 
 #include "library/dao/trackschema.h"
 #include "library/queryutil.h"
@@ -32,12 +33,14 @@ void SimilarTableModel::setupSimilarTable() {
     if (!query.exec(QStringLiteral("CREATE TEMP TABLE IF NOT EXISTS ") + kTableName +
                 QStringLiteral("(") + LIBRARYTABLE_ID +
                 QStringLiteral(" INTEGER PRIMARY KEY, ") + LIBRARYTABLE_SIMILARITY +
-                QStringLiteral(" REAL)"))) {
+                QStringLiteral(" REAL, ") + LIBRARYTABLE_SIMILARITY_RANK +
+                QStringLiteral(" INTEGER)"))) {
         LOG_FAILED_QUERY(query);
     }
 
     QStringList columns;
     columns << kTableName + QStringLiteral(".") + LIBRARYTABLE_ID
+            << kTableName + QStringLiteral(".") + LIBRARYTABLE_SIMILARITY_RANK
             << kTableName + QStringLiteral(".") + LIBRARYTABLE_SIMILARITY
             << QStringLiteral("'' AS ") + LIBRARYTABLE_PREVIEW
             << LIBRARYTABLE_COVERART_DIGEST + QStringLiteral(" AS ") + LIBRARYTABLE_COVERART;
@@ -58,6 +61,7 @@ void SimilarTableModel::setupSimilarTable() {
 
     QStringList tableColumns;
     tableColumns << LIBRARYTABLE_ID
+                 << LIBRARYTABLE_SIMILARITY_RANK
                  << LIBRARYTABLE_SIMILARITY
                  << LIBRARYTABLE_PREVIEW
                  << LIBRARYTABLE_COVERART;
@@ -80,9 +84,23 @@ void SimilarTableModel::setResults(const QList<SimilarityIndex::Neighbour>& resu
     if (!results.isEmpty()) {
         query.prepare(QStringLiteral("INSERT INTO ") + kTableName +
                 QStringLiteral(" (") + LIBRARYTABLE_ID + QStringLiteral(", ") +
-                LIBRARYTABLE_SIMILARITY + QStringLiteral(") VALUES (:id, :score)"));
-        for (const auto& result : results) {
+                LIBRARYTABLE_SIMILARITY + QStringLiteral(", ") +
+                LIBRARYTABLE_SIMILARITY_RANK +
+                QStringLiteral(") VALUES (:id, :score, :rank)"));
+        // Rank 1 = highest score. Fixed at query time: it stays with the track
+        // when the view is re-sorted or filtered. Ranked here rather than
+        // trusting the caller's order.
+        QList<SimilarityIndex::Neighbour> ranked = results;
+        std::stable_sort(ranked.begin(),
+                ranked.end(),
+                [](const SimilarityIndex::Neighbour& lhs,
+                        const SimilarityIndex::Neighbour& rhs) {
+                    return lhs.score > rhs.score;
+                });
+        int rank = 0;
+        for (const auto& result : std::as_const(ranked)) {
             query.bindValue(QStringLiteral(":id"), result.trackId.toVariant());
+            query.bindValue(QStringLiteral(":rank"), ++rank);
             // Bound as a double on purpose: a REAL column sorts numerically, a text
             // one would sort "0.9" after "0.85".
             query.bindValue(QStringLiteral(":score"), result.score);
@@ -112,5 +130,12 @@ void SimilarTableModel::initSortColumnMapping() {
     if (similarityColumn >= 0) {
         m_sortColumnIdByColumnIndex.insert(
                 similarityColumn, TrackModel::SortColumnId::Similarity);
+    }
+    const int rankColumn = fieldIndex(ColumnCache::COLUMN_LIBRARYTABLE_SIMILARITY_RANK);
+    m_columnIndexBySortColumnId[static_cast<int>(TrackModel::SortColumnId::SimilarityRank)] =
+            rankColumn;
+    if (rankColumn >= 0) {
+        m_sortColumnIdByColumnIndex.insert(
+                rankColumn, TrackModel::SortColumnId::SimilarityRank);
     }
 }

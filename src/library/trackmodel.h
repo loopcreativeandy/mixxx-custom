@@ -96,6 +96,7 @@ class TrackModel {
         PlaylistDateTimeAdded = 32,
         // andy-custom: only mapped by SimilarTableModel, -1 everywhere else.
         Similarity = 33,
+        SimilarityRank = 34,
 
         // IdMax terminates the list of columns, it must be always after the last item
         IdMax,

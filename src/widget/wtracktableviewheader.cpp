@@ -7,6 +7,7 @@
 #include <QTextOption>
 #include <QWidgetAction>
 
+#include "library/dao/trackschema.h"
 #include "library/trackmodel.h"
 #include "moc_wtracktableviewheader.cpp"
 #include "util/math.h"
@@ -97,6 +98,11 @@ void HeaderViewState::restoreState(WTrackTableViewHeader* pHeaders) {
                 m_view_state.mutable_header_state(i);
     }
 
+    // andy-custom: the Similar view's Rank column belongs on the far left. A
+    // saved layout from before it existed would put it last, so it is moved
+    // there once; after that the user's own arrangement is kept.
+    int newRankColumn = -1;
+
     // First set all sections to be hidden and update logical indexes.
     for (int li = 0; li < pHeaders->count(); ++li) {
         bool hidden = true;
@@ -115,6 +121,10 @@ void HeaderViewState::restoreState(WTrackTableViewHeader* pHeaders) {
                                                  li, Qt::Horizontal, TrackModel::kHeaderNameRole)
                                 .toString(); // internal name
             hidden = false;
+            if (pHeaders->model()->headerData(li, Qt::Horizontal, TrackModel::kHeaderNameRole)
+                            .toString() == LIBRARYTABLE_SIMILARITY_RANK) {
+                newRankColumn = li;
+            }
         } else {
             it.value()->set_logical_index(li);
         }
@@ -135,6 +145,9 @@ void HeaderViewState::restoreState(WTrackTableViewHeader* pHeaders) {
         int size = math_max(header.size(), WTTVH_MINIMUM_SECTION_SIZE);
         pHeaders->resizeSection(li, size);
         pHeaders->moveSection(pHeaders->visualIndex(li), vi);
+    }
+    if (newRankColumn >= 0) {
+        pHeaders->moveSection(pHeaders->visualIndex(newRankColumn), 0);
     }
     if (m_view_state.sort_indicator_shown()) {
         pHeaders->setSortIndicator(
