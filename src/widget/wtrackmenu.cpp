@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QDialogButtonBox>
+#include <QFutureWatcher>
 #include <QHash>
 #include <QInputDialog>
 #include <QList>
@@ -12,6 +13,7 @@
 #include <QPushButton>
 #include <QSqlDatabase>
 #include <QVBoxLayout>
+#include <QtConcurrentRun>
 
 #include "analyzer/analyzerscheduledtrack.h"
 #include "analyzer/analyzersilence.h"
@@ -69,6 +71,14 @@ constexpr WTrackMenu::Features WTrackMenu::kDeckTrackMenuFeatures;
 
 namespace {
 const QString kAppGroup = QStringLiteral("[App]");
+
+// Stem swap state, GUI thread only.
+// One swap at a time: a second click while the first is still measuring is
+// ignored rather than racing it for the same free deck.
+bool s_stemSwapInFlight = false;
+// Measured codec delay per stem track, seconds (original -> stem). A pair's
+// delay never changes, so swapping back and forth measures only once.
+QHash<TrackId, double> s_stemSwapOffsetCache;
 
 const QString samplerTrString(int i) {
     return QObject::tr("Sampler %1").arg(i);
@@ -1337,6 +1347,8 @@ void WTrackMenu::updateMenus() {
             // keep the plain label, disabled
         } else if (m_deckGroup.isEmpty()) {
             swapText = tr("Swap with Stem Track (only from a deck)");
+        } else if (s_stemSwapInFlight) {
+            swapText = tr("Swap with Stem Track (preparing...)");
         } else {
             const bool isStem =
                     mixxx::stemoriginal::isStemFileLocation(pTrack->getLocation());
@@ -1577,6 +1589,61 @@ void WTrackMenu::slotFindSimilar() {
     m_pLibrary->showSimilarTracks(seedId);
 }
 
+namespace {
+
+/// Any deck that is not playing and is not `sourceGroup`. Deliberately never
+/// a playing deck - this runs while Andy is live.
+QString freeDeckForStemSwap(const QString& sourceGroup) {
+    const int numDecks = static_cast<int>(
+            ControlObject::get(ConfigKey(kAppGroup, QStringLiteral("num_decks"))));
+    for (int i = 0; i < numDecks; ++i) {
+        const QString group = PlayerManager::groupForDeck(i);
+        if (group == sourceGroup) {
+            continue;
+        }
+        if (ControlObject::get(ConfigKey(group, QStringLiteral("play"))) > 0.0) {
+            continue;
+        }
+        return group;
+    }
+    return QString();
+}
+
+/// Second half of WTrackMenu::slotSwapWithStem(), once the offset is known.
+/// May run a moment after the click, so everything is checked again.
+void finishStemSwap(Library* pLibrary,
+        const TrackPointer& pCounterpart,
+        const QString& sourceGroup,
+        TrackId sourceTrackId,
+        double signedOffset) {
+    // The source deck must still hold the track the swap was asked for -
+    // otherwise the position would be taken from a different song.
+    const TrackPointer pSourceNow = PlayerInfo::instance().getTrackInfo(sourceGroup);
+    if (!pSourceNow || pSourceNow->getId() != sourceTrackId) {
+        qInfo() << "Stem swap dropped: the track in" << sourceGroup
+                << "changed while the offset was measured";
+        return;
+    }
+    const QString targetGroup = freeDeckForStemSwap(sourceGroup);
+    if (targetGroup.isEmpty()) {
+        qInfo() << "Stem swap dropped: no free deck left once the offset was measured";
+        return;
+    }
+
+    // Safety net (Andy, 2026-09-23): the counterpart starts playing on its own,
+    // so its fader goes all the way down *before* the load. It must never be
+    // audible until he brings it up himself.
+    ControlObject::set(ConfigKey(targetGroup, QStringLiteral("volume")), 0.0);
+
+    // Clone Deck, but for a different file: tempo, pitch and loop state follow
+    // the playing deck, and the engine seeks sample-exactly at load time, so
+    // the time the load itself takes does not put the new deck behind. The
+    // playing deck is never touched.
+    pLibrary->loadCounterpartAligned(pCounterpart, targetGroup, sourceGroup, signedOffset);
+}
+
+} // namespace
+
 void WTrackMenu::slotSwapWithStem() {
     const auto pTrack = getFirstTrackPointer();
     if (!pTrack || m_deckGroup.isEmpty()) {
@@ -1605,54 +1672,74 @@ void WTrackMenu::slotSwapWithStem() {
         return;
     }
 
-    // Pick a target deck: any visible deck that is not playing and is not the
-    // deck we are swapping from. Deliberately never steals a playing deck -
-    // this runs while Andy is live.
-    const int numDecks = static_cast<int>(m_pNumDecks.get());
-    QString targetGroup;
-    for (int i = 0; i < numDecks; ++i) {
-        const QString group = PlayerManager::groupForDeck(i);
-        if (group == m_deckGroup) {
-            continue;
-        }
-        if (ControlObject::get(ConfigKey(group, QStringLiteral("play"))) > 0.0) {
-            continue;
-        }
-        targetGroup = group;
-        break;
-    }
-    if (targetGroup.isEmpty()) {
+    // Refuse up front if there is no free deck, so the answer comes at once
+    // rather than after the measurement. The deck is picked again when the
+    // measurement is done - it may have started playing in the meantime.
+    if (freeDeckForStemSwap(m_deckGroup).isEmpty()) {
         QMessageBox::information(this,
                 tr("Swap with Stem Track"),
                 tr("No free deck available. Stop or eject a deck first - the "
                    "playing deck is never replaced."));
         return;
     }
+    if (s_stemSwapInFlight) {
+        return;
+    }
 
-    // The codec delay between the two files. Measuring decodes the first
-    // seconds of both, so it is not instant - but it is the only reliable
-    // number (the grids can both be wrong). Falls back to no correction.
     const TrackPointer pOriginal = sourceIsStem ? pCounterpart : pTrack;
     const TrackPointer pStem = sourceIsStem ? pTrack : pCounterpart;
-    QApplication::setOverrideCursor(Qt::WaitCursor);
-    const std::optional<mixxx::stemaudioalign::AudioOffset> offset =
-            mixxx::stemaudioalign::measureTrackOffset(pOriginal, pStem);
-    QApplication::restoreOverrideCursor();
-    const double signedOffset = mixxx::stemswap::signedOffsetSeconds(
-            offset ? offset->seconds : 0.0,
-            sourceIsStem ? mixxx::stemswap::Direction::StemToOriginal
-                         : mixxx::stemswap::Direction::OriginalToStem);
+    const auto direction = sourceIsStem
+            ? mixxx::stemswap::Direction::StemToOriginal
+            : mixxx::stemswap::Direction::OriginalToStem;
+    const QString sourceGroup = m_deckGroup;
+    const TrackId sourceTrackId = pTrack->getId();
+    Library* const pLibrary = m_pLibrary;
 
-    // Safety net (Andy, 2026-09-23): the counterpart starts playing on its own,
-    // so its fader goes all the way down *before* the load. It must never be
-    // audible until he brings it up himself.
-    ControlObject::set(ConfigKey(targetGroup, QStringLiteral("volume")), 0.0);
+    // Measured before for this pair: no need to decode again.
+    const auto cached = s_stemSwapOffsetCache.constFind(pStem->getId());
+    if (cached != s_stemSwapOffsetCache.constEnd()) {
+        finishStemSwap(pLibrary,
+                pCounterpart,
+                sourceGroup,
+                sourceTrackId,
+                mixxx::stemswap::signedOffsetSeconds(cached.value(), direction));
+        return;
+    }
 
-    // Clone Deck, but for a different file: tempo, pitch and loop state follow
-    // the playing deck, and the engine seeks sample-exactly at load time, so
-    // the time the load itself takes does not put the new deck behind. The
-    // playing deck is never touched.
-    m_pLibrary->loadCounterpartAligned(pCounterpart, targetGroup, m_deckGroup, signedOffset);
+    // The codec delay between the two files. Measuring decodes the first
+    // seconds of both (~0.3 s), which used to freeze the whole UI (Andy,
+    // 2026-09-23). It now runs on a worker thread: it only reads the two
+    // files and shares nothing with the GUI or the engine, so there is
+    // nothing to lock. The load itself follows back on the GUI thread. The
+    // wait does not cost alignment - the engine reads the playing deck's
+    // position at load time, not at click time. Falls back to no correction
+    // if the measurement fails.
+    s_stemSwapInFlight = true;
+    const TrackId stemId = pStem->getId();
+    auto* pWatcher =
+            new QFutureWatcher<std::optional<mixxx::stemaudioalign::AudioOffset>>(
+                    pLibrary);
+    connect(pWatcher,
+            &QFutureWatcherBase::finished,
+            pLibrary,
+            [pWatcher, pLibrary, pCounterpart, sourceGroup, sourceTrackId, stemId, direction]() {
+                s_stemSwapInFlight = false;
+                const std::optional<mixxx::stemaudioalign::AudioOffset> offset =
+                        pWatcher->result();
+                pWatcher->deleteLater();
+                if (offset) {
+                    s_stemSwapOffsetCache.insert(stemId, offset->seconds);
+                }
+                finishStemSwap(pLibrary,
+                        pCounterpart,
+                        sourceGroup,
+                        sourceTrackId,
+                        mixxx::stemswap::signedOffsetSeconds(
+                                offset ? offset->seconds : 0.0, direction));
+            });
+    pWatcher->setFuture(QtConcurrent::run([pOriginal, pStem]() {
+        return mixxx::stemaudioalign::measureTrackOffset(pOriginal, pStem);
+    }));
 }
 
 namespace {
