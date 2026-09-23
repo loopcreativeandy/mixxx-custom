@@ -106,15 +106,19 @@ bool AnalyzerWaveform::shouldAnalyze(TrackPointer pTrack) const {
     ConstWaveformPointer pLoadedTrackWaveformSummary;
 #ifdef __STEM__
     bool isStemTrack = !pTrack->getStemInfo().isEmpty();
+#else
+    constexpr bool isStemTrack = false;
 #endif
 
     TrackId trackId = pTrack->getId();
     bool missingWaveform = pTrackWaveform.isNull();
     bool missingWavesummary = pTrackWaveformSummary.isNull();
+    m_supersededAnalysisIds.clear();
 
     if (trackId.isValid() && (missingWaveform || missingWavesummary)) {
         QList<AnalysisDao::AnalysisInfo> analyses =
                 m_analysisDao.getAnalysesForTrack(trackId);
+        const bool loadWaveform = missingWaveform;
 
         QListIterator<AnalysisDao::AnalysisInfo> it(analyses);
         while (it.hasNext()) {
@@ -123,9 +127,24 @@ bool AnalyzerWaveform::shouldAnalyze(TrackPointer pTrack) const {
 
             if (analysis.type == AnalysisDao::TYPE_WAVEFORM) {
                 vc = WaveformFactory::waveformVersionToVersionClass(analysis.version);
-                if (missingWaveform && vc == WaveformFactory::VC_USE) {
-                    pLoadedTrackWaveform = ConstWaveformPointer(
+                if (loadWaveform && vc == WaveformFactory::VC_USE) {
+                    // andy-custom: a track can carry more than one usable
+                    // waveform row. Upstream keeps whichever comes first and
+                    // deletes the rest - for a stem track that was the old
+                    // row without per-stem band data, so the freshly analyzed
+                    // one was deleted on every load and the waveform was
+                    // computed again, forever. Keep the better one instead.
+                    ConstWaveformPointer pCandidate = ConstWaveformPointer(
                             WaveformFactory::loadWaveformFromAnalysis(analysis));
+                    if (pLoadedTrackWaveform.isNull()) {
+                        pLoadedTrackWaveform = pCandidate;
+                    } else if (isBetterStoredWaveform(
+                                       *pCandidate, *pLoadedTrackWaveform, isStemTrack)) {
+                        m_analysisDao.deleteAnalysis(pLoadedTrackWaveform->getId());
+                        pLoadedTrackWaveform = pCandidate;
+                    } else {
+                        m_analysisDao.deleteAnalysis(analysis.analysisId);
+                    }
                     missingWaveform = false;
                 } else if (vc != WaveformFactory::VC_KEEP) {
                     // remove all other Analysis except that one we should keep
@@ -179,7 +198,29 @@ bool AnalyzerWaveform::shouldAnalyze(TrackPointer pTrack) const {
         }
         return false;
     }
+
+    // We analyze again, and storeResults() saves the result as new rows. The
+    // rows loaded above are superseded by then - left in place they would be
+    // picked up again next time instead of the new ones.
+    for (const ConstWaveformPointer& pStale : {pLoadedTrackWaveform,
+                 pLoadedTrackWaveformSummary,
+                 pTrackWaveform,
+                 pTrackWaveformSummary}) {
+        if (pStale && pStale->getId() != -1) {
+            m_supersededAnalysisIds.append(pStale->getId());
+        }
+    }
     return true;
+}
+
+// static
+bool AnalyzerWaveform::isBetterStoredWaveform(
+        const Waveform& candidate, const Waveform& current, bool isStemTrack) {
+    if (isStemTrack && candidate.hasStemBands() != current.hasStemBands()) {
+        return candidate.hasStemBands();
+    }
+    // Equally good: keep the first one, as upstream does.
+    return false;
 }
 
 void AnalyzerWaveform::createFilters(mixxx::audio::SampleRate sampleRate, int stemCount) {
@@ -428,6 +469,17 @@ void AnalyzerWaveform::storeResults(TrackPointer pTrack) {
             pTrack->getId(),
             m_waveform,
             m_waveformSummary);
+
+    // The rows this analysis replaces (see shouldAnalyze()) - only once the
+    // new ones are safely on disk.
+    if (m_waveform && m_waveform->saveState() == Waveform::SaveState::Saved &&
+            m_waveformSummary &&
+            m_waveformSummary->saveState() == Waveform::SaveState::Saved) {
+        for (const int analysisId : std::as_const(m_supersededAnalysisIds)) {
+            m_analysisDao.deleteAnalysis(analysisId);
+        }
+    }
+    m_supersededAnalysisIds.clear();
 
     // Set waveforms on track AFTER they'been written to disk in order to have
     // a consistency when OverviewCache asks AnalysisDAO for a waveform summary.

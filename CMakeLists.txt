@@ -2800,6 +2800,7 @@ if(BUILD_TESTING)
     src/test/similartablemodeltest.cpp
     src/test/stemswaptest.cpp
     src/test/stemswapdecktest.cpp
+    src/test/storedstemwaveformtest.cpp
     src/test/wtrackmenufeaturetest.cpp
     src/test/rubberbandworkerpooltest.cpp
     src/test/playlisttest.cpp

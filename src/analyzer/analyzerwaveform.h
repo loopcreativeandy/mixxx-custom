@@ -168,6 +168,12 @@ class AnalyzerWaveform : public Analyzer {
     void storeResults(TrackPointer tio) override;
     void cleanup() override;
 
+    /// andy-custom: of two usable stored waveforms of the same track, whether
+    /// `candidate` should be kept over `current`. For a stem track the one
+    /// with per-stem band data (RGB stem waveforms) wins.
+    static bool isBetterStoredWaveform(
+            const Waveform& candidate, const Waveform& current, bool isStemTrack);
+
   private:
     bool shouldAnalyze(TrackPointer tio) const;
 
@@ -179,6 +185,9 @@ class AnalyzerWaveform : public Analyzer {
     void storeIfGreater(float* pDest, float source);
 
     mutable AnalysisDao m_analysisDao;
+    /// Stored analyses that the running analysis replaces; deleted once its
+    /// results are saved.
+    mutable QList<int> m_supersededAnalysisIds;
 
     WaveformPointer m_waveform;
     WaveformPointer m_waveformSummary;
