@@ -1311,15 +1311,20 @@ void WTrackMenu::updateMenus() {
         // One seed, one result list. And a track the index knows nothing about would
         // silently return somebody else's neighbours, so say why it is unavailable
         // instead of offering it.
-        const bool hasVector = singleTrackSelected && pTrack &&
-                m_pLibrary->similarityIndex()->hasVectorFor(pTrack->getId());
+        // A stem file borrows its original's vector (Andy, 2026-09-23).
+        const TrackId seedId = (singleTrackSelected && pTrack)
+                ? m_pLibrary->similaritySeedFor(*pTrack)
+                : TrackId();
+        const bool hasVector = seedId.isValid();
         m_pFindSimilarAct->setEnabled(hasVector);
         if (!singleTrackSelected) {
             m_pFindSimilarAct->setText(tr("Find Similar"));
+        } else if (!hasVector) {
+            m_pFindSimilarAct->setText(tr("Find Similar (no similarity data)"));
+        } else if (seedId != pTrack->getId()) {
+            m_pFindSimilarAct->setText(tr("Find Similar (via original track)"));
         } else {
-            m_pFindSimilarAct->setText(hasVector
-                            ? tr("Find Similar")
-                            : tr("Find Similar (no similarity data)"));
+            m_pFindSimilarAct->setText(tr("Find Similar"));
         }
     }
 
@@ -1565,7 +1570,11 @@ void WTrackMenu::slotFindSimilar() {
     if (!pTrack) {
         return;
     }
-    m_pLibrary->showSimilarTracks(pTrack->getId());
+    const TrackId seedId = m_pLibrary->similaritySeedFor(*pTrack);
+    if (!seedId.isValid()) {
+        return;
+    }
+    m_pLibrary->showSimilarTracks(seedId);
 }
 
 void WTrackMenu::slotSwapWithStem() {

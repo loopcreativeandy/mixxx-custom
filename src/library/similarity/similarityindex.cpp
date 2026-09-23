@@ -419,6 +419,21 @@ bool SimilarityIndex::isEligibleResult(TrackId trackId) const {
     return true;
 }
 
+// static
+TrackId SimilarityIndex::chooseSeed(TrackId ownTrackId,
+        bool isStemFile,
+        TrackId originalTrackId,
+        const std::function<bool(TrackId)>& hasVector) {
+    if (ownTrackId.isValid() && hasVector(ownTrackId)) {
+        return ownTrackId;
+    }
+    if (isStemFile && originalTrackId.isValid() && originalTrackId != ownTrackId &&
+            hasVector(originalTrackId)) {
+        return originalTrackId;
+    }
+    return TrackId();
+}
+
 bool SimilarityIndex::hasVectorFor(TrackId trackId) {
     if (!trackId.isValid() || !ensureLoaded()) {
         return false;

@@ -32,10 +32,12 @@
 #include "library/trackset/setlogfeature.h"
 #include "library/trackset/smartplaylist/smartplaylistfeature.h"
 #include "library/similarity/similarityindex.h"
+#include "library/stemoriginal.h"
 #include "library/trackset/similar/similarfeature.h"
 #include "library/traktor/traktorfeature.h"
 #include "mixer/playermanager.h"
 #include "moc_library.cpp"
+#include "track/track.h"
 #include "util/assert.h"
 #include "util/logger.h"
 #include "util/sandbox.h"
@@ -773,6 +775,29 @@ void Library::loadCounterpartAligned(TrackPointer pTrack,
         double signedOffsetSeconds) {
     emit loadCounterpartAlignedToPlayer(
             std::move(pTrack), targetGroup, sourceGroup, signedOffsetSeconds);
+}
+
+TrackId Library::similaritySeedFor(const Track& track) {
+    SimilarityIndex* pIndex = similarityIndex();
+    VERIFY_OR_DEBUG_ASSERT(pIndex) {
+        return TrackId();
+    }
+    const TrackId ownId = track.getId();
+    const auto hasVector = [pIndex](TrackId id) {
+        return pIndex->hasVectorFor(id);
+    };
+    // Cheap path first: the DB lookup for the original only runs for a stem
+    // without a vector of its own.
+    if (ownId.isValid() && hasVector(ownId)) {
+        return ownId;
+    }
+    const bool isStem = mixxx::stemoriginal::isStemFileLocation(track.getLocation());
+    TrackId originalId;
+    if (isStem && m_pTrackCollectionManager) {
+        originalId = mixxx::stemoriginal::findOriginalTrackId(
+                m_pTrackCollectionManager->internalCollection()->database(), track);
+    }
+    return SimilarityIndex::chooseSeed(ownId, isStem, originalId, hasVector);
 }
 
 void Library::showSimilarTracks(TrackId seedTrackId) {

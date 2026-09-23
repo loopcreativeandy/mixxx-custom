@@ -5,6 +5,7 @@
 #include <QList>
 #include <QMultiHash>
 #include <QString>
+#include <functional>
 #include <vector>
 
 #include "preferences/usersettings.h"
@@ -63,6 +64,16 @@ class SimilarityIndex {
 
     /// True if `trackId` can be used as a seed. Triggers the lazy load.
     bool hasVectorFor(TrackId trackId);
+
+    /// Which track's vector stands in for `ownTrackId` as a seed (andy-custom,
+    /// 2026-09-23). Its own vector if it has one; otherwise, for a stem file,
+    /// the vector of the original it was generated from - stems are the same
+    /// recording, but the index is built from the originals. Invalid if neither
+    /// has a vector.
+    static TrackId chooseSeed(TrackId ownTrackId,
+            bool isStemFile,
+            TrackId originalTrackId,
+            const std::function<bool(TrackId)>& hasVector);
 
     /// The `count` most similar tracks, best first, seed excluded. Empty when the
     /// seed has no vector or the index is unavailable.

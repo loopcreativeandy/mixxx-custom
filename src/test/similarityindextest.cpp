@@ -403,4 +403,42 @@ TEST_F(SimilarityIndexTest, aRealColumnSortsNumericallyDespiteACollateClause) {
     QSqlDatabase::removeDatabase(connectionName);
 }
 
+// Seed choice (andy-custom, 2026-09-23): a stem file borrows its original's
+// vector - the index is built from the originals only.
+
+TEST(SimilaritySeedTest, aTrackWithItsOwnVectorSeedsItself) {
+    const TrackId own = trackId(1);
+    const TrackId original = trackId(2);
+    const auto hasVector = [](TrackId) { return true; };
+    EXPECT_EQ(own, SimilarityIndex::chooseSeed(own, true, original, hasVector));
+}
+
+TEST(SimilaritySeedTest, aStemWithoutAVectorUsesItsOriginal) {
+    const TrackId stem = trackId(1);
+    const TrackId original = trackId(2);
+    const auto hasVector = [original](TrackId id) { return id == original; };
+    EXPECT_EQ(original, SimilarityIndex::chooseSeed(stem, true, original, hasVector));
+}
+
+/// Only stems may borrow: an ordinary track without a vector must not quietly
+/// return some other track's neighbours.
+TEST(SimilaritySeedTest, aNonStemNeverBorrowsAVector) {
+    const TrackId track = trackId(1);
+    const TrackId other = trackId(2);
+    const auto hasVector = [other](TrackId id) { return id == other; };
+    EXPECT_FALSE(SimilarityIndex::chooseSeed(track, false, other, hasVector).isValid());
+}
+
+TEST(SimilaritySeedTest, aStemWhoseOriginalHasNoVectorIsUnavailable) {
+    const auto hasVector = [](TrackId) { return false; };
+    EXPECT_FALSE(SimilarityIndex::chooseSeed(trackId(1), true, trackId(2), hasVector)
+                         .isValid());
+}
+
+TEST(SimilaritySeedTest, aStemWithNoOriginalInTheLibraryIsUnavailable) {
+    const auto hasVector = [](TrackId id) { return id == trackId(2); };
+    EXPECT_FALSE(SimilarityIndex::chooseSeed(trackId(1), true, TrackId(), hasVector)
+                         .isValid());
+}
+
 } // anonymous namespace

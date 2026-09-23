@@ -114,6 +114,9 @@ class Library: public QObject {
 
     /// andy-custom: shows the tracks most similar to `seedTrackId` in the "Similar"
     /// sidebar item and switches to it.
+    /// The track whose similarity vector is used for `track`: itself, or for a
+    /// stem file without a vector, its original. Invalid if there is none.
+    TrackId similaritySeedFor(const Track& track);
     void showSimilarTracks(TrackId seedTrackId);
     /// andy-custom (CP97): load `pTrack` into `targetGroup` as an aligned clone
     /// of `sourceGroup` - see BaseTrackPlayerImpl::loadCounterpartAligned().
