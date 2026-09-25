@@ -28,6 +28,12 @@ int camelotDistance(mixxx::track::io::key::ChromaticKey a,
 
 constexpr int kMaxCompatibleCamelotDistance = 2;
 
+// Andy CP103: a deck further than this from the nearest full semitone counts
+// as "between keys" (label turns orange, offset gets a decimal). Half the
+// controller's 10 ct fine step, so every fine press shows and float noise
+// from rate round-trips does not.
+constexpr double kOffGridSemitones = 0.05;
+
 } // anonymous namespace
 
 WKey::WKey(const QString& group, QWidget* pParent)
@@ -35,6 +41,7 @@ WKey::WKey(const QString& group, QWidget* pParent)
           m_group(group),
           m_dOldValue(0),
           m_keyClash(false),
+          m_keyOffGrid(false),
           m_keyNotation(mixxx::library::prefs::kKeyNotationConfigKey, this),
           m_engineKeyDistance(group,
                   "visual_key_distance",
@@ -132,9 +139,16 @@ void WKey::setValue(double dValue) {
             // sub-semitone remainder, so the difference is a whole number.
             const int offset = static_cast<int>(
                     std::lround(m_pitch.get() - m_engineKeyDistance.get()));
+            // Andy CP103: between two keys, show the real offset with one
+            // decimal ("+1.3", "-0.2") instead of the rounded whole number.
+            const bool offGrid = isOffGrid();
+            const QString offsetStr = offGrid
+                    ? QString::number(qAbs(m_pitch.get()), 'f', 1)
+                    : QString::number(qAbs(offset));
+            const bool offsetNegative = offGrid ? m_pitch.get() < 0 : offset < 0;
             const mixxx::track::io::key::ChromaticKey fileKey =
                     KeyUtils::keyFromNumericValue(m_fileKey.get());
-            if (offset != 0 && m_displayKey &&
+            if ((offset != 0 || offGrid) && m_displayKey &&
                     fileKey != mixxx::track::io::key::INVALID) {
                 // Andy CP75: while the deck is pitched, spell it out as
                 // "11m (4m +1)" - where we are now, then where the track
@@ -147,16 +161,16 @@ void WKey::setValue(double dValue) {
                 keyStr = KeyUtils::keyToString(key, compact) +
                         QStringLiteral(" (%1 %2%3)")
                                 .arg(KeyUtils::keyToString(fileKey, compact),
-                                        offset > 0 ? QStringLiteral("+")
-                                                   : QStringLiteral("-"),
-                                        QString::number(qAbs(offset)));
-            } else if (offset != 0) {
+                                        offsetNegative ? QStringLiteral("-")
+                                                       : QStringLiteral("+"),
+                                        offsetStr);
+            } else if (offset != 0 || offGrid) {
                 // No key detected for the file (or the label is offset-only):
                 // nothing to put in brackets, so just append the distance.
                 keyStr.append(QString(" %1%2")
-                                      .arg(offset > 0 ? QLatin1Char('+')
-                                                      : QLatin1Char('-'))
-                                      .arg(qAbs(offset)));
+                                      .arg(offsetNegative ? QLatin1Char('-')
+                                                          : QLatin1Char('+'))
+                                      .arg(offsetStr));
             }
             // Live tooltip: the original key, what a key reset would do,
             // and where a one-semitone shift in either direction lands.
@@ -215,11 +229,24 @@ void WKey::updateKeyClash() {
             }
         }
     }
-    if (clash != m_keyClash) {
+    // Andy CP103: orange = the deck sits between two semitones. Red (clash)
+    // wins, since that is the one that needs action now.
+    const bool offGrid = !clash &&
+            KeyUtils::keyFromNumericValue(m_dOldValue) !=
+                    mixxx::track::io::key::INVALID &&
+            isOffGrid();
+    if (clash != m_keyClash || offGrid != m_keyOffGrid) {
         m_keyClash = clash;
-        // Plain red override beats the skin color; cleared when compatible.
-        setStyleSheet(clash ? QStringLiteral("color: #E53935;") : QString());
+        m_keyOffGrid = offGrid;
+        // Plain color override beats the skin color; cleared when on a key.
+        setStyleSheet(clash ? QStringLiteral("color: #E53935;")
+                        : offGrid ? QStringLiteral("color: #FF9800;")
+                                  : QString());
     }
+}
+
+bool WKey::isOffGrid() const {
+    return std::abs(m_engineKeyDistance.get()) > kOffGridSemitones;
 }
 
 void WKey::setCents() {

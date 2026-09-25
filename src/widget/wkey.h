@@ -27,6 +27,8 @@ class WKey : public WLabel  {
     /// (andy-custom, CP75). Falls back to the plain notation for the
     /// notations that have no number form.
     KeyUtils::KeyNotation compactNotation() const;
+    /// Andy CP103: more than kOffGridSemitones away from the nearest full key.
+    bool isOffGrid() const;
 
     QString m_group;
     double m_dOldValue;
@@ -35,6 +37,7 @@ class WKey : public WLabel  {
     // Andy: append the integer semitone offset from the file key (" +2"/" -1")
     bool m_displayOffset;
     bool m_keyClash;
+    bool m_keyOffGrid;
     ControlProxy m_keyNotation;
     ControlProxy m_engineKeyDistance;
     ControlProxy m_pitch;
