@@ -2885,3 +2885,9 @@ WSearchLineEdit::indicator:unchecked:selected {
 #Deck4 WTempoSpinBox QLineEdit, #DeckCompact4 WTempoSpinBox QLineEdit {
   color: #0bd9d1;
 }
+
+/* Andy: controller mode frame (WWidgetGroup frameHighlight). Default is
+   yellow; mode 8 (key fine) is orange like the between-semitones key label. */
+#KeyFineFrame {
+  qproperty-frameHighlightColor: #FF9800;
+}

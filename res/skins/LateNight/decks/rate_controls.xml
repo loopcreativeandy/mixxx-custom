@@ -117,6 +117,11 @@
           <WidgetGroup>
             <ObjectName>RateControls</ObjectName>
             <Layout>horizontal</Layout>
+            <Connection><!-- Andy: controller mode 5 is active (APC Mini scene column) -->
+              <ConfigKey>[Skin],controller_mode_highlight</ConfigKey>
+              <BindProperty>frameHighlight</BindProperty>
+              <Transform><IsEqual>5</IsEqual></Transform>
+            </Connection>
             <SizePolicy>min,min</SizePolicy>
             <Children>
 

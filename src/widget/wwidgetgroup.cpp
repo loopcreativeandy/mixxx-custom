@@ -2,6 +2,7 @@
 
 #include <QEvent>
 #include <QLayout>
+#include <QPainter>
 #include <QStackedLayout>
 #include <QStylePainter>
 
@@ -15,9 +16,49 @@ WWidgetGroup::WWidgetGroup(QWidget* pParent)
           WBaseWidget(this),
           m_pPixmapBack(nullptr),
           m_pPixmapBackHighlighted(nullptr),
-          m_highlight(0) {
+          m_highlight(0),
+          m_frameHighlight(0),
+          m_frameHighlightColor(0xFF, 0xD6, 0x00), // yellow
+          m_pFrameOverlay(nullptr) {
     setObjectName("WidgetGroup");
 }
+
+namespace {
+
+// Paints the frame over its parent's children. Not part of any layout and
+// transparent for mouse events, so the controls below stay usable.
+class FrameOverlay : public QWidget {
+  public:
+    FrameOverlay(QWidget* pParent, const QColor& color)
+            : QWidget(pParent),
+              m_color(color) {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_NoSystemBackground);
+        setFocusPolicy(Qt::NoFocus);
+    }
+    void setColor(const QColor& color) {
+        m_color = color;
+    }
+
+  protected:
+    void paintEvent(QPaintEvent* /*unused*/) override {
+        constexpr int kWidth = 2;
+        QPainter p(this);
+        QPen pen(m_color, kWidth);
+        pen.setJoinStyle(Qt::MiterJoin);
+        p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
+        // The pen is centred on the path; inset by half its width so
+        // nothing is clipped at the widget edge.
+        p.drawRect(QRectF(rect()).adjusted(
+                kWidth / 2.0, kWidth / 2.0, -kWidth / 2.0, -kWidth / 2.0));
+    }
+
+  private:
+    QColor m_color;
+};
+
+} // namespace
 
 int WWidgetGroup::layoutSpacing() const {
     QLayout* pLayout = layout();
@@ -211,6 +252,9 @@ void WWidgetGroup::paintEvent(QPaintEvent* pe) {
 void WWidgetGroup::resizeEvent(QResizeEvent* re) {
     // Paint things styled by style sheet
     QFrame::resizeEvent(re);
+    if (m_pFrameOverlay) {
+        m_pFrameOverlay->setGeometry(rect());
+    }
 }
 
 bool WWidgetGroup::event(QEvent* pEvent) {
@@ -239,4 +283,31 @@ void WWidgetGroup::setHighlight(int highlight) {
     style()->polish(this);
     update();
     emit highlightChanged(m_highlight);
+}
+
+int WWidgetGroup::getFrameHighlight() const {
+    return m_frameHighlight;
+}
+
+void WWidgetGroup::setFrameHighlight(int frameHighlight) {
+    if (m_frameHighlight == frameHighlight) {
+        return;
+    }
+    m_frameHighlight = frameHighlight;
+    if (m_frameHighlight <= 0) {
+        if (m_pFrameOverlay) {
+            m_pFrameOverlay->hide();
+        }
+        return;
+    }
+    if (!m_pFrameOverlay) {
+        m_pFrameOverlay = new FrameOverlay(this, m_frameHighlightColor);
+    } else {
+        // The colour may have been restyled since the overlay was made.
+        static_cast<FrameOverlay*>(m_pFrameOverlay)->setColor(m_frameHighlightColor);
+    }
+    m_pFrameOverlay->setGeometry(rect());
+    m_pFrameOverlay->raise();
+    m_pFrameOverlay->show();
+    m_pFrameOverlay->update();
 }

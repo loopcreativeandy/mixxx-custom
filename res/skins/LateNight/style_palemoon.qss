@@ -3366,3 +3366,9 @@ WSearchLineEdit::indicator:unchecked:selected {
 }
 /************** common styles for WEffectSelector ******************************
 *************** QSpinBox, QMenu, QToolTip *************************************/
+
+/* Andy: controller mode frame (WWidgetGroup frameHighlight). Default is
+   yellow; mode 8 (key fine) is orange like the between-semitones key label. */
+#KeyFineFrame {
+  qproperty-frameHighlightColor: #FF9800;
+}

@@ -230,12 +230,22 @@
           <WidgetGroup><!-- Loop buttons + beatloop size spinbox -->
             <ObjectName>LoopControls</ObjectName>
             <Layout>vertical</Layout>
+            <Connection><!-- Andy: controller mode 2 is active (APC Mini scene column) -->
+              <ConfigKey>[Skin],controller_mode_highlight</ConfigKey>
+              <BindProperty>frameHighlight</BindProperty>
+              <Transform><IsEqual>2</IsEqual></Transform>
+            </Connection>
             <SizePolicy>min,min</SizePolicy>
             <MinimumSize>78,52</MinimumSize>
             <MaximumSize>104,52</MaximumSize>
             <Children>
               <WidgetGroup><!-- loop enable + beatloop size -->
                 <ObjectName>AlignLeftTop</ObjectName>
+                <Connection><!-- Andy: controller mode 3 is active (APC Mini scene column) -->
+                  <ConfigKey>[Skin],controller_mode_highlight</ConfigKey>
+                  <BindProperty>frameHighlight</BindProperty>
+                  <Transform><IsEqual>3</IsEqual></Transform>
+                </Connection>
                 <Layout>horizontal</Layout>
                 <SizePolicy>min,max</SizePolicy>
                 <Children>
@@ -320,6 +330,11 @@
             <Children>
               <WidgetGroup><!-- beatjump size -->
                 <ObjectName>AlignLeftTop</ObjectName>
+                <Connection><!-- Andy: controller mode 4 is active (APC Mini scene column) -->
+                  <ConfigKey>[Skin],controller_mode_highlight</ConfigKey>
+                  <BindProperty>frameHighlight</BindProperty>
+                  <Transform><IsEqual>4</IsEqual></Transform>
+                </Connection>
                 <Layout>horizontal</Layout>
                 <SizePolicy>0min,26f</SizePolicy>
                 <Children>
@@ -344,6 +359,11 @@
                 <ObjectName>AlignLeftTop</ObjectName>
                 <Layout>horizontal</Layout>
                 <SizePolicy>min,max</SizePolicy>
+                <Connection><!-- Andy: controller mode 1 is active (APC Mini scene column) -->
+                  <ConfigKey>[Skin],controller_mode_highlight</ConfigKey>
+                  <BindProperty>frameHighlight</BindProperty>
+                  <Transform><IsEqual>1</IsEqual></Transform>
+                </Connection>
                 <Children>
 
                   <Template src="skins:LateNight/controls/button_1state_right.xml">

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QColor>
 #include <QFrame>
 #include <QPixmap>
 #include <QString>
@@ -52,6 +53,18 @@ class WWidgetGroup : public QFrame, public WBaseWidget {
     // image via <BackPath> and <BackPathHighlighted> from the skin.
     Q_PROPERTY(int highlight READ getHighlight WRITE setHighlight NOTIFY highlightChanged)
 
+    // A frame drawn ON TOP of the group's children, e.g. to point at the
+    // controls a controller mode acts on. Unlike a style-sheet border it takes
+    // no layout space and lets mouse clicks through. Any value > 0 shows it:
+    //   <Connection>
+    //    <ConfigKey>[Skin],controller_mode_highlight</ConfigKey>
+    //    <BindProperty>frameHighlight</BindProperty>
+    //    <Transform><IsEqual>3</IsEqual></Transform>
+    //   </Connection>
+    // The colour can be styled with qproperty-frameHighlightColor.
+    Q_PROPERTY(int frameHighlight READ getFrameHighlight WRITE setFrameHighlight)
+    Q_PROPERTY(QColor frameHighlightColor MEMBER m_frameHighlightColor DESIGNABLE true)
+
     int layoutSpacing() const;
     void setLayoutSpacing(int spacing);
     QRect layoutContentsMargins() const;
@@ -60,6 +73,8 @@ class WWidgetGroup : public QFrame, public WBaseWidget {
     void setLayoutAlignment(Qt::Alignment alignment);
     int getHighlight() const;
     void setHighlight(int highlight);
+    int getFrameHighlight() const;
+    void setFrameHighlight(int frameHighlight);
 
     virtual void setup(const QDomNode& node, const SkinContext& context);
     void setPixmapBackground(
@@ -86,4 +101,8 @@ class WWidgetGroup : public QFrame, public WBaseWidget {
     PaintablePointer m_pPixmapBack;
     PaintablePointer m_pPixmapBackHighlighted;
     int m_highlight;
+    int m_frameHighlight;
+    QColor m_frameHighlightColor;
+    // Created on first use; most groups never show a frame.
+    QWidget* m_pFrameOverlay;
 };
