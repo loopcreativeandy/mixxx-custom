@@ -230,22 +230,12 @@
           <WidgetGroup><!-- Loop buttons + beatloop size spinbox -->
             <ObjectName>LoopControls</ObjectName>
             <Layout>vertical</Layout>
-            <Connection><!-- Andy: controller mode 2 is active (APC Mini scene column) -->
-              <ConfigKey>[Skin],controller_mode_highlight</ConfigKey>
-              <BindProperty>frameHighlight</BindProperty>
-              <Transform><IsEqual>2</IsEqual></Transform>
-            </Connection>
             <SizePolicy>min,min</SizePolicy>
             <MinimumSize>78,52</MinimumSize>
             <MaximumSize>104,52</MaximumSize>
             <Children>
               <WidgetGroup><!-- loop enable + beatloop size -->
                 <ObjectName>AlignLeftTop</ObjectName>
-                <Connection><!-- Andy: controller mode 3 is active (APC Mini scene column) -->
-                  <ConfigKey>[Skin],controller_mode_highlight</ConfigKey>
-                  <BindProperty>frameHighlight</BindProperty>
-                  <Transform><IsEqual>3</IsEqual></Transform>
-                </Connection>
                 <Layout>horizontal</Layout>
                 <SizePolicy>min,max</SizePolicy>
                 <Children>
@@ -258,19 +248,32 @@
                     <SetVariable name="ConfigKeyDisp"><Variable name="Group"/>,loop_enabled</SetVariable>
                   </Template>
 
-                  <BeatSpinBox>
-                    <TooltipId>beatloop_size</TooltipId>
-                    <ObjectName>Spinbox_<Variable name="BtnType"/></ObjectName>
+                  <WidgetGroup><!-- Andy: frame for controller mode 3 (loop size), spinbox only -->
+                    <Layout>horizontal</Layout>
                     <SizePolicy>me,min</SizePolicy>
                     <MinimumSize>46,26</MinimumSize>
                     <MaximumSize>78,26</MaximumSize>
-                    <Value><Variable name="Group"/>,beatloop_size</Value>
-                    <!-- disabled until 'highlight' property has been added to WBeatSpinBox / wbasewidget.
                     <Connection>
-                      <ConfigKey><Variable name="Group"/>,track_loaded</ConfigKey>
-                      <BindProperty>highlight</BindProperty>
-                    </Connection> -->
-                  </BeatSpinBox>
+                      <ConfigKey>[Skin],controller_mode_highlight</ConfigKey>
+                      <BindProperty>frameHighlight</BindProperty>
+                      <Transform><IsEqual>3</IsEqual></Transform>
+                    </Connection>
+                    <Children>
+                      <BeatSpinBox>
+                        <TooltipId>beatloop_size</TooltipId>
+                        <ObjectName>Spinbox_<Variable name="BtnType"/></ObjectName>
+                        <SizePolicy>me,min</SizePolicy>
+                        <MinimumSize>46,26</MinimumSize>
+                        <MaximumSize>78,26</MaximumSize>
+                        <Value><Variable name="Group"/>,beatloop_size</Value>
+                        <!-- disabled until 'highlight' property has been added to WBeatSpinBox / wbasewidget.
+                        <Connection>
+                          <ConfigKey><Variable name="Group"/>,track_loaded</ConfigKey>
+                          <BindProperty>highlight</BindProperty>
+                        </Connection> -->
+                      </BeatSpinBox>
+                    </Children>
+                  </WidgetGroup>
                 </Children>
               </WidgetGroup>
 
@@ -287,21 +290,32 @@
                     <SetVariable name="ConfigKeyRight"><Variable name="Group"/>,reloop_andstop</SetVariable>
                   </Template>
 
-                  <Template src="skins:LateNight/controls/button_1state_right.xml">
-                    <SetVariable name="TooltipId">loop_in</SetVariable>
-                    <SetVariable name="ObjectName">LoopIn</SetVariable>
-                    <SetVariable name="Size">26f,26f</SetVariable>
-                    <SetVariable name="ConfigKey"><Variable name="Group"/>,loop_in</SetVariable>
-                    <SetVariable name="ConfigKeyRight"><Variable name="Group"/>,loop_in_goto</SetVariable>
-                  </Template>
+                  <WidgetGroup><!-- Andy: frame for controller mode 2 (loop move = in/out points) -->
+                    <Layout>horizontal</Layout>
+                    <SizePolicy>min,max</SizePolicy>
+                    <Connection>
+                      <ConfigKey>[Skin],controller_mode_highlight</ConfigKey>
+                      <BindProperty>frameHighlight</BindProperty>
+                      <Transform><IsEqual>2</IsEqual></Transform>
+                    </Connection>
+                    <Children>
+                      <Template src="skins:LateNight/controls/button_1state_right.xml">
+                        <SetVariable name="TooltipId">loop_in</SetVariable>
+                        <SetVariable name="ObjectName">LoopIn</SetVariable>
+                        <SetVariable name="Size">26f,26f</SetVariable>
+                        <SetVariable name="ConfigKey"><Variable name="Group"/>,loop_in</SetVariable>
+                        <SetVariable name="ConfigKeyRight"><Variable name="Group"/>,loop_in_goto</SetVariable>
+                      </Template>
 
-                  <Template src="skins:LateNight/controls/button_1state_right.xml">
-                    <SetVariable name="TooltipId">loop_out</SetVariable>
-                    <SetVariable name="ObjectName">LoopOut</SetVariable>
-                    <SetVariable name="Size">26f,26f</SetVariable>
-                    <SetVariable name="ConfigKey"><Variable name="Group"/>,loop_out</SetVariable>
-                    <SetVariable name="ConfigKeyRight"><Variable name="Group"/>,loop_out_goto</SetVariable>
-                  </Template>
+                      <Template src="skins:LateNight/controls/button_1state_right.xml">
+                        <SetVariable name="TooltipId">loop_out</SetVariable>
+                        <SetVariable name="ObjectName">LoopOut</SetVariable>
+                        <SetVariable name="Size">26f,26f</SetVariable>
+                        <SetVariable name="ConfigKey"><Variable name="Group"/>,loop_out</SetVariable>
+                        <SetVariable name="ConfigKeyRight"><Variable name="Group"/>,loop_out_goto</SetVariable>
+                      </Template>
+                    </Children>
+                  </WidgetGroup>
 
                   <Template src="skins:LateNight/controls/button_2state_persist.xml">
                     <SetVariable name="TooltipId">loop_anchor</SetVariable>
