@@ -9,6 +9,7 @@
 #include "rendergraph/vertexupdaters/vertexupdater.h"
 #include "skin/legacy/skincontext.h"
 #include "track/track.h"
+#include "waveform/renderers/beatgridthinning.h"
 #include "waveform/renderers/waveformwidgetrenderer.h"
 #include "waveform/waveform.h"
 #include "waveform/waveformwidgetfactory.h"
@@ -96,15 +97,24 @@ bool WaveformRenderBeat::preprocessInner() {
 
     const int numVerticesPerLine = 6; // 2 triangles
 
+    const beatgridthinning::Plan thinning = beatgridthinning::plan(
+            trackBeats, m_waveformRenderer, startPosition, positionType);
+    if (thinning.stride == 0) {
+        return false;
+    }
+
     // Count the number of beats in the range to reserve space in the m_vertices vector.
     // Note that we could also use
     //   int numBearsInRange = trackBeats->numBeatsInRange(startPosition, endPosition);
     // for this, but there have been reports of that method failing with a DEBUG_ASSERT.
     int numBeatsInRange = 0;
+    long long beatIndex = thinning.firstIndex;
     for (auto it = trackBeats->iteratorFrom(startPosition);
             it != trackBeats->cend() && *it <= endPosition;
-            ++it) {
-        numBeatsInRange++;
+            ++it, ++beatIndex) {
+        if (thinning.keep(beatIndex)) {
+            numBeatsInRange++;
+        }
     }
 
     const int numBoxesPerBeat = (m_isSlipRenderer && splitStemTracks)
@@ -119,9 +129,13 @@ bool WaveformRenderBeat::preprocessInner() {
             ? rendererBreadth / static_cast<float>(mixxx::kMaxSupportedStems)
             : rendererBreadth;
 
+    beatIndex = thinning.firstIndex;
     for (auto it = trackBeats->iteratorFrom(startPosition);
             it != trackBeats->cend() && *it <= endPosition;
-            ++it) {
+            ++it, ++beatIndex) {
+        if (!thinning.keep(beatIndex)) {
+            continue;
+        }
         double beatPosition = it->toEngineSamplePos();
         double xBeatPoint =
                 m_waveformRenderer->transformSamplePositionInRendererWorld(

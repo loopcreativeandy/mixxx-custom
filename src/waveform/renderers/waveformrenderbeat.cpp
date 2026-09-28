@@ -4,6 +4,7 @@
 
 #include "track/track.h"
 #include "util/painterscope.h"
+#include "waveform/renderers/beatgridthinning.h"
 #include "waveform/renderers/waveformwidgetrenderer.h"
 #include "widget/wskincolor.h"
 
@@ -67,6 +68,11 @@ void WaveformRenderBeat::draw(QPainter* painter, QPaintEvent* /*event*/) {
             firstDisplayedPosition * trackSamples);
     const auto endPosition = mixxx::audio::FramePos::fromEngineSamplePos(
             lastDisplayedPosition * trackSamples);
+    const beatgridthinning::Plan thinning = beatgridthinning::plan(
+            trackBeats, m_waveformRenderer, startPosition);
+    if (thinning.stride == 0) {
+        return;
+    }
     auto it = trackBeats->iteratorFrom(startPosition);
 
     // if no beat do not waste time saving/restoring painter
@@ -88,7 +94,11 @@ void WaveformRenderBeat::draw(QPainter* painter, QPaintEvent* /*event*/) {
 
     int beatCount = 0;
 
-    for (; it != trackBeats->cend() && *it <= endPosition; ++it) {
+    long long beatIndex = thinning.firstIndex;
+    for (; it != trackBeats->cend() && *it <= endPosition; ++it, ++beatIndex) {
+        if (!thinning.keep(beatIndex)) {
+            continue;
+        }
         double beatPosition = it->toEngineSamplePos();
         double xBeatPoint =
                 m_waveformRenderer->transformSamplePositionInRendererWorld(beatPosition);
