@@ -42,6 +42,11 @@ class PlaylistFeature : public BasePlaylistFeature {
     // routes QTreeView::expanded there), collapse via onChildCollapse.
     void onLazyChildExpandation(const QModelIndex& index) override;
     void onChildCollapse(const QModelIndex& index) override;
+    // Collapsing "Playlists" folds the list back to the first rows.
+    void onCollapse() override;
+    // Clicking the "More…" row shows every playlist.
+    void activateChild(const QModelIndex& index) override;
+    void activatePlaylist(int playlistId) override;
     // F2 on a folder node renames the folder instead of a playlist.
     void renameItem(const QModelIndex& index) override;
 
@@ -65,7 +70,11 @@ class PlaylistFeature : public BasePlaylistFeature {
   protected:
     void decorateChild(TreeItem* pChild, int playlistId) override;
     QList<IdAndLabel> createPlaylistLabels();
-    QModelIndex constructChildModel(int selectedId);
+    // Unless all playlists are shown, only the first kFoldedRowCount
+    // top-level rows (playlists and folders) are built, followed by a
+    // "More…" row. The rows holding selectedId and revealId are never cut;
+    // if either would be, everything is shown instead.
+    QModelIndex constructChildModel(int selectedId, int revealId = kInvalidPlaylistId);
     // Renders the leaf name only for playlists grouped into a sidebar
     // folder via the "Folder/Playlist" naming convention.
     QString createPlaylistLabel(const QString& name, int count, int duration) const override;
@@ -79,12 +88,14 @@ class PlaylistFeature : public BasePlaylistFeature {
     // True if the index is a sidebar folder node (has children, no
     // playlist id).
     bool isFolderIndex(const QModelIndex& index) const;
-    // Labels of all folder nodes currently in the sidebar, sorted
-    // case-insensitively.
-    QStringList currentFolders() const;
+    // Names of all sidebar folders, sorted case-insensitively. Read from
+    // the playlist names, since folded rows are not in the sidebar model.
+    QStringList currentFolders();
     // Renames every "oldFolder/x" playlist to "newFolder/x". Refuses (with
     // a message box) when a member is locked or a target name is taken.
     void renameFolderMembers(const QString& oldFolder, const QString& newFolder);
+    static bool isShowMoreIndex(const QModelIndex& index);
+    void setShowAllPlaylists(bool showAll);
     void restoreExpandedFolders();
     void saveExpandedFolders();
     // Set the played status of every track in the right-clicked playlist,
@@ -113,4 +124,7 @@ class PlaylistFeature : public BasePlaylistFeature {
     QSet<QString> m_expandedFolders;
     // Suppresses collapse tracking while the child model is rebuilt.
     bool m_rebuildingChildModel = false;
+    // False: the sidebar shows the first rows plus "More…". Reset to false
+    // whenever "Playlists" is collapsed; not persisted.
+    bool m_showAllPlaylists = false;
 };

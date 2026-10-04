@@ -5,6 +5,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QSqlTableModel>
+#include <QTimer>
 #include <QtDebug>
 
 #include "library/library.h"
@@ -25,6 +26,15 @@
 #include "widget/wlibrary.h"
 #include "widget/wlibrarysidebar.h"
 #include "widget/wtracktableview.h"
+
+namespace {
+
+// Top-level sidebar rows shown while "Playlists" is folded.
+constexpr int kFoldedRowCount = 10;
+// Data of the "More…" row. Not a number, so it never parses as a playlist id.
+constexpr const char* kShowMoreData = "andy-custom:show-more-playlists";
+
+} // namespace
 
 PlaylistFeature::PlaylistFeature(Library* pLibrary, UserSettingsPointer pConfig)
         : BasePlaylistFeature(pLibrary,
@@ -154,6 +164,10 @@ void PlaylistFeature::onRightClick(const QPoint& globalPos) {
 void PlaylistFeature::onRightClickChild(
         const QPoint& globalPos, const QModelIndex& index) {
     //Save the model index so we can get it in the action slots...
+    if (isShowMoreIndex(index)) {
+        onRightClick(globalPos);
+        return;
+    }
     m_lastRightClickedIndex = index;
     int playlistId = playlistIdFromIndex(index);
     if (playlistId == kInvalidPlaylistId) {
@@ -605,16 +619,13 @@ bool PlaylistFeature::isFolderIndex(const QModelIndex& index) const {
             playlistIdFromIndex(index) == kInvalidPlaylistId;
 }
 
-QStringList PlaylistFeature::currentFolders() const {
+QStringList PlaylistFeature::currentFolders() {
     QStringList folders;
-    TreeItem* pRootItem = m_pSidebarModel->getRootItem();
-    if (pRootItem == nullptr) {
-        return folders;
-    }
-    for (int row = 0; row < pRootItem->childRows(); ++row) {
-        TreeItem* pChild = pRootItem->child(row);
-        if (pChild->hasChildren()) {
-            folders.append(pChild->getLabel());
+    const QList<IdAndLabel> playlistLabels = createPlaylistLabels();
+    for (const auto& idAndLabel : playlistLabels) {
+        const QString folder = sidebarFolderOfName(idAndLabel.name);
+        if (!folder.isEmpty() && !folders.contains(folder)) {
+            folders.append(folder);
         }
     }
     folders.sort(Qt::CaseInsensitive);
@@ -821,7 +832,7 @@ void PlaylistFeature::saveExpandedFolders() {
             folders.join(QLatin1Char('/')));
 }
 
-QModelIndex PlaylistFeature::constructChildModel(int selectedId) {
+QModelIndex PlaylistFeature::constructChildModel(int selectedId, int revealId) {
     // qDebug() << "PlaylistFeature::constructChildModel() id:" << selectedId;
     std::vector<std::unique_ptr<TreeItem>> childrenToAdd;
     // Folder nodes carry no playlist id (invalid data), so activating them
@@ -829,6 +840,9 @@ QModelIndex PlaylistFeature::constructChildModel(int selectedId) {
     // of its first member in the tier/date sort; member order inside the
     // folder keeps the global sort.
     QHash<QString, TreeItem*> folders;
+    // Top-level row of every playlist, to decide where the list is cut.
+    QHash<int, int> rowOfPlaylist;
+    QHash<QString, int> rowOfFolder;
 
     const QList<IdAndLabel> playlistLabels = createPlaylistLabels();
     for (const auto& idAndLabel : playlistLabels) {
@@ -840,6 +854,7 @@ QModelIndex PlaylistFeature::constructChildModel(int selectedId) {
             // Create the TreeItem whose parent is the invisible root item
             auto pNewItem = std::make_unique<TreeItem>(idAndLabel.label, playlistId);
             pItem = pNewItem.get();
+            rowOfPlaylist.insert(playlistId, static_cast<int>(childrenToAdd.size()));
             childrenToAdd.push_back(std::move(pNewItem));
         } else {
             TreeItem* pFolderItem = folders.value(folder, nullptr);
@@ -847,12 +862,34 @@ QModelIndex PlaylistFeature::constructChildModel(int selectedId) {
                 auto pNewFolderItem = std::make_unique<TreeItem>(folder);
                 pFolderItem = pNewFolderItem.get();
                 folders.insert(folder, pFolderItem);
+                rowOfFolder.insert(folder, static_cast<int>(childrenToAdd.size()));
                 childrenToAdd.push_back(std::move(pNewFolderItem));
             }
+            rowOfPlaylist.insert(playlistId, rowOfFolder.value(folder));
             pItem = pFolderItem->appendChild(idAndLabel.label, playlistId);
         }
         pItem->setBold(m_playlistIdsOfSelectedTrack.contains(playlistId));
         decorateChild(pItem, playlistId);
+    }
+
+    // andy-custom: with hundreds of playlists, "Playlists" pushes everything
+    // below it far down the sidebar. Show only the first rows and a "More…"
+    // row, unless a row past the cut has to stay visible.
+    const int totalRows = static_cast<int>(childrenToAdd.size());
+    if (!m_showAllPlaylists && totalRows > kFoldedRowCount + 1) {
+        for (const int id : {selectedId, revealId}) {
+            if (id != kInvalidPlaylistId && rowOfPlaylist.value(id, -1) >= kFoldedRowCount) {
+                m_showAllPlaylists = true;
+            }
+        }
+    }
+    if (!m_showAllPlaylists && totalRows > kFoldedRowCount + 1) {
+        childrenToAdd.resize(kFoldedRowCount);
+        // String data: playlistIdFromIndex() yields kInvalidPlaylistId, so
+        // every per-playlist action already ignores this row.
+        childrenToAdd.push_back(std::make_unique<TreeItem>(
+                tr("More… (%1)").arg(totalRows - kFoldedRowCount),
+                QString(kShowMoreData)));
     }
 
     // Append all the newly created TreeItems in a dynamic way to the childmodel
@@ -869,6 +906,50 @@ void PlaylistFeature::decorateChild(TreeItem* item, int playlistId) {
     } else {
         item->setIcon(QIcon());
     }
+}
+
+bool PlaylistFeature::isShowMoreIndex(const QModelIndex& index) {
+    const TreeItem* pItem = static_cast<TreeItem*>(index.internalPointer());
+    return index.isValid() && pItem != nullptr &&
+            pItem->getData() == QVariant(QString(kShowMoreData));
+}
+
+void PlaylistFeature::activateChild(const QModelIndex& index) {
+    if (isShowMoreIndex(index)) {
+        // Deferred: the rebuild deletes the clicked row, and the click is
+        // still being handled further up the stack.
+        QTimer::singleShot(0, this, [this] {
+            setShowAllPlaylists(true);
+        });
+        return;
+    }
+    BasePlaylistFeature::activateChild(index);
+}
+
+void PlaylistFeature::activatePlaylist(int playlistId) {
+    if (!m_showAllPlaylists && !indexFromPlaylistId(playlistId).isValid()) {
+        setShowAllPlaylists(true);
+    }
+    BasePlaylistFeature::activatePlaylist(playlistId);
+}
+
+void PlaylistFeature::onCollapse() {
+    setShowAllPlaylists(false);
+}
+
+void PlaylistFeature::setShowAllPlaylists(bool showAll) {
+    if (m_showAllPlaylists == showAll) {
+        return;
+    }
+    m_showAllPlaylists = showAll;
+    // No selection is carried over: after "More…" the clicked row is gone,
+    // and re-selecting a playlist while folding would expand "Playlists"
+    // again. The track table keeps showing what it showed.
+    m_rebuildingChildModel = true;
+    clearChildModel();
+    constructChildModel(kInvalidPlaylistId);
+    m_rebuildingChildModel = false;
+    m_lastClickedIndex = QModelIndex();
 }
 
 void PlaylistFeature::slotPlaylistTableChanged(int playlistId) {
@@ -896,7 +977,10 @@ void PlaylistFeature::slotPlaylistTableChanged(int playlistId) {
     // stored folder expansion state.
     m_rebuildingChildModel = true;
     clearChildModel();
-    QModelIndex newIndex = constructChildModel(selectedPlaylistId);
+    // A new, imported or renamed playlist is about to be selected or
+    // scrolled to; keep it from landing behind "More…".
+    QModelIndex newIndex = constructChildModel(selectedPlaylistId,
+            type == PlaylistDAO::PLHT_NOT_HIDDEN ? playlistId : kInvalidPlaylistId);
     m_rebuildingChildModel = false;
     if (selectedPlaylistId != kInvalidPlaylistId && newIndex.isValid()) {
         // If a child index was selected and we got a new valid index select that.

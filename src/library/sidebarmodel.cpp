@@ -400,6 +400,7 @@ void SidebarModel::doubleClicked(const QModelIndex& index) {
 void SidebarModel::collapsed(const QModelIndex& index) {
     if (index.isValid()) {
         if (index.internalPointer() == this) {
+            m_sFeatures[index.row()]->onCollapse();
             return;
         }
         TreeItem* pTreeItem = static_cast<TreeItem*>(index.internalPointer());

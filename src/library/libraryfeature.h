@@ -139,6 +139,9 @@ class LibraryFeature : public QObject {
     virtual void onChildCollapse(const QModelIndex& index) {
         Q_UNUSED(index);
     }
+    // Called when the feature's own top-level sidebar node is collapsed.
+    virtual void onCollapse() {
+    }
   signals:
     void showTrackModel(QAbstractItemModel* model, bool restoreState = true);
     void switchToView(const QString& view);
