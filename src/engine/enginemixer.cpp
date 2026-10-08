@@ -232,6 +232,16 @@ EngineMixer::EngineMixer(UserSettingsPointer pConfig,
     // value is deliberately kept instead of being reset on every start.
     m_pHeadphonePreEq->setButtonMode(mixxx::control::ButtonMode::Toggle);
 
+    // Stem cue: [Master],stem_cue_N (N = 1..4) puts stem slot N of every deck
+    // that is on the headphones into the cue at full level, whatever its stem
+    // fader / mute says. Stems with the button off are heard in the cue exactly
+    // as loud as in the main mix. Per-session, not persisted.
+    for (int stemIdx = 0; stemIdx < mixxx::kMaxSupportedStems; stemIdx++) {
+        m_stemCueButtons.push_back(std::make_unique<ControlPushButton>(
+                ConfigKey(group, QStringLiteral("stem_cue_%1").arg(stemIdx + 1))));
+        m_stemCueButtons.back()->setButtonMode(mixxx::control::ButtonMode::Toggle);
+    }
+
     // zero out otherwise uninitialized buffers
     m_head.clear();
     m_main.clear();

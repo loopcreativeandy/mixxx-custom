@@ -330,6 +330,8 @@ class EngineMixer : public QObject, public AudioSource {
     std::unique_ptr<ControlPushButton> m_pHeadSplitEnabled;
     // Pre-EQ headphone cue: global toggle routing PFL before deck EQ/filter.
     std::unique_ptr<ControlPushButton> m_pHeadphonePreEq;
+    // Stem cue: [Master],stem_cue_1..4, one toggle per stem slot, for all decks.
+    std::vector<std::unique_ptr<ControlPushButton>> m_stemCueButtons;
     // Auto Headphones: persistent toggle, acted on by AutoHeadphones (mixer/).
     std::unique_ptr<ControlPushButton> m_pAutoHeadphones;
     // Beatgrid check click on the preview decks: toggle + click volume in dB.

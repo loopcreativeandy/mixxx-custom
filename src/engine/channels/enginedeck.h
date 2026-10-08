@@ -114,6 +114,11 @@ class EngineDeck : public EngineChannel, public AudioDestination {
     std::vector<std::unique_ptr<ControlPotmeter>> m_stemGain;
     std::vector<std::unique_ptr<ControlPushButton>> m_stemMute;
     bool m_stemClonedState;
+    // Stem cue ([Master],stem_cue_N): per stem slot, how much of the cue tap is
+    // the raw stem (1) vs. the stem as the main mix hears it (0). Cached per
+    // callback so toggling ramps instead of clicking.
+    std::vector<std::unique_ptr<ControlProxy>> m_stemCue;
+    std::vector<CSAMPLE_GAIN> m_stemCueWeightCache;
 #endif
 
     // Begin vinyl passthrough fields

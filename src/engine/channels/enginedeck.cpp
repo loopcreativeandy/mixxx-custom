@@ -1,5 +1,7 @@
 #include "engine/channels/enginedeck.h"
 
+#include <array>
+
 #include <QStringView>
 
 #include "control/controlproxy.h"
@@ -90,6 +92,15 @@ EngineDeck::EngineDeck(
 
     m_stemGain.reserve(mixxx::kMaxSupportedStems);
     m_stemMute.reserve(mixxx::kMaxSupportedStems);
+    if (isPrimaryDeck()) {
+        for (int stemIdx = 0; stemIdx < mixxx::kMaxSupportedStems; stemIdx++) {
+            m_stemCue.push_back(std::make_unique<ControlProxy>(
+                    ConfigKey(QStringLiteral("[Master]"),
+                            QStringLiteral("stem_cue_%1").arg(stemIdx + 1)),
+                    this));
+            m_stemCueWeightCache.push_back(CSAMPLE_GAIN_ZERO);
+        }
+    }
     for (int stemIdx = 0; stemIdx < mixxx::kMaxSupportedStems; stemIdx++) {
         m_stemGain.emplace_back(std::make_unique<ControlPotmeter>(
                 ConfigKey(getGroupForStem(getGroup(), stemIdx), QStringLiteral("volume"))));
@@ -169,7 +180,29 @@ void EngineDeck::processStem(CSAMPLE* pOut, const std::size_t bufferSize) {
     // deck EQ/filter are skipped later because this buffer is tapped pre-fader.
     // Note: mixMultichannelToStereo is already used for the stem downmix below,
     // so this adds one comparable pass, and only while the toggle is on.
-    if (m_pHeadphonePreEq->toBool()) {
+    //
+    // Stem cue ([Master],stem_cue_N) overrides that: as soon as any stem cue
+    // button is on (or still ramping out), the cue tap is built stem by stem in
+    // the loop below — the selected stems raw, every other stem as the main mix
+    // hears it (after its fader, mute and stem FX). So a muted vocal can be
+    // checked in the headphones without bringing back the muted drums.
+    bool stemCueActive = false;
+    std::array<CSAMPLE_GAIN, mixxx::kMaxSupportedStems> stemCueWeight{}; // no RT alloc
+    for (unsigned int stemIdx = 0; stemIdx < stemCount &&
+            stemIdx < m_stemCue.size() && stemIdx < stemCueWeight.size();
+            stemIdx++) {
+        stemCueWeight[stemIdx] = m_stemCue[stemIdx]->toBool()
+                ? CSAMPLE_GAIN_ONE
+                : CSAMPLE_GAIN_ZERO;
+        if (stemCueWeight[stemIdx] > CSAMPLE_GAIN_ZERO ||
+                m_stemCueWeightCache[stemIdx] > CSAMPLE_GAIN_ZERO) {
+            stemCueActive = true;
+        }
+    }
+    if (stemCueActive) {
+        SampleUtil::clear(m_preFaderBuffer.data(), bufferSize);
+        m_bPreFaderBufferValid = true;
+    } else if (m_pHeadphonePreEq->toBool()) {
         SampleUtil::mixMultichannelToStereo(
                 m_preFaderBuffer.data(), pIn, numFrames, chCount);
         m_bPreFaderBufferValid = true;
@@ -204,6 +237,20 @@ void EngineDeck::processStem(CSAMPLE* pOut, const std::size_t bufferSize) {
                 numFrames,
                 chCount,
                 chOffset);
+        CSAMPLE_GAIN cueWeightOld = CSAMPLE_GAIN_ZERO;
+        CSAMPLE_GAIN cueWeightNew = CSAMPLE_GAIN_ZERO;
+        if (stemCueActive && stemIdx < m_stemCue.size()) {
+            cueWeightOld = m_stemCueWeightCache[stemIdx];
+            cueWeightNew = stemCueWeight[stemIdx];
+            // Raw stem share of the cue (before fader, mute and stem FX).
+            if (cueWeightOld > CSAMPLE_GAIN_ZERO || cueWeightNew > CSAMPLE_GAIN_ZERO) {
+                SampleUtil::addWithRampingGain(m_preFaderBuffer.data(),
+                        pOut,
+                        cueWeightOld,
+                        cueWeightNew,
+                        bufferSize);
+            }
+        }
         // Mix the stem frames with the right gain after proceeding its effect.
         pEngineEffectsManager->processPostFaderInPlace(m_stems[stemIdx].handle(),
                 m_pEffectsManager->getMainHandle(),
@@ -218,6 +265,17 @@ void EngineDeck::processStem(CSAMPLE* pOut, const std::size_t bufferSize) {
         // next iteration. Without this, (e.g using a static "previous"
         // gain) gain changes will yield to audio cracks.
         m_stemsGainCache[stemIdx] = stemGain;
+        if (stemCueActive && stemIdx < m_stemCue.size()) {
+            // Main-mix share of the cue: the stem after its fader/mute/FX.
+            if (cueWeightOld < CSAMPLE_GAIN_ONE || cueWeightNew < CSAMPLE_GAIN_ONE) {
+                SampleUtil::addWithRampingGain(m_preFaderBuffer.data(),
+                        pOut,
+                        CSAMPLE_GAIN_ONE - cueWeightOld,
+                        CSAMPLE_GAIN_ONE - cueWeightNew,
+                        bufferSize);
+            }
+            m_stemCueWeightCache[stemIdx] = cueWeightNew;
+        }
 
         // Put back the stem frames into the steam buffer (LRLR -> LR......LR......)
         SampleUtil::insertStereoToMulti(
