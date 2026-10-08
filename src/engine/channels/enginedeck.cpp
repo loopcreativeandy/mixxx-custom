@@ -173,20 +173,14 @@ void EngineDeck::processStem(CSAMPLE* pOut, const std::size_t bufferSize) {
 
     CSAMPLE* pIn = m_stemBuffer.data();
 
-    // Pre-EQ headphone cue for stems: when the global toggle is on, mix the raw
-    // stems together at unity gain — bypassing the per-stem faders, mutes and
-    // stem FX applied in the loop below — so the cue previews every stem even
-    // when they are faded down or muted. Same toggle as the plain-deck cue; the
-    // deck EQ/filter are skipped later because this buffer is tapped pre-fader.
-    // Note: mixMultichannelToStereo is already used for the stem downmix below,
-    // so this adds one comparable pass, and only while the toggle is on.
-    //
-    // Stem cue ([Master],stem_cue_N) overrides that: as soon as any stem cue
-    // button is on (or still ramping out), the cue tap is built stem by stem in
-    // the loop below — the selected stems raw, every other stem as the main mix
-    // hears it (after its fader, mute and stem FX). So a muted vocal can be
-    // checked in the headphones without bringing back the muted drums.
-    bool stemCueActive = false;
+    // Stem cue tap (CP107/CP108). Whenever the cue has to bypass the deck EQ
+    // (headphone_pre_eq on) or any stem cue button is on (or still ramping
+    // out), the cue tap is built stem by stem in the loop below: the stem types
+    // selected with [Master],stem_cue_N go in raw (before their fader, mute and
+    // stem FX), every other stem as the main mix hears it. So headphone_pre_eq
+    // only means "before the deck EQ/filter" — stems follow their faders unless
+    // their stem cue button is on (Andy, 2026-10-08; CP79 played all stems raw).
+    bool stemCueActive = m_pHeadphonePreEq->toBool();
     std::array<CSAMPLE_GAIN, mixxx::kMaxSupportedStems> stemCueWeight{}; // no RT alloc
     for (unsigned int stemIdx = 0; stemIdx < stemCount &&
             stemIdx < m_stemCue.size() && stemIdx < stemCueWeight.size();
@@ -201,10 +195,6 @@ void EngineDeck::processStem(CSAMPLE* pOut, const std::size_t bufferSize) {
     }
     if (stemCueActive) {
         SampleUtil::clear(m_preFaderBuffer.data(), bufferSize);
-        m_bPreFaderBufferValid = true;
-    } else if (m_pHeadphonePreEq->toBool()) {
-        SampleUtil::mixMultichannelToStereo(
-                m_preFaderBuffer.data(), pIn, numFrames, chCount);
         m_bPreFaderBufferValid = true;
     }
 
@@ -353,8 +343,9 @@ void EngineDeck::process(CSAMPLE* pOut, const std::size_t bufferSize) {
     // Pre-EQ headphone cue: while the global toggle is on, stash the signal
     // here — before the EQ / pre-fader effect racks below — so the headphone
     // mix can preview the track without the deck's EQ and filter moves. For
-    // stem decks processStem() has already captured the raw stems (bypassing
-    // the per-stem faders and mutes), so only copy here when it did not.
+    // stem decks processStem() has already built the tap stem by stem (stem
+    // cue buttons decide which stems bypass their faders), so only copy here
+    // when it did not.
     // Cheap, no allocation (m_preFaderBuffer is pre-sized).
     if (!m_bPreFaderBufferValid && m_pHeadphonePreEq->toBool()) {
         SampleUtil::copy(m_preFaderBuffer.data(), pOut, bufferSize);

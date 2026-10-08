@@ -291,10 +291,10 @@
       <item>
        <widget class="QCheckBox" name="CheckBoxHeadphonePreEq">
         <property name="toolTip">
-         <string>When checked, the headphone cue (PFL) previews decks before their EQ and filter, and stems before the stem faders, mutes and effects. You hear the raw track even with the EQs killed or stems faded down. The main and booth outputs are not affected.</string>
+         <string>When checked, the headphone cue (PFL) previews decks before their EQ and filter, so you hear the track even with the EQs killed. Stems are not affected by this: they follow their faders in the cue, except the stem types switched on with the stem cue buttons ([Master],stem_cue_1..4), which are always heard. The main and booth outputs are not affected.</string>
         </property>
         <property name="text">
-         <string>Headphone cue previews decks before EQ and stem faders</string>
+         <string>Headphone cue previews decks before EQ and filter</string>
         </property>
        </widget>
       </item>
