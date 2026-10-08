@@ -136,7 +136,9 @@ EngineMixer::EngineMixer(UserSettingsPointer pConfig,
           m_pHeadSplitEnabled(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "headSplit"), true, 0.0)),
           m_pHeadphonePreEq(std::make_unique<ControlPushButton>(
-                  ConfigKey(group, "headphone_pre_eq"), true, 0.0)),
+                  ConfigKey(group, "headphone_pre_eq"))),
+          m_pHeadphonePreFilter(std::make_unique<ControlPushButton>(
+                  ConfigKey(group, "headphone_pre_filter"))),
           m_pAutoHeadphones(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "auto_headphones"), true, 0.0)),
           m_pPreviewBeatClick(std::make_unique<ControlPushButton>(
@@ -226,11 +228,13 @@ EngineMixer::EngineMixer(UserSettingsPointer pConfig,
     m_pHeadSplitEnabled->setButtonMode(mixxx::control::ButtonMode::Toggle);
     m_pHeadSplitEnabled->set(0.0);
 
-    // Pre-EQ headphone cue toggle: when on, PFL/headphone cue previews decks
-    // before their EQ and filter, as if all the EQ knobs were flat. Unlike
-    // headSplit this is a preference (Preferences > Mixer), so the persisted
-    // value is deliberately kept instead of being reset on every start.
+    // Headphone cue bypasses (CP109, Andy 2026-10-08): headphone_pre_eq = the
+    // PFL cue previews decks before their EQ (all three bands, as if flat);
+    // headphone_pre_filter = the cue leaves out the deck filter (QuickEffect
+    // rack). Driven from the controller pads, so per session and not persisted
+    // any more (CP79-CP108 had headphone_pre_eq as a Preferences > Mixer setting).
     m_pHeadphonePreEq->setButtonMode(mixxx::control::ButtonMode::Toggle);
+    m_pHeadphonePreFilter->setButtonMode(mixxx::control::ButtonMode::Toggle);
 
     // Stem cue: [Master],stem_cue_N (N = 1..4) puts stem slot N of every deck
     // that is on the headphones into the cue at full level, whatever its stem
@@ -462,7 +466,8 @@ void EngineMixer::process(const std::size_t bufferSize) {
                 m_headphoneHandle.handle(),
                 bufferSize,
                 m_sampleRate,
-                m_pEngineEffectsManager);
+                m_pEngineEffectsManager,
+                m_pHeadphonePreFilter->toBool());
 
         // Process headphone channel effects
         if (m_pEngineEffectsManager) {

@@ -21,7 +21,8 @@ class ChannelMixer {
             const ChannelHandle& outputHandle,
             std::size_t bufferSize,
             mixxx::audio::SampleRate sampleRate,
-            EngineEffectsManager* pEngineEffectsManager);
+            EngineEffectsManager* pEngineEffectsManager,
+            bool skipQuickEffects = false);
     // This does modify the input channel buffers, then mixes them to make the output buffer.
     static void applyEffectsInPlaceAndMixChannels(
             const EngineMixer::GainCalculator& gainCalculator,

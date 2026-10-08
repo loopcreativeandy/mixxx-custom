@@ -8,6 +8,7 @@ EngineEffectChain::EngineEffectChain(const QString& group,
         const QSet<ChannelHandleAndGroup>& registeredInputChannels,
         const QSet<ChannelHandleAndGroup>& registeredOutputChannels)
         : m_group(group),
+          m_isQuickEffectChain(group.startsWith(QStringLiteral("[QuickEffectRack"))),
           m_enableState(true),
           m_mixMode(EffectChainMixMode::DrySlashWet),
           m_dMix(0),

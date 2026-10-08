@@ -23,6 +23,12 @@ class EngineEffect;
 /// the mix knob, and the chain enable switch.
 class EngineEffectChain final : public EffectsRequestHandler {
   public:
+    // True for the deck filter racks ([QuickEffectRack1_[ChannelN]]). Set once
+    // at construction, so the audio thread never compares strings.
+    bool isQuickEffectChain() const {
+        return m_isQuickEffectChain;
+    }
+
     /// called from main thread
     EngineEffectChain(const QString& group,
             const QSet<ChannelHandleAndGroup>& registeredInputChannels,
@@ -66,6 +72,7 @@ class EngineEffectChain final : public EffectsRequestHandler {
     bool disableForInputChannel(ChannelHandle inputHandle);
 
     QString m_group;
+    bool m_isQuickEffectChain;
     bool m_enableState;
     EffectChainMixMode::Type m_mixMode;
     CSAMPLE m_dMix;

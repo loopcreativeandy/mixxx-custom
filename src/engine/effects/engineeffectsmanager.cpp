@@ -143,7 +143,8 @@ void EngineEffectsManager::processPostFaderAndMix(
         const GroupFeatureState& groupFeatures,
         CSAMPLE_GAIN oldGain,
         CSAMPLE_GAIN newGain,
-        bool fadeout) {
+        bool fadeout,
+        bool skipQuickEffects) {
     processInner(SignalProcessingStage::Postfader,
             inputHandle,
             outputHandle,
@@ -154,7 +155,8 @@ void EngineEffectsManager::processPostFaderAndMix(
             groupFeatures,
             oldGain,
             newGain,
-            fadeout);
+            fadeout,
+            skipQuickEffects);
 }
 
 void EngineEffectsManager::processInner(
@@ -168,15 +170,18 @@ void EngineEffectsManager::processInner(
         const GroupFeatureState& groupFeatures,
         CSAMPLE_GAIN oldGain,
         CSAMPLE_GAIN newGain,
-        bool fadeout) {
+        bool fadeout,
+        bool skipQuickEffects) {
     const QList<EngineEffectChain*>& chains = m_chainsByStage.value(stage);
+    // skipQuickEffects: the headphone cue with [Master],headphone_pre_filter on
+    // leaves out the deck filter racks (QuickEffect chains) for this output only.
 
     if (pIn == pOut) {
         // Gain and effects are applied to the buffer in place,
         // modifying the original input buffer
         SampleUtil::applyRampingGain(pIn, oldGain, newGain, numSamples);
         for (EngineEffectChain* pChain : chains) {
-            if (pChain) {
+            if (pChain && !(skipQuickEffects && pChain->isQuickEffectChain())) {
                 if (pChain->process(inputHandle,
                             outputHandle,
                             pIn,
@@ -207,7 +212,7 @@ void EngineEffectsManager::processInner(
 
         CSAMPLE* pIntermediateOutput;
         for (EngineEffectChain* pChain : chains) {
-            if (pChain) {
+            if (pChain && !(skipQuickEffects && pChain->isQuickEffectChain())) {
                 // Select an unused intermediate buffer for the next output
                 if (pIntermediateInput == m_buffer1.data()) {
                     pIntermediateOutput = m_buffer2.data();

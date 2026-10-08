@@ -12,7 +12,8 @@ void ChannelMixer::applyEffectsAndMixChannels(const EngineMixer::GainCalculator&
         const ChannelHandle& outputHandle,
         std::size_t bufferSize,
         mixxx::audio::SampleRate sampleRate,
-        EngineEffectsManager* pEngineEffectsManager) {
+        EngineEffectsManager* pEngineEffectsManager,
+        bool skipQuickEffects) {
     // Signal flow overview:
     // 1. Clear pOutput buffer
     // 2. Calculate gains for each channel
@@ -59,7 +60,8 @@ void ChannelMixer::applyEffectsAndMixChannels(const EngineMixer::GainCalculator&
                 pChannelInfo->m_features,
                 oldGain,
                 newGain,
-                fadeout);
+                fadeout,
+                skipQuickEffects);
     }
 }
 

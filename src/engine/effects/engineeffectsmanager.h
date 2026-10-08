@@ -63,7 +63,8 @@ class EngineEffectsManager final : public EffectsRequestHandler {
             const GroupFeatureState& groupFeatures,
             CSAMPLE_GAIN oldGain = CSAMPLE_GAIN_ONE,
             CSAMPLE_GAIN newGain = CSAMPLE_GAIN_ONE,
-            bool fadeout = false);
+            bool fadeout = false,
+            bool skipQuickEffects = false);
 
     bool processEffectsRequest(
             const EffectsRequest& message,
@@ -94,7 +95,8 @@ class EngineEffectsManager final : public EffectsRequestHandler {
             const GroupFeatureState& groupFeatures,
             CSAMPLE_GAIN oldGain = CSAMPLE_GAIN_ONE,
             CSAMPLE_GAIN newGain = CSAMPLE_GAIN_ONE,
-            bool fadeout = false);
+            bool fadeout = false,
+            bool skipQuickEffects = false);
 
     EffectsResponsePipe m_responsePipe;
     QHash<SignalProcessingStage, QList<EngineEffectChain*>> m_chainsByStage;
