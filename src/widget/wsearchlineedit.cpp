@@ -560,6 +560,13 @@ void WSearchLineEdit::slotSaveSearch() {
         return;
     }
 
+    // Reordering the history makes QComboBox briefly swap the edit text (to the
+    // trimmed query, or to a sibling entry while the current one is removed).
+    // Each swap would emit currentTextChanged -> slotTextChanged and re-run the
+    // search for the unchanged query, which rebuilds the track table and
+    // scrolls it back to the selected track 5 s after typing a query that ends
+    // with a space. Saving is bookkeeping only, so keep it silent.
+    blockSignals(true);
     if (cIndex > 0) {
         // If query exists and is not at the top, remove the original index
         removeItem(cIndex);
@@ -573,6 +580,7 @@ void WSearchLineEdit::slotSaveSearch() {
     while (count() > kMaxSearchEntries) {
         removeItem(kMaxSearchEntries);
     }
+    blockSignals(false);
 
     if (currentText() != origText) {
         // Set the text without spaces for UI
