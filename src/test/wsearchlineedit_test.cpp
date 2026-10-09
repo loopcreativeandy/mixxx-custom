@@ -50,11 +50,12 @@ TEST_F(WSearchLineEditTagTest, SuggestsTagAndSearchesTypedText) {
     EXPECT_EQ(QStringLiteral("LastSong!"), lastSearch(spy));
 }
 
-TEST_F(WSearchLineEditTagTest, ShortestMatchWinsAndLaterWords) {
-    type("bpm:120 zouk");
-    EXPECT_EQ(QStringLiteral("bpm:120 Zouk!"), m_pEdit->lineEdit()->text());
-    type("a");
+TEST_F(WSearchLineEditTagTest, FirstMatchInFileWinsAndLaterWords) {
+    type("bpm:120 zou");
     EXPECT_EQ(QStringLiteral("bpm:120 Zoukable!"), m_pEdit->lineEdit()->text());
+    type("k!");
+    EXPECT_EQ(QStringLiteral("bpm:120 Zouk!"), m_pEdit->lineEdit()->text());
+    EXPECT_FALSE(m_pEdit->lineEdit()->hasSelectedText());
 }
 
 TEST_F(WSearchLineEditTagTest, BackspaceDropsSuggestion) {

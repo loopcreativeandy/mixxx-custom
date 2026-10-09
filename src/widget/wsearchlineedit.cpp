@@ -304,7 +304,8 @@ bool WSearchLineEdit::hasPendingTagCompletion() const {
 
 /// Suggest a tag for the word left of the cursor, the same way as the inline
 /// history completion: the rest of the tag is appended and selected, Right
-/// accepts it, typing on replaces it. The shortest matching tag wins.
+/// accepts it, typing on replaces it. The first match in the file wins, so
+/// the file order sets the priority.
 void WSearchLineEdit::completeSearchTag() {
     m_tagCompletionPrefix.clear();
     if (m_searchTags.isEmpty()) {
@@ -344,9 +345,9 @@ void WSearchLineEdit::completeSearchTag() {
     const QString* pBest = nullptr;
     for (const QString& tag : std::as_const(m_searchTags)) {
         if (tag.size() > word.size() &&
-                tag.startsWith(word, Qt::CaseInsensitive) &&
-                (!pBest || tag.size() < pBest->size())) {
+                tag.startsWith(word, Qt::CaseInsensitive)) {
             pBest = &tag;
+            break;
         }
     }
     if (!pBest) {
