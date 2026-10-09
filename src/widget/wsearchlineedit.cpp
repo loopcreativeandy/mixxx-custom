@@ -3,6 +3,9 @@
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QCompleter>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFile>
 #include <QFont>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -31,6 +34,8 @@ const QString kDisabledText = QStringLiteral("- - -");
 
 const QString kLibraryConfigGroup = QStringLiteral("[Library]");
 const QString kSavedQueriesConfigGroup = QStringLiteral("[SearchQueries]");
+
+const QString kSearchTagsFileName = QStringLiteral("search_tags.txt");
 
 // Border width, max. 2 px when focused (in official skins)
 constexpr int kBorderWidth = 2;
@@ -150,6 +155,7 @@ WSearchLineEdit::WSearchLineEdit(QWidget* pParent, UserSettingsPointer pConfig)
             &WSearchLineEdit::slotIndexChanged);
 
     loadQueriesFromConfig();
+    loadSearchTags();
 
     refreshState();
 }
@@ -264,6 +270,96 @@ void WSearchLineEdit::loadQueriesFromConfig() {
     }
 }
 
+void WSearchLineEdit::loadSearchTags() {
+    // Settings dir first: it survives reinstalls. The install dir is a fallback.
+    QStringList candidates;
+    if (m_pConfig) {
+        candidates << QDir(m_pConfig->getSettingsPath()).filePath(kSearchTagsFileName);
+    }
+    candidates << QDir(QCoreApplication::applicationDirPath()).filePath(kSearchTagsFileName);
+    for (const QString& path : std::as_const(candidates)) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            continue;
+        }
+        while (!file.atEnd()) {
+            const QString tag = QString::fromUtf8(file.readLine()).trimmed();
+            if (!tag.isEmpty() && !tag.startsWith('#') && !m_searchTags.contains(tag)) {
+                m_searchTags.append(tag);
+            }
+        }
+        kLogger.info() << "Loaded" << m_searchTags.size() << "search tags from" << path;
+        return;
+    }
+}
+
+bool WSearchLineEdit::hasPendingTagCompletion() const {
+    if (m_tagCompletionPrefix.isEmpty() || !hasSelectedText()) {
+        return false;
+    }
+    const QLineEdit* pEdit = lineEdit();
+    return pEdit->cursorPosition() == m_tagCompletionPrefix.size() &&
+            pEdit->text().startsWith(m_tagCompletionPrefix, Qt::CaseInsensitive);
+}
+
+/// Suggest a tag for the word left of the cursor, the same way as the inline
+/// history completion: the rest of the tag is appended and selected, Right
+/// accepts it, typing on replaces it. The shortest matching tag wins.
+void WSearchLineEdit::completeSearchTag() {
+    m_tagCompletionPrefix.clear();
+    if (m_searchTags.isEmpty()) {
+        return;
+    }
+    QLineEdit* pEdit = lineEdit();
+    const QString text = pEdit->text();
+    // Ignore a history suggestion (selected text) the completer may have added
+    const int typedLen = pEdit->hasSelectedText()
+            ? pEdit->selectionStart()
+            : pEdit->cursorPosition();
+    const int selectionEnd = pEdit->hasSelectedText()
+            ? pEdit->selectionStart() + static_cast<int>(pEdit->selectedText().size())
+            : typedLen;
+    if (typedLen <= 0 || selectionEnd != text.size()) {
+        // Only complete at the end of the query
+        return;
+    }
+    const QString typed = text.left(typedLen);
+    int wordStart = typedLen;
+    while (wordStart > 0 && !typed.at(wordStart - 1).isSpace()) {
+        wordStart--;
+    }
+    // Skip operator prefixes: "comment:", "-", quotes
+    const int colon = typed.lastIndexOf(':');
+    if (colon >= wordStart) {
+        wordStart = colon + 1;
+    }
+    while (wordStart < typedLen &&
+            (typed.at(wordStart) == '-' || typed.at(wordStart) == '"')) {
+        wordStart++;
+    }
+    const QStringView word = QStringView(typed).mid(wordStart);
+    if (word.size() < kMinTagCompletionChars) {
+        return;
+    }
+    const QString* pBest = nullptr;
+    for (const QString& tag : std::as_const(m_searchTags)) {
+        if (tag.size() > word.size() &&
+                tag.startsWith(word, Qt::CaseInsensitive) &&
+                (!pBest || tag.size() < pBest->size())) {
+            pBest = &tag;
+        }
+    }
+    if (!pBest) {
+        return;
+    }
+    const QString completed = typed.left(wordStart) + *pBest;
+    m_tagCompletionPrefix = typed;
+    pEdit->setText(completed);
+    // Anchor at the end, cursor after the typed text (like QCompleter does)
+    pEdit->setSelection(static_cast<int>(completed.size()),
+            typedLen - static_cast<int>(completed.size()));
+}
+
 void WSearchLineEdit::saveQueriesInConfig() {
     if (!m_pConfig) {
         return;
@@ -311,6 +407,10 @@ QString WSearchLineEdit::getSearchText() const {
     if (isEnabled()) {
         DEBUG_ASSERT(!currentText().isNull());
         QString text = currentText();
+        if (hasPendingTagCompletion()) {
+            // Search for the typed text until the tag is accepted with Right
+            return m_tagCompletionPrefix;
+        }
         QCompleter* pCompleter = completer();
         if (pCompleter && hasSelectedText()) {
             if (text.startsWith(pCompleter->completionPrefix()) &&
@@ -449,6 +549,14 @@ void WSearchLineEdit::keyPressEvent(QKeyEvent* keyEvent) {
     }
 
     QComboBox::keyPressEvent(keyEvent);
+
+    const QString keyText = keyEvent->text();
+    if (keyText.size() == 1 && keyText.at(0).isPrint() && !keyText.at(0).isSpace() &&
+            !(keyEvent->modifiers() & (Qt::ControlModifier | Qt::AltModifier))) {
+        completeSearchTag();
+    } else if (keyEvent->key() != Qt::Key_Shift) {
+        m_tagCompletionPrefix.clear();
+    }
 }
 
 void WSearchLineEdit::focusInEvent(QFocusEvent* event) {
@@ -543,6 +651,11 @@ void WSearchLineEdit::slotTriggerSearch() {
 /// saves the current query as selection
 void WSearchLineEdit::slotSaveSearch() {
     m_saveTimer.stop();
+    if (hasPendingTagCompletion()) {
+        // Don't store a tag suggestion that was never accepted.
+        // The next keystroke restarts the timer.
+        return;
+    }
     // Keep original text for UI, potentially with trailing spaces
     int curPos = lineEdit()->cursorPosition();
     const QString origText = currentText();

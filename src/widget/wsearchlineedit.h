@@ -25,6 +25,9 @@ class WSearchLineEdit : public QComboBox, public WBaseWidget {
     static constexpr int kMaxSearchEntries = 50;
     static constexpr bool kCompletionsEnabledDefault = true;
     static constexpr bool kHistoryShortcutsEnabledDefault = true;
+    // Tag completion: one tag per line, read from the settings dir (or, as a
+    // fallback, next to the executable) when the search box is created.
+    static constexpr int kMinTagCompletionChars = 2;
 
     // TODO(XXX): Replace with a public slot
     static void setDebouncingTimeoutMillis(int debouncingTimeoutMillis);
@@ -91,6 +94,9 @@ class WSearchLineEdit : public QComboBox, public WBaseWidget {
     void deleteSelectedComboboxItem();
     void deleteSelectedListItem();
     void triggerSearchDebounced();
+    void loadSearchTags();
+    void completeSearchTag();
+    bool hasPendingTagCompletion() const;
     bool hasSelectedText() const;
 
     inline int findCurrentTextIndex() {
@@ -107,6 +113,9 @@ class WSearchLineEdit : public QComboBox, public WBaseWidget {
     void saveQueriesInConfig();
 
     parented_ptr<QCompleter> m_completer;
+    QStringList m_searchTags;
+    // Text the user typed before the selected tag suggestion was appended
+    QString m_tagCompletionPrefix;
     parented_ptr<QToolButton> const m_clearButton;
 
     QTimer m_debouncingTimer;
