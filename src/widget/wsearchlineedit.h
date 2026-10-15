@@ -51,6 +51,8 @@ class WSearchLineEdit : public QComboBox, public WBaseWidget {
   signals:
     void search(const QString& text);
     FocusWidget setLibraryFocus(FocusWidget newFocusWidget);
+    /// Ctrl+Shift+F: ask the library to switch to the Tracks view
+    void searchInTracksRequested();
 
   public slots:
     void slotSetFont(const QFont& font);
@@ -69,6 +71,7 @@ class WSearchLineEdit : public QComboBox, public WBaseWidget {
 
   private slots:
     void slotSetShortcutFocus();
+    void slotSearchInTracksShortcut();
     void slotTextChanged(const QString& text);
     void slotIndexChanged(int index);
 

@@ -357,6 +357,20 @@ void Library::bindSearchboxWidget(WSearchLineEdit* pSearchboxWidget) {
             &WSearchLineEdit::setLibraryFocus,
             m_pLibraryControl,
             &LibraryControl::setLibraryFocus);
+    connect(pSearchboxWidget,
+            &WSearchLineEdit::searchInTracksRequested,
+            this,
+            &Library::slotSwitchToTracks);
+}
+
+void Library::slotSwitchToTracks() {
+    VERIFY_OR_DEBUG_ASSERT(m_pMixxxLibraryFeature) {
+        return;
+    }
+    // Same path as searchTracksInCollection(), minus the search: the
+    // sidebar's default selection is Tracks.
+    emit switchToView(m_sTrackViewName);
+    m_pSidebarModel->activateDefaultSelection();
 }
 
 void Library::bindSidebarWidget(WLibrarySidebar* pSidebarWidget) {

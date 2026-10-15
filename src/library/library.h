@@ -147,6 +147,8 @@ class Library: public QObject {
   public slots:
     void slotShowTrackModel(QAbstractItemModel* model);
     void slotSwitchToView(const QString& view);
+    /// Show the Tracks view (Ctrl+Shift+F in the search box)
+    void slotSwitchToTracks();
     void slotLoadTrack(TrackPointer pTrack);
 #ifdef __STEM__
     void slotLoadTrackToPlayer(TrackPointer pTrack,

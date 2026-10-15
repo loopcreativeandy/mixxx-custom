@@ -133,6 +133,15 @@ WSearchLineEdit::WSearchLineEdit(QWidget* pParent, UserSettingsPointer pConfig)
             this,
             &WSearchLineEdit::slotSetShortcutFocus);
 
+    // Ctrl+Shift+F jumps to the Tracks view and focuses the search box,
+    // so a playlist doesn't have to be left via the sidebar first.
+    QShortcut* searchInTracksShortcut = new QShortcut(
+            QKeySequence(tr("Ctrl+Shift+F", "Search|Search in Tracks")), this);
+    connect(searchInTracksShortcut,
+            &QShortcut::activated,
+            this,
+            &WSearchLineEdit::slotSearchInTracksShortcut);
+
     // Set up a timer to search after a few hundred milliseconds timeout.  This
     // stops us from thrashing the database if you type really fast.
     m_debouncingTimer.setSingleShot(true);
@@ -236,6 +245,9 @@ void WSearchLineEdit::setup(const QDomNode& node, const SkinContext& context) {
             tr("Shortcuts") + ": \n" +
             tr("Ctrl+F") + "  " +
             tr("Focus", "Give search bar input focus") + "\n" +
+            tr("Ctrl+Shift+F") + "  " +
+            tr("Search in Tracks", "Switch to the Tracks view and focus the search bar") +
+            "\n" +
             tr("Return") + " " +
             tr("Trigger search before search-as-you-type timeout or"
                "jump to tracks view afterwards") +
@@ -927,6 +939,17 @@ void WSearchLineEdit::slotSetShortcutFocus() {
     } else {
         setFocus(Qt::ShortcutFocusReason);
     }
+}
+
+void WSearchLineEdit::slotSearchInTracksShortcut() {
+    // Switching to Tracks restores that view's last search into the box
+    // (synchronously, via Library::restoreSearch), so select it afterwards:
+    // typing replaces it, Right/End keeps it.
+    emit searchInTracksRequested();
+    if (!hasFocus()) {
+        setFocus(Qt::ShortcutFocusReason);
+    }
+    lineEdit()->selectAll();
 }
 
 // Use the same font as the library table and the sidebar
