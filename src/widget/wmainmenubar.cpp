@@ -418,6 +418,12 @@ void WMainMenuBar::initialize() {
 
     // OPTIONS MENU
     QMenu* pOptionsMenu = new QMenu(tr("&Options"), this);
+
+    // andy-custom: loop undo (see LoopUndo). Read up front so other
+    // actions can give the key up instead of making it ambiguous.
+    const QKeySequence loopUndoKey = safeKeySequence(m_pKbdConfig->getValue(
+            ConfigKey("[KeyboardShortcuts]", "OptionsMenu_LoopUndo"),
+            QStringLiteral("Ctrl+Z")));
 #ifndef __APPLE__
     connectMenuToSlotShowMenuBar(pOptionsMenu);
 #endif
@@ -436,7 +442,9 @@ void WMainMenuBar::initialize() {
             ConfigKey("[KeyboardShortcuts]",
                     QString("OptionsMenu_EnableVinyl%1").arg(i + 1)),
             vinylControlDefaultKeyBinding(i));
-        if (!binding.isEmpty()) {
+        // andy-custom: the German/Swiss maps put vinyl 2 on Ctrl+z, which is
+        // loop undo here.
+        if (!binding.isEmpty() && safeKeySequence(binding) != loopUndoKey) {
             vc_checkbox->setShortcut(safeKeySequence(binding));
             vc_checkbox->setShortcutContext(Qt::ApplicationShortcut);
         }
@@ -542,6 +550,23 @@ void WMainMenuBar::initialize() {
         pCrowdRatingMenu->addAction(pAction);
     }
     pOptionsMenu->addMenu(pCrowdRatingMenu);
+
+    // Application-wide, but a focused text field (search box, track editor)
+    // still gets Ctrl+Z for its own text undo first.
+    QString loopUndoTitle = tr("&Undo Loop Change");
+    QString loopUndoText = tr(
+            "Put back the loop as it was before the last change, on the deck "
+            "whose loop changed last. Again to go further back.");
+    auto* pOptionsLoopUndo = new QAction(loopUndoTitle, this);
+    pOptionsLoopUndo->setShortcut(loopUndoKey);
+    pOptionsLoopUndo->setShortcutContext(Qt::ApplicationShortcut);
+    pOptionsLoopUndo->setStatusTip(loopUndoText);
+    pOptionsLoopUndo->setWhatsThis(buildWhatsThis(loopUndoTitle, loopUndoText));
+    connect(pOptionsLoopUndo,
+            &QAction::triggered,
+            this,
+            &WMainMenuBar::undoLoopChange);
+    pOptionsMenu->addAction(pOptionsLoopUndo);
 
 #ifdef __BROADCAST__
     QString broadcastingTitle = tr("Enable Live &Broadcasting");

@@ -79,6 +79,7 @@ class WMainMenuBar : public QMenuBar {
     void toggleRecording(bool enabled);
     void toggleLiveSession();
     void crowdRate(int kind);
+    void undoLoopChange();
     void toggleVinylControl(int deck);
     void visitUrl(const QString& url);
     void quit();

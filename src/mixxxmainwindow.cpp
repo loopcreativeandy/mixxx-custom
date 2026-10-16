@@ -37,6 +37,7 @@
 #endif
 #include "control/controlindicatortimer.h"
 #include "library/crowdrating/crowdratingsession.h"
+#include "mixer/loopundo.h"
 #include "library/library.h"
 #include "library/library_decl.h"
 #include "library/library_prefs.h"
@@ -351,6 +352,8 @@ void MixxxMainWindow::initialize() {
     // andy-custom: before the skin loads, so it can bind [ChannelN],crowd_rating.
     m_pCrowdRatingSession = std::make_unique<CrowdRatingSession>(
             m_pCoreServices->getSettings(), this);
+    // andy-custom: decks exist by now (PlayerManager), so it sees all of them.
+    m_pLoopUndo = std::make_unique<LoopUndo>(this);
 
     // Connect signals to the menubar. Should be done before emit skinLoaded.
     connectMenuBar();
@@ -558,6 +561,7 @@ MixxxMainWindow::~MixxxMainWindow() {
     // Ends a running live session (writes session_end) while the controls and
     // PlayerInfo it uses still exist.
     m_pCrowdRatingSession.reset();
+    m_pLoopUndo.reset();
 
     // TODO() Verify if this comment still applies:
     // WMainMenuBar holds references to controls so we need to delete it
@@ -968,6 +972,14 @@ void MixxxMainWindow::connectMenuBar() {
                 Qt::UniqueConnection);
         m_pMenuBar->onLiveSessionStateChange(m_pCrowdRatingSession->isActive(),
                 m_pCrowdRatingSession->eventName());
+    }
+
+    if (m_pLoopUndo) {
+        connect(m_pMenuBar,
+                &WMainMenuBar::undoLoopChange,
+                m_pLoopUndo.get(),
+                &LoopUndo::slotUndo,
+                Qt::UniqueConnection);
     }
 
     if (m_pCoreServices->getRecordingManager()) {

@@ -11,6 +11,7 @@
 
 class ControlObject;
 class CrowdRatingSession;
+class LoopUndo;
 class DlgDeveloperTools;
 class DlgPreferences;
 class DlgKeywheel;
@@ -154,6 +155,7 @@ class MixxxMainWindow : public QMainWindow {
     parented_ptr<DlgKeywheel> m_pKeywheel;
     // andy-custom: live crowd rating session (Options > Start Live DJing)
     std::unique_ptr<CrowdRatingSession> m_pCrowdRatingSession;
+    std::unique_ptr<LoopUndo> m_pLoopUndo;
 
 #ifdef __ENGINEPRIME__
     // Library exporter
