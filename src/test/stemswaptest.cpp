@@ -2,7 +2,8 @@
 
 #include <gtest/gtest.h>
 
-#include <limits>
+#include <bit>
+#include <cstdint>
 
 namespace {
 
@@ -17,8 +18,10 @@ constexpr double kTypicalDelay = 0.07189;
 constexpr double k48k = 48000.0;
 constexpr double k44k = 44100.0;
 
-const double kNaN = std::numeric_limits<double>::quiet_NaN();
-const double kInf = std::numeric_limits<double>::infinity();
+// Built from the IEEE 754 bit patterns: under -ffast-math, clang (macOS CI)
+// rejects numeric_limits<double>::infinity() with -Werror,-Wnan-infinity-disabled.
+const double kNaN = std::bit_cast<double>(std::uint64_t{0x7FF8000000000000});
+const double kInf = std::bit_cast<double>(std::uint64_t{0x7FF0000000000000});
 
 TEST(StemSwapTest, OffsetSignFollowsTheDirection) {
     EXPECT_DOUBLE_EQ(kTypicalDelay, signedOffsetSeconds(kTypicalDelay, Direction::OriginalToStem));

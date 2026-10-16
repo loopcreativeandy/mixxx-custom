@@ -119,7 +119,8 @@ TEST_F(CrowdRatingSessionTest, RatesLoudestDeckAndTintsIt) {
     EXPECT_EQ(2, log[1]["deck"].toInt());
     EXPECT_EQ(22, log[1]["track_id"].toInt());
     EXPECT_EQ("Title B", log[1]["title"].toString());
-    EXPECT_EQ("/music/b.mp3", log[1]["path"].toString());
+    // getLocation(), not the literal: Windows makes "/music/b.mp3" absolute ("D:/music/b.mp3").
+    EXPECT_EQ(m_pTrackB->getLocation(), log[1]["path"].toString());
     EXPECT_EQ(100.0, log[1]["pos_s"].toDouble());
     EXPECT_EQ("control", log[1]["source"].toString());
     EXPECT_EQ("minus", log[2]["kind"].toString());
