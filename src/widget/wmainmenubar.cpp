@@ -481,8 +481,14 @@ void WMainMenuBar::initialize() {
     QString liveSessionTitle = tr("Start &Live DJing...");
     QString liveSessionText = tr(
             "Start a live session: logs every played track and lets you rate "
-            "how it worked on the floor (Ctrl++ / Ctrl+- / Ctrl+0)");
+            "how it worked on the floor (Ctrl++ / Ctrl+- / Ctrl+0). Again to end it.");
     auto* pOptionsLiveSession = new QAction(liveSessionTitle, this);
+    // Andy (2026-10-16): Ctrl+L, taken from Live Broadcasting, which he never uses.
+    const QKeySequence liveSessionKey = safeKeySequence(m_pKbdConfig->getValue(
+            ConfigKey("[KeyboardShortcuts]", "OptionsMenu_LiveSession"),
+            QStringLiteral("Ctrl+L")));
+    pOptionsLiveSession->setShortcut(liveSessionKey);
+    pOptionsLiveSession->setShortcutContext(Qt::ApplicationShortcut);
     pOptionsLiveSession->setStatusTip(liveSessionText);
     pOptionsLiveSession->setWhatsThis(buildWhatsThis(liveSessionTitle, liveSessionText));
     connect(pOptionsLiveSession,
@@ -541,11 +547,15 @@ void WMainMenuBar::initialize() {
     QString broadcastingTitle = tr("Enable Live &Broadcasting");
     QString broadcastingText = tr("Stream your mixes to a shoutcast or icecast server");
     auto* pOptionsBroadcasting = new QAction(broadcastingTitle, this);
-    pOptionsBroadcasting->setShortcut(
-            safeKeySequence(m_pKbdConfig->getValue(
-                    ConfigKey("[KeyboardShortcuts]",
-                            "OptionsMenu_EnableLiveBroadcasting"),
-                    QStringLiteral("Ctrl+L"))));
+    // andy-custom: the stock Ctrl+L (also in every res/keyboard/*.kbd.cfg)
+    // now starts a live session. Two actions with the same key would make Qt
+    // fire neither, so broadcasting gives it up whenever they collide.
+    const QKeySequence broadcastingKey = safeKeySequence(m_pKbdConfig->getValue(
+            ConfigKey("[KeyboardShortcuts]", "OptionsMenu_EnableLiveBroadcasting"),
+            QString()));
+    if (broadcastingKey != liveSessionKey) {
+        pOptionsBroadcasting->setShortcut(broadcastingKey);
+    }
     pOptionsBroadcasting->setShortcutContext(Qt::ApplicationShortcut);
     pOptionsBroadcasting->setCheckable(true);
     pOptionsBroadcasting->setStatusTip(broadcastingText);
