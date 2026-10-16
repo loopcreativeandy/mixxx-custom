@@ -59,6 +59,9 @@ class WSearchLineEdit : public QComboBox, public WBaseWidget {
 
     void slotRestoreSearch(const QString& text);
     void slotDisableSearch();
+    /// andy-custom: re-emit the current (non-empty) query, e.g. after the
+    /// stem search mode changed
+    void slotRefreshSearch();
 
     void slotClearSearch();
     bool slotClearSearchIfClearButtonHasFocus();

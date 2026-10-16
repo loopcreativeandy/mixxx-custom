@@ -5,6 +5,7 @@
 #include <QMessageBox>
 
 #include "control/controlobject.h"
+#include "control/controlpushbutton.h"
 #include "controllers/keyboard/keyboardeventfilter.h"
 #include "library/analysis/analysisfeature.h"
 #include "library/autodj/autodjfeature.h"
@@ -83,6 +84,18 @@ Library::Library(
 
     m_pKeyNotation.reset(
             new ControlObject(mixxx::library::prefs::kKeyNotationConfigKey));
+
+    // andy-custom: stem search mode, read by BaseTrackCache::filterAndSort().
+    // Persistent; skin binds it in the library search bar + skin settings.
+    m_pStemSearchMode = std::make_unique<ControlPushButton>(
+            ConfigKey(QStringLiteral("[Library]"), QStringLiteral("stem_search_mode")),
+            true);
+    m_pStemSearchMode->setButtonMode(mixxx::control::ButtonMode::Toggle);
+    m_pStemSearchMode->setStates(3);
+    connect(m_pStemSearchMode.get(),
+            &ControlObject::valueChanged,
+            this,
+            &Library::refreshSearch);
 
     connect(m_pTrackCollectionManager,
             &TrackCollectionManager::libraryScanFinished,
@@ -347,6 +360,10 @@ void Library::bindSearchboxWidget(WSearchLineEdit* pSearchboxWidget) {
             &Library::restoreSearch,
             pSearchboxWidget,
             &WSearchLineEdit::slotRestoreSearch);
+    connect(this,
+            &Library::refreshSearch,
+            pSearchboxWidget,
+            &WSearchLineEdit::slotRefreshSearch);
     connect(this,
             &Library::setTrackTableFont,
             pSearchboxWidget,

@@ -661,6 +661,13 @@ void WSearchLineEdit::slotTriggerSearch() {
     m_queryEmitted = true;
 }
 
+void WSearchLineEdit::slotRefreshSearch() {
+    if (!isEnabled() || getSearchText().trimmed().isEmpty()) {
+        return;
+    }
+    slotTriggerSearch();
+}
+
 /// saves the current query as selection
 void WSearchLineEdit::slotSaveSearch() {
     m_saveTimer.stop();

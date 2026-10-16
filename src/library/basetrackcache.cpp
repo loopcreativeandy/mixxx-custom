@@ -1,5 +1,6 @@
 #include "library/basetrackcache.h"
 
+#include "control/controlobject.h"
 #include "library/queryutil.h"
 #include "library/searchquery.h"
 #include "library/searchqueryparser.h"
@@ -486,8 +487,29 @@ void BaseTrackCache::filterAndSort(const QSet<TrackId>& trackIds,
         searchPlusExtraFilter += ' ';
         searchPlusExtraFilter += extraFilter;
     }
-    const std::unique_ptr<QueryNode> pQuery =
+    std::unique_ptr<QueryNode> pQuery =
             m_pQueryParser->parseQuery(searchPlusExtraFilter, QString());
+
+    // andy-custom: [Library],stem_search_mode narrows a typed search to stem
+    // files (1) or hides them (2), so a track with a stem version doesn't
+    // show up twice. Plain browsing (no search text) is never filtered.
+    // Parsed on its own and AND-ed on top, so it also applies to every
+    // branch of an "a | b" query. ".stem.m" covers .stem.mp4 and .stem.m4a
+    // (see isStemFileLocation()).
+    if (!searchQuery.trimmed().isEmpty()) {
+        const int stemSearchMode = static_cast<int>(ControlObject::get(
+                ConfigKey(QStringLiteral("[Library]"),
+                        QStringLiteral("stem_search_mode"))));
+        if (stemSearchMode == 1 || stemSearchMode == 2) {
+            auto pAnd = std::make_unique<AndNode>();
+            pAnd->addNode(std::move(pQuery));
+            pAnd->addNode(m_pQueryParser->parseQuery(stemSearchMode == 1
+                            ? QStringLiteral("location:\".stem.m\"")
+                            : QStringLiteral("-location:\".stem.m\""),
+                    QString()));
+            pQuery = std::move(pAnd);
+        }
+    }
 
     QString filter = pQuery->toSql();
     if (!filter.isEmpty()) {

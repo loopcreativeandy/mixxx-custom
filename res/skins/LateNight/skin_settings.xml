@@ -661,6 +661,28 @@ Description:
                 <SetVariable name="Setting">[Skin],show_library_coverart</SetVariable>
               </Template>
 
+              <!-- andy-custom: stem search mode (same control as the
+                   ALL / STEMS / NO STEMS button next to the search box) -->
+              <Label>
+                <ObjectName>SkinSettingsText</ObjectName>
+                <Text>Search shows:</Text>
+              </Label>
+              <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
+                <SetVariable name="Text">All tracks</SetVariable>
+                <SetVariable name="Setting">[Library],stem_search_mode</SetVariable>
+                <SetVariable name="Value">0</SetVariable>
+              </Template>
+              <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
+                <SetVariable name="Text">Stems only</SetVariable>
+                <SetVariable name="Setting">[Library],stem_search_mode</SetVariable>
+                <SetVariable name="Value">1</SetVariable>
+              </Template>
+              <Template src="skins:LateNight/helpers/skin_settings_button_value.xml">
+                <SetVariable name="Text">No stems</SetVariable>
+                <SetVariable name="Setting">[Library],stem_search_mode</SetVariable>
+                <SetVariable name="Value">2</SetVariable>
+              </Template>
+
             </Children>
           </WidgetGroup><!-- /Library -->
 

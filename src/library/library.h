@@ -20,6 +20,7 @@
 class AnalysisFeature;
 class BrowseFeature;
 class ControlObject;
+class ControlPushButton;
 class CrateFeature;
 class LibraryControl;
 class LibraryFeature;
@@ -189,6 +190,8 @@ class Library: public QObject {
     void restoreSearch(const QString&);
     void search(const QString& text);
     void disableSearch();
+    /// andy-custom: re-run the current search (stem search mode changed)
+    void refreshSearch();
     void pasteFromSidebar();
     // emit this signal to enable/disable the cover art widget
     void enableCoverArtDisplay(bool);
@@ -241,4 +244,6 @@ class Library: public QObject {
     int m_iTrackTableRowHeight;
     bool m_editMetadataSelectedClick;
     QScopedPointer<ControlObject> m_pKeyNotation;
+    // andy-custom: [Library],stem_search_mode (0 all, 1 stems only, 2 no stems)
+    std::unique_ptr<ControlPushButton> m_pStemSearchMode;
 };

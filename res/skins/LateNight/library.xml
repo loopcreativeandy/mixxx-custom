@@ -112,6 +112,46 @@
                           </Template>
                         </Children>
                       </WidgetGroup><!-- LibExpandBox -->
+
+                      <!-- andy-custom: stem search mode, click cycles
+                           ALL -> STEMS (only stem files) -> NO STEMS -->
+                      <WidgetGroup>
+                        <ObjectName>StemSearchModeBox</ObjectName>
+                        <Layout>vertical</Layout>
+                        <Children>
+                          <PushButton>
+                            <ObjectName>StemSearchMode</ObjectName>
+                            <Tooltip>Stem search mode (click to cycle):
+ALL - search shows every track
+STEMS - search shows only stem files
+NO STEMS - search hides stem files</Tooltip>
+                            <Size>58f,18me</Size>
+                            <NumberStates>3</NumberStates>
+                            <State>
+                              <Number>0</Number>
+                              <Text>ALL</Text>
+                              <Unpressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_embedded_medium.svg</Unpressed>
+                              <Pressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_embedded_medium_active.svg</Pressed>
+                            </State>
+                            <State>
+                              <Number>1</Number>
+                              <Text>STEMS</Text>
+                              <Unpressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_embedded_medium_active.svg</Unpressed>
+                              <Pressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_embedded_medium_active.svg</Pressed>
+                            </State>
+                            <State>
+                              <Number>2</Number>
+                              <Text>NO STEMS</Text>
+                              <Unpressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_embedded_medium_active.svg</Unpressed>
+                              <Pressed scalemode="STRETCH">skins:LateNight/<Variable name="BtnScheme"/>/buttons/btn_embedded_medium_active.svg</Pressed>
+                            </State>
+                            <Connection>
+                              <ConfigKey>[Library],stem_search_mode</ConfigKey>
+                              <ButtonState>LeftButton</ButtonState>
+                            </Connection>
+                          </PushButton>
+                        </Children>
+                      </WidgetGroup><!-- StemSearchModeBox -->
                     </Children>
                   </WidgetGroup><!--SearchBox + Library expand toggle -->
 

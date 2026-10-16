@@ -2799,6 +2799,7 @@ if(BUILD_TESTING)
     src/test/playermanagertest.cpp
     src/test/similarityindextest.cpp
     src/test/similartablemodeltest.cpp
+    src/test/stemsearchmodetest.cpp
     src/test/stemswaptest.cpp
     src/test/stemswapdecktest.cpp
     src/test/storedstemwaveformtest.cpp
