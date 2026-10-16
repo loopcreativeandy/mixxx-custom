@@ -477,6 +477,66 @@ void WMainMenuBar::initialize() {
             &QAction::setChecked);
     pOptionsMenu->addAction(pOptionsRecord);
 
+    // andy-custom: live crowd rating session (see CrowdRatingSession)
+    QString liveSessionTitle = tr("Start &Live DJing...");
+    QString liveSessionText = tr(
+            "Start a live session: logs every played track and lets you rate "
+            "how it worked on the floor (Ctrl++ / Ctrl+- / Ctrl+0)");
+    auto* pOptionsLiveSession = new QAction(liveSessionTitle, this);
+    pOptionsLiveSession->setStatusTip(liveSessionText);
+    pOptionsLiveSession->setWhatsThis(buildWhatsThis(liveSessionTitle, liveSessionText));
+    connect(pOptionsLiveSession,
+            &QAction::triggered,
+            this,
+            &WMainMenuBar::toggleLiveSession);
+    connect(this,
+            &WMainMenuBar::internalLiveSessionStateChange,
+            pOptionsLiveSession,
+            [pOptionsLiveSession, liveSessionTitle](bool active, const QString& eventName) {
+                pOptionsLiveSession->setText(active
+                                ? tr("End &Live Session \"%1\"").arg(eventName)
+                                : liveSessionTitle);
+            });
+    pOptionsMenu->addAction(pOptionsLiveSession);
+
+    // Menu actions rather than keyboard-mapping entries: Qt matches "Ctrl++"
+    // on layouts where "+" needs Shift (en_US, also the fallback mapping for
+    // locales without their own .kbd.cfg such as de_AT), and the numpad keys
+    // are added as a second shortcut.
+    auto* pCrowdRatingMenu = new QMenu(tr("Crowd &Rating"), this);
+    const struct {
+        QString title;
+        QString configItem;
+        QString defaultKey;
+        Qt::Key numpadKey;
+        int kind; // CrowdRatingSession::Kind
+    } crowdRatings[] = {
+            {tr("Worked &Well"), QStringLiteral("OptionsMenu_CrowdRatePlus"),
+                    QStringLiteral("Ctrl++"), Qt::Key_Plus, 0},
+            {tr("&Didn't Work"), QStringLiteral("OptionsMenu_CrowdRateMinus"),
+                    QStringLiteral("Ctrl+-"), Qt::Key_Minus, 1},
+            {tr("&Neutral"), QStringLiteral("OptionsMenu_CrowdRateNeutral"),
+                    QStringLiteral("Ctrl+0"), Qt::Key_0, 2},
+    };
+    for (const auto& rating : crowdRatings) {
+        auto* pAction = new QAction(rating.title, this);
+        QList<QKeySequence> shortcuts{safeKeySequence(m_pKbdConfig->getValue(
+                ConfigKey("[KeyboardShortcuts]", rating.configItem), rating.defaultKey))};
+        if (shortcuts.first() == QKeySequence(rating.defaultKey)) {
+            shortcuts.append(QKeySequence(
+                    QKeyCombination(Qt::ControlModifier | Qt::KeypadModifier, rating.numpadKey)));
+        }
+        pAction->setShortcuts(shortcuts);
+        pAction->setShortcutContext(Qt::ApplicationShortcut);
+        pAction->setStatusTip(tr("Rate the track audible on the main mix in the live session"));
+        const int kind = rating.kind;
+        connect(pAction, &QAction::triggered, this, [this, kind]() {
+            emit crowdRate(kind);
+        });
+        pCrowdRatingMenu->addAction(pAction);
+    }
+    pOptionsMenu->addMenu(pCrowdRatingMenu);
+
 #ifdef __BROADCAST__
     QString broadcastingTitle = tr("Enable Live &Broadcasting");
     QString broadcastingText = tr("Stream your mixes to a shoutcast or icecast server");
@@ -790,6 +850,10 @@ void WMainMenuBar::onNewSkinAboutToLoad() {
 
 void WMainMenuBar::onRecordingStateChange(bool recording) {
     emit internalRecordingStateChange(recording);
+}
+
+void WMainMenuBar::onLiveSessionStateChange(bool active, const QString& eventName) {
+    emit internalLiveSessionStateChange(active, eventName);
 }
 
 void WMainMenuBar::onBroadcastingStateChange(bool broadcasting) {

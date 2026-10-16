@@ -19,7 +19,9 @@ WWidgetGroup::WWidgetGroup(QWidget* pParent)
           m_highlight(0),
           m_frameHighlight(0),
           m_frameHighlightColor(0xFF, 0xD6, 0x00), // yellow
-          m_pFrameOverlay(nullptr) {
+          m_pFrameOverlay(nullptr),
+          m_tint(0),
+          m_pTintOverlay(nullptr) {
     setObjectName("WidgetGroup");
 }
 
@@ -57,6 +59,45 @@ class FrameOverlay : public QWidget {
   private:
     QColor m_color;
 };
+
+// Fills its parent with a translucent colour, over the children.
+class TintOverlay : public QWidget {
+  public:
+    explicit TintOverlay(QWidget* pParent)
+            : QWidget(pParent) {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_NoSystemBackground);
+        setFocusPolicy(Qt::NoFocus);
+    }
+    void setColor(const QColor& color) {
+        m_color = color;
+    }
+
+  protected:
+    void paintEvent(QPaintEvent* /*unused*/) override {
+        QPainter p(this);
+        p.fillRect(rect(), m_color);
+    }
+
+  private:
+    QColor m_color;
+};
+
+// Just noticeable over a dark skin, without hiding anything.
+constexpr int kTintAlpha = 30;
+
+QColor tintColor(int tint) {
+    switch (tint) {
+    case 1:
+        return QColor(0x35, 0xD0, 0x7A, kTintAlpha); // worked: green
+    case 2:
+        return QColor(0xFF, 0x45, 0x45, kTintAlpha); // didn't work: red
+    case 3:
+        return QColor(0xFF, 0xD6, 0x00, kTintAlpha); // neutral: yellow
+    default:
+        return QColor();
+    }
+}
 
 } // namespace
 
@@ -255,6 +296,9 @@ void WWidgetGroup::resizeEvent(QResizeEvent* re) {
     if (m_pFrameOverlay) {
         m_pFrameOverlay->setGeometry(rect());
     }
+    if (m_pTintOverlay) {
+        m_pTintOverlay->setGeometry(rect());
+    }
 }
 
 bool WWidgetGroup::event(QEvent* pEvent) {
@@ -310,4 +354,34 @@ void WWidgetGroup::setFrameHighlight(int frameHighlight) {
     m_pFrameOverlay->raise();
     m_pFrameOverlay->show();
     m_pFrameOverlay->update();
+}
+
+int WWidgetGroup::getTint() const {
+    return m_tint;
+}
+
+void WWidgetGroup::setTint(int tint) {
+    if (m_tint == tint) {
+        return;
+    }
+    m_tint = tint;
+    const QColor color = tintColor(tint);
+    if (!color.isValid()) {
+        if (m_pTintOverlay) {
+            m_pTintOverlay->hide();
+        }
+        return;
+    }
+    if (!m_pTintOverlay) {
+        m_pTintOverlay = new TintOverlay(this);
+    }
+    static_cast<TintOverlay*>(m_pTintOverlay)->setColor(color);
+    m_pTintOverlay->setGeometry(rect());
+    m_pTintOverlay->raise();
+    // A controller-mode frame stays on top of the tint.
+    if (m_pFrameOverlay && m_pFrameOverlay->isVisible()) {
+        m_pFrameOverlay->raise();
+    }
+    m_pTintOverlay->show();
+    m_pTintOverlay->update();
 }

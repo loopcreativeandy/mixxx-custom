@@ -46,6 +46,7 @@ class WMainMenuBar : public QMenuBar {
     void onLibraryScanFinished();
     void onRecordingStateChange(bool recording);
     void onBroadcastingStateChange(bool broadcasting);
+    void onLiveSessionStateChange(bool active, const QString& eventName);
     void onNewSkinAboutToLoad();
     void onNewSkinLoaded();
     void onDeveloperToolsHidden();
@@ -76,12 +77,15 @@ class WMainMenuBar : public QMenuBar {
     void toggleKeyboardShortcuts(bool toggle);
     void toggleBroadcasting(bool toggle);
     void toggleRecording(bool enabled);
+    void toggleLiveSession();
+    void crowdRate(int kind);
     void toggleVinylControl(int deck);
     void visitUrl(const QString& url);
     void quit();
 
     void internalRecordingStateChange(bool recording);
     void internalBroadcastingStateChange(bool broadcasting);
+    void internalLiveSessionStateChange(bool active, const QString& eventName);
     void internalFullScreenStateChange(bool fullscreen);
     void internalLibraryScanActive(bool active);
     void internalDeveloperToolsStateChange(bool visible);

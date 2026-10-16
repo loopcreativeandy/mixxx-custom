@@ -1446,6 +1446,7 @@ add_library(
   src/library/trackset/crate/cratetablemodel.cpp
   src/library/trackset/playlistfeature.cpp
   src/library/trackset/setlogfeature.cpp
+  src/library/crowdrating/crowdratingsession.cpp
   src/library/similarity/similarityindex.cpp
   src/library/trackset/similar/similarfeature.cpp
   src/library/trackset/similar/similartablemodel.cpp
@@ -2845,6 +2846,7 @@ if(BUILD_TESTING)
     src/test/uuid_test.cpp
     src/test/wbatterytest.cpp
     src/test/wpushbutton_test.cpp
+    src/test/crowdratingsession_test.cpp
     src/test/wsearchlineedit_test.cpp
     src/test/wwidgetstack_test.cpp
     src/util/moc_included_test.cpp

@@ -154,6 +154,7 @@ class WTrackMenu : public QMenu {
     void slotSelectInLibrary();
     void slotFindSimilar();
     void slotSwapWithStem();
+    void slotCrowdRate(int kind);
 
     // Track rating
     void slotSetRating(int rating);
@@ -331,6 +332,8 @@ class WTrackMenu : public QMenu {
     parented_ptr<WSearchRelatedTracksMenu> m_pSearchRelatedMenu;
     parented_ptr<QAction> m_pFindSimilarAct;
     parented_ptr<QAction> m_pSwapWithStemAct;
+    // andy-custom: live crowd rating, only shown while a live session runs
+    parented_ptr<QMenu> m_pCrowdRatingMenu;
     parented_ptr<WFindOnWebMenu> m_pFindOnWebMenu;
 #if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
     QMenu* m_pRemoveFromDiskMenu{};

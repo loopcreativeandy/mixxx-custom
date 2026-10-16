@@ -10,6 +10,7 @@
 #include "util/parented_ptr.h"
 
 class ControlObject;
+class CrowdRatingSession;
 class DlgDeveloperTools;
 class DlgPreferences;
 class DlgKeywheel;
@@ -151,6 +152,8 @@ class MixxxMainWindow : public QMainWindow {
 
     DlgPreferences* m_pPrefDlg;
     parented_ptr<DlgKeywheel> m_pKeywheel;
+    // andy-custom: live crowd rating session (Options > Start Live DJing)
+    std::unique_ptr<CrowdRatingSession> m_pCrowdRatingSession;
 
 #ifdef __ENGINEPRIME__
     // Library exporter

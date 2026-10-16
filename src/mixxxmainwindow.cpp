@@ -36,6 +36,7 @@
 #include "broadcast/broadcastmanager.h"
 #endif
 #include "control/controlindicatortimer.h"
+#include "library/crowdrating/crowdratingsession.h"
 #include "library/library.h"
 #include "library/library_decl.h"
 #include "library/library_prefs.h"
@@ -347,6 +348,10 @@ void MixxxMainWindow::initialize() {
             Qt::DirectConnection);
 #endif
 
+    // andy-custom: before the skin loads, so it can bind [ChannelN],crowd_rating.
+    m_pCrowdRatingSession = std::make_unique<CrowdRatingSession>(
+            m_pCoreServices->getSettings(), this);
+
     // Connect signals to the menubar. Should be done before emit skinLoaded.
     connectMenuBar();
 
@@ -458,6 +463,14 @@ void MixxxMainWindow::initialize() {
             this,
             &MixxxMainWindow::slotUpdateWindowTitle);
 
+    // andy-custom: Mixxx crashed or was restarted mid-gig -> offer to continue
+    // the live session. Queued so the main window is up behind the question.
+    QTimer::singleShot(0, this, [this]() {
+        if (m_pCrowdRatingSession) {
+            m_pCrowdRatingSession->offerResume();
+        }
+    });
+
     // Start Auto DJ if the cmdline arg is passed.
     if (CmdlineArgs::Instance().getStartAutoDJ()) {
         qDebug("Enabling Auto DJ from CLI flag.");
@@ -541,6 +554,10 @@ MixxxMainWindow::~MixxxMainWindow() {
     // Delete Controls created by skins
     qDeleteAll(m_skinCreatedControls);
     m_skinCreatedControls.clear();
+
+    // Ends a running live session (writes session_end) while the controls and
+    // PlayerInfo it uses still exist.
+    m_pCrowdRatingSession.reset();
 
     // TODO() Verify if this comment still applies:
     // WMainMenuBar holds references to controls so we need to delete it
@@ -932,6 +949,26 @@ void MixxxMainWindow::connectMenuBar() {
             this,
             &MixxxMainWindow::slotDeveloperTools,
             Qt::UniqueConnection);
+
+    if (m_pCrowdRatingSession) {
+        connect(m_pMenuBar,
+                &WMainMenuBar::toggleLiveSession,
+                m_pCrowdRatingSession.get(),
+                &CrowdRatingSession::slotStartOrEndSession,
+                Qt::UniqueConnection);
+        connect(m_pMenuBar,
+                &WMainMenuBar::crowdRate,
+                m_pCrowdRatingSession.get(),
+                &CrowdRatingSession::slotRateAudible,
+                Qt::UniqueConnection);
+        connect(m_pCrowdRatingSession.get(),
+                &CrowdRatingSession::activeChanged,
+                m_pMenuBar,
+                &WMainMenuBar::onLiveSessionStateChange,
+                Qt::UniqueConnection);
+        m_pMenuBar->onLiveSessionStateChange(m_pCrowdRatingSession->isActive(),
+                m_pCrowdRatingSession->eventName());
+    }
 
     if (m_pCoreServices->getRecordingManager()) {
         connect(m_pCoreServices->getRecordingManager().get(),

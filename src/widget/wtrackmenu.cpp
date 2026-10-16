@@ -19,6 +19,7 @@
 #include "analyzer/analyzersilence.h"
 #include "analyzer/analyzertrack.h"
 #include "control/controlobject.h"
+#include "library/crowdrating/crowdratingsession.h"
 #include "library/coverartutils.h"
 #include "library/dao/trackschema.h"
 #include "library/dlgtagfetcher.h"
@@ -196,6 +197,27 @@ void WTrackMenu::popup(const QPoint& pos, QAction* at) {
 }
 
 void WTrackMenu::createMenus() {
+    {
+        // andy-custom: rate how a track worked on the floor in the live session
+        m_pCrowdRatingMenu = make_parented<QMenu>(this);
+        m_pCrowdRatingMenu->setTitle(tr("Crowd Rating"));
+        const struct {
+            QString text;
+            CrowdRatingSession::Kind kind;
+        } entries[] = {
+                {tr("Worked well"), CrowdRatingSession::Kind::Plus},
+                {tr("Didn't work"), CrowdRatingSession::Kind::Minus},
+                {tr("Neutral"), CrowdRatingSession::Kind::Neutral},
+        };
+        for (const auto& entry : entries) {
+            auto* pAction = m_pCrowdRatingMenu->addAction(entry.text);
+            const int kind = static_cast<int>(entry.kind);
+            connect(pAction, &QAction::triggered, this, [this, kind]() {
+                slotCrowdRate(kind);
+            });
+        }
+    }
+
     if (featureIsEnabled(Feature::LoadTo)) {
         m_pLoadToMenu = make_parented<QMenu>(this);
         m_pLoadToMenu->setTitle(tr("Load to"));
@@ -696,6 +718,9 @@ void WTrackMenu::setupActions() {
             featureIsEnabled(Feature::SelectInLibrary)) {
         addSeparator();
     }
+
+    addMenu(m_pCrowdRatingMenu);
+    addSeparator();
 
     if (featureIsEnabled(Feature::AutoDJ)) {
         addAction(m_pAutoDJBottomAct);
@@ -1376,6 +1401,15 @@ void WTrackMenu::updateMenus() {
         m_pSwapWithStemAct->setText(swapText);
     }
 
+    {
+        const CrowdRatingSession* pSession = CrowdRatingSession::instance();
+        const bool sessionActive = pSession && pSession->isActive();
+        m_pCrowdRatingMenu->menuAction()->setVisible(sessionActive);
+        if (sessionActive) {
+            m_pCrowdRatingMenu->setTitle(tr("Crowd Rating (%1)").arg(pSession->eventName()));
+        }
+    }
+
     if (featureIsEnabled(Feature::Metadata)) {
         // Might be needed to resize Menu to fit the star rating
         // QResizeEvent resizeEvent(QSize(), m_pStarRatingAction->sizeHint());
@@ -1569,6 +1603,14 @@ void WTrackMenu::slotOpenInFileBrowser() {
         locations << trackRef.getLocation();
     }
     mixxx::DesktopHelper::openInFileBrowser(locations);
+}
+
+void WTrackMenu::slotCrowdRate(int kind) {
+    CrowdRatingSession* pSession = CrowdRatingSession::instance();
+    if (!pSession || !pSession->isActive()) {
+        return;
+    }
+    pSession->rateTracks(getTrackPointers(), static_cast<CrowdRatingSession::Kind>(kind));
 }
 
 void WTrackMenu::slotSelectInLibrary() {

@@ -3,6 +3,11 @@
   <WidgetGroup>
     <Layout>vertical</Layout>
     <MaximumSize>,230</MaximumSize>
+    <!-- andy-custom: slight green/red/yellow wash after a live crowd rating -->
+    <Connection>
+      <ConfigKey>[Channel<Variable name="ChanNum"/>],crowd_rating</ConfigKey>
+      <BindProperty>tint</BindProperty>
+    </Connection>
     <Children>
 
       <Template src="skins:LateNight/decks/deck_singletons.xml">

@@ -65,6 +65,11 @@ class WWidgetGroup : public QFrame, public WBaseWidget {
     Q_PROPERTY(int frameHighlight READ getFrameHighlight WRITE setFrameHighlight)
     Q_PROPERTY(QColor frameHighlightColor MEMBER m_frameHighlightColor DESIGNABLE true)
 
+    // andy-custom: a slight colour wash ON TOP of the group's children, like
+    // frameHighlight click-through and layout-neutral. Used for the live crowd
+    // rating ([ChannelN],crowd_rating): 1 green, 2 red, 3 yellow, 0 none.
+    Q_PROPERTY(int tint READ getTint WRITE setTint)
+
     int layoutSpacing() const;
     void setLayoutSpacing(int spacing);
     QRect layoutContentsMargins() const;
@@ -75,6 +80,8 @@ class WWidgetGroup : public QFrame, public WBaseWidget {
     void setHighlight(int highlight);
     int getFrameHighlight() const;
     void setFrameHighlight(int frameHighlight);
+    int getTint() const;
+    void setTint(int tint);
 
     virtual void setup(const QDomNode& node, const SkinContext& context);
     void setPixmapBackground(
@@ -105,4 +112,6 @@ class WWidgetGroup : public QFrame, public WBaseWidget {
     QColor m_frameHighlightColor;
     // Created on first use; most groups never show a frame.
     QWidget* m_pFrameOverlay;
+    int m_tint;
+    QWidget* m_pTintOverlay;
 };
