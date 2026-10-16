@@ -1,6 +1,7 @@
 #include "library/crowdrating/crowdratingsession.h"
 
 #include <QDir>
+#include <QFileInfo>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -34,7 +35,6 @@ const QString kConfigGroup = QStringLiteral("[CrowdRating]");
 const ConfigKey kLastFileKey(kConfigGroup, QStringLiteral("last_file"));
 const ConfigKey kLastEventKey(kConfigGroup, QStringLiteral("last_event"));
 const ConfigKey kLastStyleKey(kConfigGroup, QStringLiteral("last_style"));
-const ConfigKey kLastActivityKey(kConfigGroup, QStringLiteral("last_activity"));
 
 // A track counts as played once it was audible on the main mix this long.
 constexpr qint64 kPlayedMillis = 30 * 1000;
@@ -241,8 +241,9 @@ void CrowdRatingSession::offerResume() {
     const QString filePath = m_pConfig->getValueString(kLastFileKey);
     const QString eventName = m_pConfig->getValueString(kLastEventKey);
     const QString style = m_pConfig->getValueString(kLastStyleKey);
-    const QDateTime lastActivity = QDateTime::fromString(
-            m_pConfig->getValueString(kLastActivityKey), Qt::ISODateWithMs);
+    // The log's own modification time: mixxx.cfg is only written on a clean
+    // exit, so after a crash it would not know about the last entries.
+    const QDateTime lastActivity = QFileInfo(filePath).lastModified();
     if (filePath.isEmpty() || eventName.isEmpty() || !lastActivity.isValid() ||
             !QFile::exists(filePath) ||
             lastActivity.secsTo(QDateTime::currentDateTime()) > kResumeWindowSecs) {
@@ -282,6 +283,9 @@ bool CrowdRatingSession::startSession(const QString& eventName,
     m_pConfig->setValue(kLastFileKey, filePath);
     m_pConfig->setValue(kLastEventKey, eventName);
     m_pConfig->setValue(kLastStyleKey, style);
+    // Persist now (one small write, only here): after a crash mid-gig the
+    // next start must still find this session to offer continuing it.
+    m_pConfig->save();
 
     if (resumed) {
         // Restore the latest rating per track so the deck tints are right again.
@@ -356,7 +360,6 @@ void CrowdRatingSession::writeEntry(const QJsonObject& entry) {
         return;
     }
     const QDateTime now = QDateTime::currentDateTime();
-    // Fixed keys first, so the file reads well line by line.
     QJsonObject line = entry;
     line.insert(QStringLiteral("t"), timestamp(now));
     line.insert(QStringLiteral("event"), m_eventName);
@@ -365,7 +368,6 @@ void CrowdRatingSession::writeEntry(const QJsonObject& entry) {
     m_file.write("\n");
     // Flush every line: a crash mid-gig must not lose the night.
     m_file.flush();
-    m_pConfig->setValue(kLastActivityKey, now.toString(Qt::ISODateWithMs));
 }
 
 QJsonObject CrowdRatingSession::trackEntry(const QString& kind, const TrackPointer& pTrack) const {

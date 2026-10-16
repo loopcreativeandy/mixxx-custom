@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -180,4 +181,30 @@ TEST_F(CrowdRatingSessionTest, MenuRatingAndResumeRestoresTint) {
     EXPECT_EQ("session_resume", entries().last()["kind"].toString());
     PlayerInfo::instance().setTrackInfo(kDeck1, m_pTrackB);
     EXPECT_EQ(0.0, tint(kDeck1));
+}
+
+// Live-set safety: a rating press and a timer tick must stay far below a frame.
+TEST_F(CrowdRatingSessionTest, PressAndTickAreCheap) {
+    ASSERT_TRUE(m_pSession->startSession(QStringLiteral("Bench"),
+            QStringLiteral("Zouk"), m_filePath, false));
+    PlayerInfo::instance().setTrackInfo(kDeck1, m_pTrackA);
+    PlayerInfo::instance().setTrackInfo(kDeck2, m_pTrackB);
+    play(kDeck1, 1.0);
+    play(kDeck2, 0.5);
+    constexpr int kRuns = 1000;
+    QElapsedTimer timer;
+    timer.start();
+    for (int i = 0; i < kRuns; ++i) {
+        press("rate_plus");
+    }
+    const qint64 pressNs = timer.nsecsElapsed() / kRuns;
+    timer.restart();
+    for (int i = 0; i < kRuns; ++i) {
+        m_pSession->advance(1); // never reaches 30 s: pure per-tick cost
+    }
+    const qint64 tickNs = timer.nsecsElapsed() / kRuns;
+    qInfo() << "CROWD_BENCH press" << pressNs / 1000.0 << "us, tick" << tickNs / 1000.0 << "us";
+    EXPECT_EQ(kRuns + 1, entries().size());
+    EXPECT_LT(pressNs, 2 * 1000 * 1000); // < 2 ms
+    EXPECT_LT(tickNs, 100 * 1000);       // < 0.1 ms
 }
