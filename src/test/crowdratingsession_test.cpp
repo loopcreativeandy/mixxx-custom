@@ -91,7 +91,8 @@ class CrowdRatingSessionTest : public MixxxTest {
 };
 
 TEST_F(CrowdRatingSessionTest, RatesLoudestDeckAndTintsIt) {
-    ASSERT_TRUE(m_pSession->startSession(QStringLiteral("Fusion Waves"), m_filePath, false));
+    ASSERT_TRUE(m_pSession->startSession(QStringLiteral("Fusion Waves"),
+            QStringLiteral("Fusion"), m_filePath, false));
     PlayerInfo::instance().setTrackInfo(kDeck1, m_pTrackA);
     PlayerInfo::instance().setTrackInfo(kDeck2, m_pTrackB);
     play(kDeck1, 0.3);
@@ -110,6 +111,8 @@ TEST_F(CrowdRatingSessionTest, RatesLoudestDeckAndTintsIt) {
     ASSERT_EQ(3, log.size());
     EXPECT_EQ("session_start", log[0]["kind"].toString());
     EXPECT_EQ("Fusion Waves", log[0]["event"].toString());
+    EXPECT_EQ("Fusion", log[0]["style"].toString());
+    EXPECT_EQ("Fusion", log[1]["style"].toString());
     EXPECT_FALSE(log[0]["t"].toString().isEmpty());
     EXPECT_EQ("plus", log[1]["kind"].toString());
     EXPECT_EQ(2, log[1]["deck"].toInt());
@@ -125,7 +128,7 @@ TEST_F(CrowdRatingSessionTest, NothingAudibleOrNoSessionWritesNothing) {
     PlayerInfo::instance().setTrackInfo(kDeck1, m_pTrackA);
     play(kDeck1, 1.0);
     press("rate_plus"); // no session yet
-    ASSERT_TRUE(m_pSession->startSession(QStringLiteral("Test"), m_filePath, false));
+    ASSERT_TRUE(m_pSession->startSession(QStringLiteral("Test"), QStringLiteral("Zouk"), m_filePath, false));
     play(kDeck1, 0.0);
     press("rate_plus"); // nothing audible
     EXPECT_EQ(1, entries().size());
@@ -133,7 +136,7 @@ TEST_F(CrowdRatingSessionTest, NothingAudibleOrNoSessionWritesNothing) {
 }
 
 TEST_F(CrowdRatingSessionTest, LogsPlayAfterThirtyAudibleSeconds) {
-    ASSERT_TRUE(m_pSession->startSession(QStringLiteral("Test"), m_filePath, false));
+    ASSERT_TRUE(m_pSession->startSession(QStringLiteral("Test"), QStringLiteral("Zouk"), m_filePath, false));
     PlayerInfo::instance().setTrackInfo(kDeck1, m_pTrackA);
     play(kDeck1, 1.0);
     m_pSession->advance(29 * 1000);
@@ -160,7 +163,7 @@ TEST_F(CrowdRatingSessionTest, LogsPlayAfterThirtyAudibleSeconds) {
 }
 
 TEST_F(CrowdRatingSessionTest, MenuRatingAndResumeRestoresTint) {
-    ASSERT_TRUE(m_pSession->startSession(QStringLiteral("Test"), m_filePath, false));
+    ASSERT_TRUE(m_pSession->startSession(QStringLiteral("Test"), QStringLiteral("Zouk"), m_filePath, false));
     m_pSession->rateTracks({m_pTrackA}, CrowdRatingSession::Kind::Neutral);
     m_pSession->endSession();
     auto log = entries();
@@ -172,7 +175,7 @@ TEST_F(CrowdRatingSessionTest, MenuRatingAndResumeRestoresTint) {
     // Loading the rated track tints the deck only while a session runs.
     PlayerInfo::instance().setTrackInfo(kDeck1, m_pTrackA);
     EXPECT_EQ(0.0, tint(kDeck1));
-    ASSERT_TRUE(m_pSession->startSession(QStringLiteral("Test"), m_filePath, true));
+    ASSERT_TRUE(m_pSession->startSession(QStringLiteral("Test"), QStringLiteral("Zouk"), m_filePath, true));
     EXPECT_EQ(3.0, tint(kDeck1));
     EXPECT_EQ("session_resume", entries().last()["kind"].toString());
     PlayerInfo::instance().setTrackInfo(kDeck1, m_pTrackB);

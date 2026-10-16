@@ -24,7 +24,7 @@ class QWidget;
 // andy-custom: live "worked on the floor" crowd rating.
 //
 // A live session is started from Options -> "Start Live DJing..." and asks for
-// the event name. While it runs, every track that is audible on the main mix
+// the event name and the style (Fusion / Zouk / other). While it runs, every track that is audible on the main mix
 // for >= 30 s is logged as played, and the DJ can rate the audible track with
 // [CrowdRating],rate_plus / rate_minus / rate_neutral (keyboard Ctrl++ / Ctrl+-
 // / Ctrl+0 by default, mappable to controller buttons) or any track from the
@@ -56,6 +56,11 @@ class CrowdRatingSession : public QObject {
     QString eventName() const {
         return m_eventName;
     }
+    // What is being DJed: "Fusion", "Zouk" or free text. Unlike the event
+    // name, this is what later goes into the mp3 tags.
+    QString style() const {
+        return m_style;
+    }
 
     // Rating from the track context menu (any track, not only the audible one).
     void rateTracks(const TrackPointerList& tracks, Kind kind);
@@ -67,7 +72,10 @@ class CrowdRatingSession : public QObject {
     // Starts logging to filePath (appends if it exists). resumed = continue
     // an earlier session: restores its ratings and logs session_resume.
     // Public for tests; the UI goes through slotStartOrEndSession()/offerResume().
-    bool startSession(const QString& eventName, const QString& filePath, bool resumed);
+    bool startSession(const QString& eventName,
+            const QString& style,
+            const QString& filePath,
+            bool resumed);
     void endSession();
     // Counts elapsedMillis of audible time for every audible deck and logs
     // tracks that reach 30 s. Driven by a 1 s timer; public for tests.
@@ -131,6 +139,7 @@ class CrowdRatingSession : public QObject {
 
     bool m_active;
     QString m_eventName;
+    QString m_style;
     QFile m_file;
     QTimer m_tickTimer;
     QDateTime m_lastTick;

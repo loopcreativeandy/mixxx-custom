@@ -1,7 +1,12 @@
 #include "library/crowdrating/crowdratingsession.h"
 
 #include <QDir>
-#include <QInputDialog>
+#include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFormLayout>
+#include <QLineEdit>
+#include <QPushButton>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
@@ -28,6 +33,7 @@ const QString kGroup = QStringLiteral("[CrowdRating]");
 const QString kConfigGroup = QStringLiteral("[CrowdRating]");
 const ConfigKey kLastFileKey(kConfigGroup, QStringLiteral("last_file"));
 const ConfigKey kLastEventKey(kConfigGroup, QStringLiteral("last_event"));
+const ConfigKey kLastStyleKey(kConfigGroup, QStringLiteral("last_style"));
 const ConfigKey kLastActivityKey(kConfigGroup, QStringLiteral("last_activity"));
 
 // A track counts as played once it was audible on the main mix this long.
@@ -180,15 +186,43 @@ void CrowdRatingSession::slotStartOrEndSession() {
         return;
     }
 
-    bool ok = false;
-    const QString eventName = QInputDialog::getText(m_pMainWindow,
-            tr("Start Live DJing"),
-            tr("Event / session name:"),
-            QLineEdit::Normal,
-            m_pConfig->getValueString(kLastEventKey),
-            &ok)
-                                      .trimmed();
-    if (!ok || eventName.isEmpty()) {
+    // Event name (only for the log) + style (what goes into the tags later).
+    QDialog dialog(m_pMainWindow);
+    dialog.setWindowTitle(tr("Start Live DJing"));
+    auto* pLayout = new QFormLayout(&dialog);
+    auto* pEventEdit = new QLineEdit(m_pConfig->getValueString(kLastEventKey), &dialog);
+    pEventEdit->setPlaceholderText(tr("e.g. Fusion Waves"));
+    pEventEdit->selectAll();
+    auto* pStyleBox = new QComboBox(&dialog);
+    pStyleBox->setEditable(true);
+    pStyleBox->setInsertPolicy(QComboBox::NoInsert);
+    pStyleBox->addItems({QStringLiteral("Fusion"), QStringLiteral("Zouk")});
+    pStyleBox->lineEdit()->setPlaceholderText(tr("Fusion, Zouk or type another"));
+    const QString lastStyle = m_pConfig->getValueString(kLastStyleKey);
+    pStyleBox->setCurrentText(lastStyle.isEmpty() ? QStringLiteral("Fusion") : lastStyle);
+    pLayout->addRow(tr("Event / session:"), pEventEdit);
+    pLayout->addRow(tr("Style:"), pStyleBox);
+    auto* pButtons = new QDialogButtonBox(
+            QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    pButtons->button(QDialogButtonBox::Ok)->setText(tr("Start"));
+    pLayout->addRow(pButtons);
+    connect(pButtons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(pButtons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    const auto updateOk = [pButtons, pEventEdit, pStyleBox]() {
+        pButtons->button(QDialogButtonBox::Ok)
+                ->setEnabled(!pEventEdit->text().trimmed().isEmpty() &&
+                        !pStyleBox->currentText().trimmed().isEmpty());
+    };
+    connect(pEventEdit, &QLineEdit::textChanged, &dialog, updateOk);
+    connect(pStyleBox, &QComboBox::currentTextChanged, &dialog, updateOk);
+    updateOk();
+    pEventEdit->setFocus();
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    const QString eventName = pEventEdit->text().trimmed();
+    const QString style = pStyleBox->currentText().trimmed();
+    if (eventName.isEmpty() || style.isEmpty()) {
         return;
     }
     const QString dirPath = QDir(m_pConfig->getSettingsPath())
@@ -197,7 +231,7 @@ void CrowdRatingSession::slotStartOrEndSession() {
     // The date is the day the session started, also for tracks after midnight.
     const QString fileName = QDateTime::currentDateTime().toString(QStringLiteral("yyMMdd")) +
             QChar('_') + fileSlug(eventName) + QStringLiteral(".jsonl");
-    startSession(eventName, QDir(dirPath).filePath(fileName), false);
+    startSession(eventName, style, QDir(dirPath).filePath(fileName), false);
 }
 
 void CrowdRatingSession::offerResume() {
@@ -206,6 +240,7 @@ void CrowdRatingSession::offerResume() {
     }
     const QString filePath = m_pConfig->getValueString(kLastFileKey);
     const QString eventName = m_pConfig->getValueString(kLastEventKey);
+    const QString style = m_pConfig->getValueString(kLastStyleKey);
     const QDateTime lastActivity = QDateTime::fromString(
             m_pConfig->getValueString(kLastActivityKey), Qt::ISODateWithMs);
     if (filePath.isEmpty() || eventName.isEmpty() || !lastActivity.isValid() ||
@@ -215,16 +250,19 @@ void CrowdRatingSession::offerResume() {
     }
     const auto answer = QMessageBox::question(m_pMainWindow,
             tr("Continue Live Session"),
-            tr("Continue the live session \"%1\"?\n\nLast entry: %2")
+            tr("Continue the live session \"%1\" (%2)?\n\nLast entry: %3")
                     .arg(eventName,
+                            style,
                             QLocale().toString(lastActivity, QLocale::ShortFormat)));
     if (answer == QMessageBox::Yes) {
-        startSession(eventName, filePath, true);
+        startSession(eventName, style, filePath, true);
     }
 }
 
-bool CrowdRatingSession::startSession(
-        const QString& eventName, const QString& filePath, bool resumed) {
+bool CrowdRatingSession::startSession(const QString& eventName,
+        const QString& style,
+        const QString& filePath,
+        bool resumed) {
     if (m_active) {
         endSession();
     }
@@ -239,9 +277,11 @@ bool CrowdRatingSession::startSession(
     }
     m_active = true;
     m_eventName = eventName;
+    m_style = style;
     m_latestRating.clear();
     m_pConfig->setValue(kLastFileKey, filePath);
     m_pConfig->setValue(kLastEventKey, eventName);
+    m_pConfig->setValue(kLastStyleKey, style);
 
     if (resumed) {
         // Restore the latest rating per track so the deck tints are right again.
@@ -289,8 +329,8 @@ bool CrowdRatingSession::startSession(
     m_pSessionActive->forceSet(1);
     emit activeChanged(true, m_eventName);
 
-    showToast(resumed ? tr("Live session \"%1\" continued").arg(eventName)
-                      : tr("Live session \"%1\" started").arg(eventName),
+    showToast(resumed ? tr("Live session \"%1\" (%2) continued").arg(eventName, style)
+                      : tr("Live session \"%1\" (%2) started").arg(eventName, style),
             kColorInfo);
     return true;
 }
@@ -320,6 +360,7 @@ void CrowdRatingSession::writeEntry(const QJsonObject& entry) {
     QJsonObject line = entry;
     line.insert(QStringLiteral("t"), timestamp(now));
     line.insert(QStringLiteral("event"), m_eventName);
+    line.insert(QStringLiteral("style"), m_style);
     m_file.write(QJsonDocument(line).toJson(QJsonDocument::Compact));
     m_file.write("\n");
     // Flush every line: a crash mid-gig must not lose the night.
