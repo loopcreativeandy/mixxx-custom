@@ -16,6 +16,7 @@
 #include "library/queryutil.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
+#include "util/fpclassify.h"
 #include "util/logger.h"
 
 namespace {
@@ -105,9 +106,11 @@ double SimilarityIndex::minScore() const {
             ? m_pConfig->getValue(ConfigKey(kConfigGroup, kConfigMinScore),
                       kDefaultMinScore)
             : kDefaultMinScore;
-    // Explicit range test, not std::clamp: under -ffast-math clamp lets a NaN
-    // through.
-    if (minScore >= -1.0 && minScore <= 1.0) {
+    // util_isfinite() first: under -ffast-math neither std::clamp nor a plain
+    // range test rejects a NaN (clang folds `x >= -1 && x <= 1` into a fabs
+    // compare that a NaN passes; macOS x64 CI). fpclassify.cpp is built
+    // without -ffast-math.
+    if (util_isfinite(minScore) && minScore >= -1.0 && minScore <= 1.0) {
         return minScore;
     }
     return kDefaultMinScore;

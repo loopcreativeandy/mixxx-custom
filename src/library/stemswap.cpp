@@ -1,5 +1,7 @@
 #include "library/stemswap.h"
 
+#include "util/fpclassify.h"
+
 namespace mixxx {
 namespace stemswap {
 
@@ -7,9 +9,11 @@ namespace {
 
 // NOTE: Mixxx is built with -ffast-math. Under it std::isfinite()/std::isnan()
 // fold to constants, std::clamp passes a NaN through, and even `!(x > 0.0)` may
-// be rewritten as if NaNs did not exist. Every guard below is therefore a
-// *positive* range test: only a value proven to be inside a sane band gets
-// through, which is false for NaN and both infinities either way.
+// be rewritten as if NaNs did not exist. A positive range test alone is not
+// enough either: clang folds the symmetric `x >= -k && x <= k` into a fabs
+// compare that a NaN passes (macOS x64 CI, 2026-10-16). Every guard therefore
+// starts with util_isfinite(), which lives in fpclassify.cpp, compiled
+// without -ffast-math.
 
 /// No track is longer than a day; anything beyond is a broken value.
 constexpr double kMaxUsableSeconds = 24.0 * 60.0 * 60.0;
@@ -20,11 +24,12 @@ constexpr double kMinSampleRate = 1000.0;
 constexpr double kMaxSampleRate = 1000000.0;
 
 bool isUsableSampleRate(double rate) {
-    return rate >= kMinSampleRate && rate <= kMaxSampleRate;
+    return util_isfinite(rate) && rate >= kMinSampleRate && rate <= kMaxSampleRate;
 }
 
 bool isUsableOffset(double seconds) {
-    return seconds >= -kMaxUsableOffsetSeconds && seconds <= kMaxUsableOffsetSeconds;
+    return util_isfinite(seconds) && seconds >= -kMaxUsableOffsetSeconds &&
+            seconds <= kMaxUsableOffsetSeconds;
 }
 
 } // anonymous namespace
@@ -49,7 +54,8 @@ double transferFramePosition(double sourceFrame,
         return 0.0;
     }
     const double sourceSeconds = sourceFrame / sourceSampleRate;
-    if (!(sourceSeconds >= 0.0 && sourceSeconds <= kMaxUsableSeconds)) {
+    if (!util_isfinite(sourceSeconds) ||
+            !(sourceSeconds >= 0.0 && sourceSeconds <= kMaxUsableSeconds)) {
         return 0.0;
     }
     const double targetSeconds = sourceSeconds + signedOffsetSeconds;

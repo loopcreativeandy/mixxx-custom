@@ -2216,7 +2216,8 @@ void WTrackMenu::slotPopulatePlaylistMenu() {
             ? playlists.size()
             : std::min<int>(playlists.size(), kPlaylistMenuPageSize);
 
-    for (const auto& [id, name] : playlists.mid(0, shownCount)) {
+    const QList<QPair<int, QString>> shownPlaylists = playlists.mid(0, shownCount);
+    for (const auto& [id, name] : shownPlaylists) {
         // No leak because making the menu the parent means they will be
         // auto-deleted
         int plId = id;

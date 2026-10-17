@@ -56,9 +56,11 @@ QString timestamp(const QDateTime& dt) {
 }
 
 QString fileSlug(const QString& eventName) {
+    static const QRegularExpression kNonWord(QStringLiteral("[^\\w]+"));
+    static const QRegularExpression kEdgeDashes(QStringLiteral("^-+|-+$"));
     QString slug = eventName.toLower();
-    slug.replace(QRegularExpression(QStringLiteral("[^\\w]+")), QStringLiteral("-"));
-    slug.remove(QRegularExpression(QStringLiteral("^-+|-+$")));
+    slug.replace(kNonWord, QStringLiteral("-"));
+    slug.remove(kEdgeDashes);
     return slug.isEmpty() ? QStringLiteral("session") : slug;
 }
 
