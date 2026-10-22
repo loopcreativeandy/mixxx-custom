@@ -1,0 +1,30 @@
+<!--
+Description:
+  andy-custom (IDEA-13): the fold arrow alone, for category headers whose
+  label is already an on/off toggle (Waveforms, Mixer, Effect Units, ...).
+  ▾ = expanded, ▸ = folded.
+Variables:
+  Fold    : persistent fold control, 1 = folded
+-->
+<Template>
+  <PushButton>
+    <ObjectName>SkinSettingsLabelButton</ObjectName>
+    <Size>16f,23f</Size>
+    <NumberStates>2</NumberStates>
+    <RightClickIsPushButton>false</RightClickIsPushButton>
+    <State>
+      <Number>0</Number>
+      <Text>&#9662;</Text>
+      <Alignment>left</Alignment>
+    </State>
+    <State>
+      <Number>1</Number>
+      <Text>&#9656;</Text>
+      <Alignment>left</Alignment>
+    </State>
+    <Connection>
+      <ConfigKey persist="true"><Variable name="Fold"/></ConfigKey>
+      <ButtonState>LeftButton</ButtonState>
+    </Connection>
+  </PushButton>
+</Template>

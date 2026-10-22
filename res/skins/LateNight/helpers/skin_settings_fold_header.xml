@@ -1,0 +1,34 @@
+<!--
+Description:
+  andy-custom (IDEA-13): category header that folds its section.
+  Click: ▾ Text (expanded) <-> ▸ Text (folded). Used for the headers that are
+  plain labels (Decks, Layout, Library); headers that are on/off toggles get
+  skin_settings_fold_arrow.xml next to them instead.
+Variables:
+  Text    : category name
+  Fold    : persistent fold control, 1 = folded. The section body binds
+            visible to the inverse of it.
+  Width   : button width
+-->
+<Template>
+  <PushButton>
+    <ObjectName>SkinSettingsLabelButton</ObjectName>
+    <Size><Variable name="Width"/>,23f</Size>
+    <NumberStates>2</NumberStates>
+    <RightClickIsPushButton>false</RightClickIsPushButton>
+    <State>
+      <Number>0</Number>
+      <Text>&#9662; <Variable name="Text"/></Text>
+      <Alignment>left</Alignment>
+    </State>
+    <State>
+      <Number>1</Number>
+      <Text>&#9656; <Variable name="Text"/></Text>
+      <Alignment>left</Alignment>
+    </State>
+    <Connection>
+      <ConfigKey persist="true"><Variable name="Fold"/></ConfigKey>
+      <ButtonState>LeftButton</ButtonState>
+    </Connection>
+  </PushButton>
+</Template>

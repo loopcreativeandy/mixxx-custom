@@ -30,11 +30,11 @@ Description:
             <Layout>horizontal</Layout>
             <Size>0me,23min</Size>
             <Children>
-              <Label>
-                <ObjectName>CategoryLabel</ObjectName>
-                <Text>Decks</Text>
-                <Size>56f,23f</Size>
-              </Label>
+              <Template src="skins:LateNight/helpers/skin_settings_fold_header.xml">
+                <SetVariable name="Text">Decks</SetVariable>
+                <SetVariable name="Fold">[Skin],settings_fold_decks</SetVariable>
+                <SetVariable name="Width">74f</SetVariable>
+              </Template>
               <Template src="skins:LateNight/helpers/skin_settings_numToggle_header.xml">
                 <SetVariable name="Text">2</SetVariable>
                 <SetVariable name="Setting">[Skin],show_4decks</SetVariable>
@@ -53,6 +53,11 @@ Description:
             </Children>
           </WidgetGroup>
 
+<!-- andy-custom IDEA-13: everything below the Decks header folds -->
+          <WidgetGroup>
+            <SizePolicy>me,min</SizePolicy>
+            <Layout>vertical</Layout>
+            <Children>
 <!-- Deck size selector -->
           <WidgetGroup>
             <ObjectName>DeckSizeSettings</ObjectName>
@@ -211,6 +216,14 @@ Description:
             </Children>
           </WidgetGroup>
 <!-- Deck Options FULL / Compact / mini -->
+            </Children>
+            <!-- andy-custom IDEA-13: folded by the header arrow -->
+            <Connection>
+              <ConfigKey persist="true">[Skin],settings_fold_decks</ConfigKey>
+              <Transform><Not/></Transform>
+              <BindProperty>visible</BindProperty>
+            </Connection>
+          </WidgetGroup><!-- /Decks fold -->
 
 
 
@@ -234,15 +247,30 @@ Description:
                 <SizePolicy>me,min</SizePolicy>
                 <Layout>vertical</Layout>
                 <Children>
-                  <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
-                    <SetVariable name="Text">Waveforms</SetVariable>
-                    <SetVariable name="Setting">[Skin],show_waveforms</SetVariable>
-                    <SetVariable name="TooltipId">show_waveforms</SetVariable>
-                    <SetVariable name="Width">190me</SetVariable>
-                  </Template>
+                  <WidgetGroup>
+                    <Layout>horizontal</Layout>
+                    <SizePolicy>me,min</SizePolicy>
+                    <Children>
+                      <Template src="skins:LateNight/helpers/skin_settings_fold_arrow.xml">
+                        <SetVariable name="Fold">[Skin],settings_fold_waveforms</SetVariable>
+                      </Template>
+                      <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
+                        <SetVariable name="Text">Waveforms</SetVariable>
+                        <SetVariable name="Setting">[Skin],show_waveforms</SetVariable>
+                        <SetVariable name="TooltipId">show_waveforms</SetVariable>
+                        <SetVariable name="Width">174me</SetVariable>
+                      </Template>
+                    </Children>
+                  </WidgetGroup>
 
                   <WidgetGroup>
                     <ObjectName>SkinSettingsCategory</ObjectName>
+                    <!-- andy-custom IDEA-13: folded by the header arrow -->
+                    <Connection>
+                      <ConfigKey persist="true">[Skin],settings_fold_waveforms</ConfigKey>
+                      <Transform><Not/></Transform>
+                      <BindProperty>visible</BindProperty>
+                    </Connection>
                     <SizePolicy>me,f</SizePolicy>
                     <Layout>vertical</Layout>
                     <Children>
@@ -304,14 +332,20 @@ Description:
                changed. Live Reload sits one level deeper still: it only means
                anything while the meter is on, so it is dimmed with it (same
                cover idiom as EQ Kill under EQ Knobs below). -->
-          <Label>
-            <ObjectName>CategoryLabel</ObjectName>
-            <Text>Layout</Text>
-            <Size>180min,23f</Size>
-          </Label>
+          <Template src="skins:LateNight/helpers/skin_settings_fold_header.xml">
+            <SetVariable name="Text">Layout</SetVariable>
+            <SetVariable name="Fold">[Skin],settings_fold_layout</SetVariable>
+            <SetVariable name="Width">180min</SetVariable>
+          </Template>
 
           <WidgetGroup>
             <ObjectName>SkinSettingsCategory</ObjectName>
+            <!-- andy-custom IDEA-13: folded by the header arrow -->
+            <Connection>
+              <ConfigKey persist="true">[Skin],settings_fold_layout</ConfigKey>
+              <Transform><Not/></Transform>
+              <BindProperty>visible</BindProperty>
+            </Connection>
             <SizePolicy>me,min</SizePolicy>
             <Layout>vertical</Layout>
             <Children>
@@ -393,15 +427,30 @@ Description:
                 <SizePolicy>me,min</SizePolicy>
                 <Layout>vertical</Layout>
                 <Children>
-                  <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
-                    <SetVariable name="Text">Mixer</SetVariable>
-                    <SetVariable name="Setting">[Skin],show_mixer</SetVariable>
-                    <SetVariable name="TooltipId">show_mixer</SetVariable>
-                    <SetVariable name="Width">190me</SetVariable>
-                  </Template>
+                  <WidgetGroup>
+                    <Layout>horizontal</Layout>
+                    <SizePolicy>me,min</SizePolicy>
+                    <Children>
+                      <Template src="skins:LateNight/helpers/skin_settings_fold_arrow.xml">
+                        <SetVariable name="Fold">[Skin],settings_fold_mixer</SetVariable>
+                      </Template>
+                      <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
+                        <SetVariable name="Text">Mixer</SetVariable>
+                        <SetVariable name="Setting">[Skin],show_mixer</SetVariable>
+                        <SetVariable name="TooltipId">show_mixer</SetVariable>
+                        <SetVariable name="Width">174me</SetVariable>
+                      </Template>
+                    </Children>
+                  </WidgetGroup>
 
                   <WidgetGroup>
                     <ObjectName>SkinSettingsCategory</ObjectName>
+                    <!-- andy-custom IDEA-13: folded by the header arrow -->
+                    <Connection>
+                      <ConfigKey persist="true">[Skin],settings_fold_mixer</ConfigKey>
+                      <Transform><Not/></Transform>
+                      <BindProperty>visible</BindProperty>
+                    </Connection>
                     <SizePolicy>me,f</SizePolicy>
                     <Layout>stacked</Layout>
                     <Children>
@@ -479,11 +528,14 @@ Description:
                     <Layout>horizontal</Layout>
                     <Size>180min,1min</Size>
                     <Children>
+                      <Template src="skins:LateNight/helpers/skin_settings_fold_arrow.xml">
+                        <SetVariable name="Fold">[Skin],settings_fold_effects</SetVariable>
+                      </Template>
                       <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
                         <SetVariable name="Text">Effect Units</SetVariable>
                         <SetVariable name="Setting">[Skin],show_effectrack</SetVariable>
                         <SetVariable name="TooltipId">show_effects</SetVariable>
-                        <SetVariable name="Width">130me</SetVariable>
+                        <SetVariable name="Width">114me</SetVariable>
                       </Template>
 
                       <WidgetGroup>
@@ -524,6 +576,12 @@ Description:
                     <ObjectName>SkinSettingsCategory</ObjectName>
                     <SizePolicy>me,f</SizePolicy>
                     <Layout>stacked</Layout>
+                    <!-- andy-custom IDEA-13: folded by the header arrow -->
+                    <Connection>
+                      <ConfigKey persist="true">[Skin],settings_fold_effects</ConfigKey>
+                      <Transform><Not/></Transform>
+                      <BindProperty>visible</BindProperty>
+                    </Connection>
                     <Children>
                       <!-- translucent cover when effect rack is hidden -->
                       <Template src="skins:LateNight/helpers/skin_settings_cover_inverted.xml">
@@ -566,15 +624,30 @@ Description:
             <SizePolicy>me,min</SizePolicy>
             <Layout>vertical</Layout>
             <Children>
-              <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
-                <SetVariable name="Text">Preview Deck</SetVariable>
-                <SetVariable name="Setting">[Skin],show_preview_decks</SetVariable>
-                <SetVariable name="TooltipId">show_previewdeck</SetVariable>
-                <SetVariable name="Width">180me</SetVariable>
-              </Template>
+              <WidgetGroup>
+                <Layout>horizontal</Layout>
+                <SizePolicy>me,min</SizePolicy>
+                <Children>
+                  <Template src="skins:LateNight/helpers/skin_settings_fold_arrow.xml">
+                    <SetVariable name="Fold">[Skin],settings_fold_preview</SetVariable>
+                  </Template>
+                  <Template src="skins:LateNight/helpers/skin_settings_labelbutton_2state.xml">
+                    <SetVariable name="Text">Preview Deck</SetVariable>
+                    <SetVariable name="Setting">[Skin],show_preview_decks</SetVariable>
+                    <SetVariable name="TooltipId">show_previewdeck</SetVariable>
+                    <SetVariable name="Width">164me</SetVariable>
+                  </Template>
+                </Children>
+              </WidgetGroup>
 
               <WidgetGroup>
                 <ObjectName>SkinSettingsSubMenu</ObjectName>
+                <!-- andy-custom IDEA-13: folded by the header arrow -->
+                <Connection>
+                  <ConfigKey persist="true">[Skin],settings_fold_preview</ConfigKey>
+                  <Transform><Not/></Transform>
+                  <BindProperty>visible</BindProperty>
+                </Connection>
                 <SizePolicy>me,f</SizePolicy>
                 <Layout>stacked</Layout>
                 <Children>
@@ -642,14 +715,20 @@ Description:
           </WidgetGroup>
 
           <!-- Library -->
-          <Label>
-            <ObjectName>CategoryLabel</ObjectName>
-            <Text>Library</Text>
-            <Size>180min,23f</Size>
-          </Label>
+          <Template src="skins:LateNight/helpers/skin_settings_fold_header.xml">
+            <SetVariable name="Text">Library</SetVariable>
+            <SetVariable name="Fold">[Skin],settings_fold_library</SetVariable>
+            <SetVariable name="Width">180min</SetVariable>
+          </Template>
 
           <WidgetGroup>
             <ObjectName>SkinSettingsCategory</ObjectName>
+            <!-- andy-custom IDEA-13: folded by the header arrow -->
+            <Connection>
+              <ConfigKey persist="true">[Skin],settings_fold_library</ConfigKey>
+              <Transform><Not/></Transform>
+              <BindProperty>visible</BindProperty>
+            </Connection>
             <SizePolicy>me,min</SizePolicy>
             <Layout>vertical</Layout>
             <Children>
