@@ -154,6 +154,7 @@ class WTrackMenu : public QMenu {
     void slotSelectInLibrary();
     void slotFindSimilar();
     void slotSwapWithStem();
+    void slotReplaceWithCounterpart();
     void slotCrowdRate(int kind);
 
     // Track rating
@@ -292,6 +293,7 @@ class WTrackMenu : public QMenu {
             bool play = false);
 #endif
     void clearTrackSelection();
+    void updateReplaceWithCounterpartAction(bool locked, const TrackPointer& pSingleTrack);
 
     std::pair<bool, bool> getTrackBpmLockStates() const;
     bool canUndoBeatsChange() const;
@@ -332,6 +334,8 @@ class WTrackMenu : public QMenu {
     parented_ptr<WSearchRelatedTracksMenu> m_pSearchRelatedMenu;
     parented_ptr<QAction> m_pFindSimilarAct;
     parented_ptr<QAction> m_pSwapWithStemAct;
+    /// andy-custom: playlist row -> its stem/original counterpart, in place
+    parented_ptr<QAction> m_pReplaceWithCounterpartAct;
     // andy-custom: live crowd rating, only shown while a live session runs
     parented_ptr<QMenu> m_pCrowdRatingMenu;
     parented_ptr<WFindOnWebMenu> m_pFindOnWebMenu;

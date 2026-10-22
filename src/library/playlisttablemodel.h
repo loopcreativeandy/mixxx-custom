@@ -22,6 +22,11 @@ class PlaylistTableModel final : public TrackSetTableModel {
     void moveTrack(const QModelIndex& sourceIndex, const QModelIndex& destIndex) override;
     void removeTrack(const QModelIndex& index);
     void shuffleTracks(const QModelIndexList& shuffle, const QModelIndex& exclude);
+    /// andy-custom: replace each entry in place with its stem/original
+    /// counterpart (stem -> original, anything else -> stem). Entries with no
+    /// counterpart in the library stay as they are. Returns the number of
+    /// replaced entries.
+    int replaceTracksWithCounterparts(const QModelIndexList& indices);
 
     bool isColumnInternal(int column) final;
     bool isColumnHiddenByDefault(int column) final;

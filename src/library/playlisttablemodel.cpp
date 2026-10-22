@@ -3,9 +3,11 @@
 #include "library/dao/playlistdao.h"
 #include "library/dao/trackschema.h"
 #include "library/queryutil.h"
+#include "library/stemoriginal.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
 #include "moc_playlisttablemodel.cpp"
+#include "track/track.h"
 
 namespace {
 
@@ -271,6 +273,63 @@ void PlaylistTableModel::removeTracks(const QModelIndexList& indices) {
     if (trackPositions.contains(1)) {
         emit firstTrackChanged();
     }
+}
+
+int PlaylistTableModel::replaceTracksWithCounterparts(const QModelIndexList& indices) {
+    PlaylistDAO& playlistDao =
+            m_pTrackCollectionManager->internalCollection()->getPlaylistDAO();
+    if (playlistDao.isPlaylistLocked(m_iPlaylistId)) {
+        return 0;
+    }
+
+    // Collect positions and ids first: every insert/remove below makes the
+    // model re-select, which invalidates the indices.
+    const int positionColumnIndex = fieldIndex(ColumnCache::COLUMN_PLAYLISTTRACKSTABLE_POSITION);
+    QList<std::pair<int, TrackId>> entries;
+    for (const QModelIndex& index : indices) {
+        entries.append({index.sibling(index.row(), positionColumnIndex).data().toInt(),
+                getTrackId(index)});
+    }
+
+    const QSqlDatabase database =
+            m_pTrackCollectionManager->internalCollection()->database();
+    int replacedCount = 0;
+    bool firstTrackReplaced = false;
+    for (const auto& [position, trackId] : std::as_const(entries)) {
+        // Playlist positions are 1-based
+        if (position < 1) {
+            continue;
+        }
+        const TrackPointer pTrack = m_pTrackCollectionManager->getTrackById(trackId);
+        if (!pTrack) {
+            continue;
+        }
+        const auto counterpart =
+                mixxx::stemoriginal::isStemFileLocation(pTrack->getLocation())
+                ? mixxx::stemoriginal::Counterpart::Original
+                : mixxx::stemoriginal::Counterpart::Stem;
+        const TrackId counterpartId =
+                mixxx::stemoriginal::findCounterpartTrackId(database, *pTrack, counterpart);
+        if (!counterpartId.isValid()) {
+            continue;
+        }
+        // Insert first, remove second, like PlaylistFeature::swapPlaylistTracks():
+        // if the insert fails the entry is still there. The insert pushes the
+        // old entry down to `position + 1`, so no other position moves.
+        if (!playlistDao.insertTrackIntoPlaylist(counterpartId, m_iPlaylistId, position)) {
+            continue;
+        }
+        playlistDao.removeTrackFromPlaylist(m_iPlaylistId, position + 1);
+        replacedCount++;
+        if (position == 1) {
+            firstTrackReplaced = true;
+        }
+    }
+
+    if (firstTrackReplaced) {
+        emit firstTrackChanged();
+    }
+    return replacedCount;
 }
 
 void PlaylistTableModel::moveTrack(const QModelIndex& sourceIndex,

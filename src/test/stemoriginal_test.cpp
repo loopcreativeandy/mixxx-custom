@@ -6,6 +6,8 @@
 #include <QDir>
 #include <QString>
 
+#include "library/dao/playlistdao.h"
+#include "library/playlisttablemodel.h"
 #include "library/stemaudioalign.h"
 #include "library/trackcollection.h"
 #include "library/trackcollectionmanager.h"
@@ -981,6 +983,73 @@ TEST_F(StemOriginalTest, audioOffsetAcrossSampleRates) {
     EXPECT_NEAR((1.0 + 0.09491) * 44100,
             pStemBeats->findClosestBeat(mixxx::audio::FramePos(44100)).value(),
             1);
+}
+
+// andy-custom (CP116): the per-row "Replace with Stem Version / Original"
+// entry of the playlist track menu.
+TEST_F(StemOriginalDbTest, playlistRowsAreReplacedInPlace) {
+    const LibraryEntry originalA = addTrack(
+            QStringLiteral("library"), QStringLiteral("Artist - A.mp3"));
+    const LibraryEntry stemA = addTrack(
+            QStringLiteral("stems"), QStringLiteral("Artist - A.stem.m4a"));
+    // No stem file for B
+    const LibraryEntry originalB = addTrack(
+            QStringLiteral("library"), QStringLiteral("Artist - B.mp3"));
+    const LibraryEntry originalC = addTrack(
+            QStringLiteral("library"), QStringLiteral("Artist - C.mp3"));
+    const LibraryEntry stemC = addTrack(
+            QStringLiteral("stems"), QStringLiteral("Artist - C.stem.mp4"));
+    const LibraryEntry originalD = addTrack(
+            QStringLiteral("library"), QStringLiteral("Artist - D.mp3"));
+    addTrack(QStringLiteral("stems"), QStringLiteral("Artist - D.stem.mp4"));
+
+    PlaylistDAO& playlistDao = internalCollection()->getPlaylistDAO();
+    const int playlistId = playlistDao.createPlaylist(QStringLiteral("Set"));
+    ASSERT_NE(kInvalidPlaylistId, playlistId);
+    ASSERT_TRUE(playlistDao.appendTracksToPlaylist(
+            {originalA.trackId, originalB.trackId, stemC.trackId, originalD.trackId},
+            playlistId));
+
+    PlaylistTableModel model(nullptr, trackCollectionManager(), "mixxx.db.model.test");
+    model.selectPlaylist(playlistId);
+    model.select();
+    ASSERT_EQ(4, model.rowCount());
+
+    // Select A, B and C; D is not selected and must stay the original.
+    QModelIndexList selection;
+    for (int row = 0; row < model.rowCount(); ++row) {
+        const QModelIndex index = model.index(row, 0);
+        if (model.getTrackId(index) != originalD.trackId) {
+            selection.append(index);
+        }
+    }
+    ASSERT_EQ(3, selection.size());
+
+    // A -> stem, B has no stem and stays, C (a stem) -> original
+    EXPECT_EQ(2, model.replaceTracksWithCounterparts(selection));
+    EXPECT_EQ((QList<TrackId>{
+                      stemA.trackId, originalB.trackId, originalC.trackId, originalD.trackId}),
+            playlistDao.getTrackIdsInPlaylistOrder(playlistId));
+}
+
+TEST_F(StemOriginalDbTest, lockedPlaylistRowsAreNotReplaced) {
+    const LibraryEntry original = addTrack(
+            QStringLiteral("library"), QStringLiteral("Artist - A.mp3"));
+    addTrack(QStringLiteral("stems"), QStringLiteral("Artist - A.stem.m4a"));
+
+    PlaylistDAO& playlistDao = internalCollection()->getPlaylistDAO();
+    const int playlistId = playlistDao.createPlaylist(QStringLiteral("Locked"));
+    ASSERT_TRUE(playlistDao.appendTracksToPlaylist({original.trackId}, playlistId));
+    playlistDao.setPlaylistLocked(playlistId, true);
+
+    PlaylistTableModel model(nullptr, trackCollectionManager(), "mixxx.db.model.test");
+    model.selectPlaylist(playlistId);
+    model.select();
+    ASSERT_EQ(1, model.rowCount());
+
+    EXPECT_EQ(0, model.replaceTracksWithCounterparts({model.index(0, 0)}));
+    EXPECT_EQ(QList<TrackId>{original.trackId},
+            playlistDao.getTrackIdsInPlaylistOrder(playlistId));
 }
 
 // Real files: set STEM_ALIGN_PAIRS to "original|stem;original|stem;..." to

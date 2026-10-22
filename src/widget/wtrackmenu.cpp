@@ -28,6 +28,7 @@
 #include "library/dlgtrackmetadataexport.h"
 #include "library/externaltrackcollection.h"
 #include "library/library.h"
+#include "library/playlisttablemodel.h"
 #include "library/relatedtracks.h"
 #include "library/similarity/similarityindex.h"
 #include "library/stemaudioalign.h"
@@ -377,6 +378,16 @@ void WTrackMenu::createActions() {
         m_pRemovePlaylistAct = make_parented<QAction>(tr("Remove from Playlist"), this);
         m_pRemovePlaylistAct->setShortcut(hideRemoveKeySequence);
         connect(m_pRemovePlaylistAct, &QAction::triggered, this, &WTrackMenu::slotRemove);
+
+        // andy-custom: per-entry version of the playlist sidebar's "Replace
+        // Tracks With Stem Versions / Stem Tracks With Originals" (CP46).
+        // The label follows the selection, see updateMenus().
+        m_pReplaceWithCounterpartAct =
+                make_parented<QAction>(tr("Replace with Stem Version"), this);
+        connect(m_pReplaceWithCounterpartAct,
+                &QAction::triggered,
+                this,
+                &WTrackMenu::slotReplaceWithCounterpart);
 
         m_pRemoveCrateAct = make_parented<QAction>(tr("Remove from Crate"), this);
         m_pRemoveCrateAct->setShortcut(hideRemoveKeySequence);
@@ -751,6 +762,10 @@ void WTrackMenu::setupActions() {
         }
         if (m_pTrackModel->hasCapabilities(TrackModel::Capability::RemoveCrate)) {
             addAction(m_pRemoveCrateAct);
+        }
+        // Playlists and the Auto DJ queue (which only has Capability::Remove)
+        if (dynamic_cast<PlaylistTableModel*>(m_pTrackModel)) {
+            addAction(m_pReplaceWithCounterpartAct);
         }
     }
 
@@ -1216,6 +1231,9 @@ void WTrackMenu::updateMenus() {
         }
         if (m_pTrackModel->hasCapabilities(TrackModel::Capability::RemoveCrate)) {
             m_pRemoveCrateAct->setEnabled(!locked);
+        }
+        if (dynamic_cast<PlaylistTableModel*>(m_pTrackModel)) {
+            updateReplaceWithCounterpartAction(locked, singleTrackSelected ? pTrack : nullptr);
         }
     }
 
@@ -3674,6 +3692,76 @@ void WTrackMenu::slotRemove() {
     }
     m_pTrackModel->removeTracks(getTrackIndices());
     emit restoreCurrentViewStateOrIndex();
+}
+
+void WTrackMenu::updateReplaceWithCounterpartAction(
+        bool locked, const TrackPointer& pSingleTrack) {
+    // Not in history playlists: they record what was played.
+    const bool visible = m_pTrackModel->hasCapabilities(TrackModel::Capability::Reorder);
+    m_pReplaceWithCounterpartAct->setVisible(visible);
+    if (!visible) {
+        return;
+    }
+
+    // The label only needs the file names; no track loading for big selections.
+    int stemCount = 0;
+    int otherCount = 0;
+    for (const QModelIndex& index : getTrackIndices()) {
+        if (mixxx::stemoriginal::isStemFileLocation(m_pTrackModel->getTrackLocation(index))) {
+            stemCount++;
+        } else {
+            otherCount++;
+        }
+    }
+    QString text;
+    if (stemCount > 0 && otherCount > 0) {
+        text = tr("Swap Stem and Original Versions");
+    } else if (stemCount > 0) {
+        text = stemCount == 1 ? tr("Replace with Original") : tr("Replace with Originals");
+    } else {
+        text = otherCount == 1 ? tr("Replace with Stem Version")
+                               : tr("Replace with Stem Versions");
+    }
+
+    bool enabled = !locked;
+    if (enabled && pSingleTrack) {
+        // One track: say so up front when there is nothing to swap to.
+        auto* pTrackCollectionManager = m_pLibrary->trackCollectionManager();
+        if (pTrackCollectionManager) {
+            const QSqlDatabase database =
+                    pTrackCollectionManager->internalCollection()->database();
+            enabled = mixxx::stemoriginal::findCounterpartTrackId(database,
+                    *pSingleTrack,
+                    stemCount > 0 ? mixxx::stemoriginal::Counterpart::Original
+                                  : mixxx::stemoriginal::Counterpart::Stem)
+                              .isValid();
+            if (!enabled) {
+                text += QStringLiteral(" ") + tr("(none found)");
+            }
+        }
+    }
+    m_pReplaceWithCounterpartAct->setText(text);
+    m_pReplaceWithCounterpartAct->setEnabled(enabled);
+}
+
+void WTrackMenu::slotReplaceWithCounterpart() {
+    auto* pPlaylistModel = dynamic_cast<PlaylistTableModel*>(m_pTrackModel);
+    if (!pPlaylistModel) {
+        return;
+    }
+    const QModelIndexList indices = getTrackIndices();
+    const int replacedCount = pPlaylistModel->replaceTracksWithCounterparts(indices);
+    emit restoreCurrentViewStateOrIndex();
+    const int keptCount = static_cast<int>(indices.size()) - replacedCount;
+    if (keptCount > 0) {
+        QMessageBox::information(nullptr,
+                tr("Replace Stem / Original Versions"),
+                tr("Replaced %n track(s).", "", replacedCount) + QChar(' ') +
+                        tr("%n track(s) have no stem or original counterpart in "
+                           "the library and were left alone.",
+                                "",
+                                keptCount));
+    }
 }
 
 void WTrackMenu::slotHide() {
