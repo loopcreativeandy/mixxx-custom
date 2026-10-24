@@ -171,6 +171,7 @@ class WTrackMenu : public QMenu {
     // playlist-level actions, but per track)
     void slotMarkAsPlayed();
     void slotMarkAsUnplayed();
+    void slotRateOrTagForFiles();
 
     // Reset
     void slotClearBeats();
@@ -359,6 +360,7 @@ class WTrackMenu : public QMenu {
     // Mark selection played/unplayed
     parented_ptr<QAction> m_pMarkPlayedAction;
     parented_ptr<QAction> m_pMarkUnplayedAction;
+    parented_ptr<QAction> m_pRateOrTagForFilesAct;
 
     // Send to Auto-DJ Action
     parented_ptr<QAction> m_pAutoDJBottomAct;

@@ -3,9 +3,11 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QDialogButtonBox>
+#include <QDir>
 #include <QFutureWatcher>
 #include <QHash>
 #include <QInputDialog>
+#include <QJsonObject>
 #include <QList>
 #include <QListWidget>
 #include <QMessageBox>
@@ -38,6 +40,7 @@
 #include "library/trackcollectionmanager.h"
 #include "library/trackmodel.h"
 #include "library/trackmodeliterator.h"
+#include "library/trackedits/trackeditlog.h"
 #include "library/trackprocessing.h"
 #include "library/trackset/crate/crate.h"
 #include "library/trackset/crate/cratefeaturehelper.h"
@@ -504,6 +507,16 @@ void WTrackMenu::createActions() {
                 this,
                 &WTrackMenu::slotExportMetadataIntoFileTags);
 
+        m_pRateOrTagForFilesAct = make_parented<QAction>(
+                tr("Rate / Tag for the Files..."), m_pMetadataMenu);
+        m_pRateOrTagForFilesAct->setToolTip(
+                tr("Note a rating, energy or tags to add/remove; they are "
+                   "written into the files later, outside Mixxx"));
+        connect(m_pRateOrTagForFilesAct,
+                &QAction::triggered,
+                this,
+                &WTrackMenu::slotRateOrTagForFiles);
+
         m_pMarkPlayedAction = make_parented<QAction>(tr("Mark as Played"), this);
         connect(m_pMarkPlayedAction,
                 &QAction::triggered,
@@ -802,6 +815,8 @@ void WTrackMenu::setupActions() {
     }
 
     if (featureIsEnabled(Feature::Metadata)) {
+        m_pMetadataMenu->addAction(m_pRateOrTagForFilesAct);
+        m_pMetadataMenu->addSeparator();
         m_pMetadataMenu->addAction(m_pImportMetadataFromFileAct);
         m_pMetadataMenu->addAction(m_pImportFromOriginalTrackAct);
         m_pMetadataMenu->addAction(m_pImportMetadataFromMusicBrainzAct);
@@ -2801,6 +2816,36 @@ void WTrackMenu::slotMarkAsUnplayed() {
             progressLabelText,
             &trackOperator);
     propagatePlayedStateToRelatedTracks(trackOperator.markedTracks(), false);
+}
+
+void WTrackMenu::slotRateOrTagForFiles() {
+    const TrackPointerList tracks = getTrackPointers();
+    if (tracks.isEmpty()) {
+        return;
+    }
+    const QString subject = tracks.size() == 1
+            ? tracks.first()->getInfo()
+            : tr("%n track(s)", "", tracks.size());
+    const QString comment = tracks.size() == 1 ? tracks.first()->getComment() : QString();
+    const auto edit = mixxx::trackedits::askForEdit(this, subject, comment);
+    if (!edit) {
+        return;
+    }
+    const QDateTime now = QDateTime::currentDateTime();
+    QList<QJsonObject> lines;
+    for (const auto& pTrack : tracks) {
+        lines.append(mixxx::trackedits::toJson(*edit,
+                pTrack->getLocation(),
+                pTrack->getArtist(),
+                pTrack->getTitle(),
+                now));
+    }
+    const QString path = mixxx::trackedits::logFilePath(m_pConfig);
+    if (!mixxx::trackedits::appendLines(path, lines)) {
+        QMessageBox::warning(this,
+                tr("Rate / Tag for the Files"),
+                tr("Could not write %1").arg(QDir::toNativeSeparators(path)));
+    }
 }
 
 void WTrackMenu::propagatePlayedStateToRelatedTracks(
