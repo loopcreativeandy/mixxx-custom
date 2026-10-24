@@ -164,6 +164,18 @@ class EngineBuffer : public EngineObject {
     /// -> + `signedOffsetSeconds` -> frames at this track's sample rate -
     /// instead of copying the raw frame number. Needed when the two decks hold
     /// *different files* of the same recording. Consumed by that one seek.
+    /// andy-custom: the next loaded track starts at the musical moment the
+    /// current one is at - read from the engine at load time, converted via
+    /// seconds and shifted by `signedOffsetSeconds` (stem/original codec
+    /// delay). Replaces seek-on-load. Used to swap a stopped deck's track for
+    /// its stem/original in place.
+    void setKeepTimePositionOnLoad(double signedOffsetSeconds) {
+        m_keepTimeOffsetSeconds.store(signedOffsetSeconds, std::memory_order_relaxed);
+        m_keepTimePositionOnLoad.store(true, std::memory_order_release);
+    }
+    void cancelKeepTimePositionOnLoad() {
+        m_keepTimePositionOnLoad.store(false, std::memory_order_relaxed);
+    }
     void setCloneTimeOffset(double signedOffsetSeconds) {
         m_cloneTimeOffsetSeconds.store(signedOffsetSeconds, std::memory_order_relaxed);
         m_cloneInTimeDomain.store(true, std::memory_order_release);
@@ -515,6 +527,9 @@ class EngineBuffer : public EngineObject {
     /// See setCloneTimeOffset().
     std::atomic<bool> m_cloneInTimeDomain{false};
     std::atomic<double> m_cloneTimeOffsetSeconds{0.0};
+    /// See setKeepTimePositionOnLoad().
+    std::atomic<bool> m_keepTimePositionOnLoad{false};
+    std::atomic<double> m_keepTimeOffsetSeconds{0.0};
 
     // Is true if the previous buffer was silent due to pausing
     QAtomicInt m_iTrackLoading;

@@ -593,6 +593,13 @@ void EngineBuffer::slotTrackLoaded(TrackPointer pTrack,
     TrackPointer pOldTrack = m_pCurrentTrack;
     m_pause.lock();
 
+    // andy-custom: where the old track was, before it is replaced (the engine
+    // is paused, so this is the final position).
+    const bool keepTimePosition =
+            m_keepTimePositionOnLoad.exchange(false, std::memory_order_acquire);
+    const mixxx::audio::FramePos oldPlayPos = m_playPos;
+    const mixxx::audio::SampleRate oldSampleRate = m_trackSampleRateOld;
+
     m_visualPlayPos->setInvalid();
     m_playPos = kInitialPlayPosition; // for execute seeks to 0.0
     m_pCurrentTrack = pTrack;
@@ -639,6 +646,15 @@ void EngineBuffer::slotTrackLoaded(TrackPointer pTrack,
     if (pChannel) {
         m_queuedSeek.setValue(kCloneSeek);
         m_iSeekPhaseQueued = 0;
+    } else if (keepTimePosition && pOldTrack && oldPlayPos.isValid() &&
+            oldSampleRate.isValid() && trackSampleRate.isValid()) {
+        // andy-custom: same moment in the new file, see setKeepTimePositionOnLoad()
+        const double frame = mixxx::stemswap::transferFramePosition(oldPlayPos.value(),
+                oldSampleRate.toDouble(),
+                trackSampleRate.toDouble(),
+                m_keepTimeOffsetSeconds.load(std::memory_order_relaxed));
+        m_queuedSeek.setValue({mixxx::audio::FramePos(frame), SEEK_EXACT});
+        m_iSeekPhaseQueued = 0;
     }
 
     // Start buffer processing after all EngineContols are up to date
@@ -652,6 +668,7 @@ void EngineBuffer::slotTrackLoadFailed(TrackPointer pTrack,
     m_iTrackLoading = 0;
     m_pChannelToCloneFrom = nullptr;
     m_cloneInTimeDomain.store(false, std::memory_order_relaxed);
+    m_keepTimePositionOnLoad.store(false, std::memory_order_relaxed);
 
     // Loading of a new track failed.
     // eject the currently loaded track (the old Track) as well

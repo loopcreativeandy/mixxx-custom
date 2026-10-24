@@ -3,6 +3,7 @@
 #include <QMessageBox>
 #include <QMetaMethod>
 #include <memory>
+#include <utility>
 
 #include "control/controlencoder.h"
 #include "control/controlobject.h"
@@ -610,6 +611,12 @@ void BaseTrackPlayerImpl::slotLoadTrack(TrackPointer pNewTrack,
 
     // Request a new track from EngineBuffer
     EngineBuffer* pEngineBuffer = m_pChannel->getEngineBuffer();
+    m_bLoadInPlace = std::exchange(m_bLoadInPlaceRequested, false);
+    if (m_bLoadInPlace) {
+        pEngineBuffer->setKeepTimePositionOnLoad(m_cloneTimeOffsetSeconds);
+    } else {
+        pEngineBuffer->cancelKeepTimePositionOnLoad();
+    }
 #ifdef __STEM__
     pEngineBuffer->loadTrack(pNewTrack,
             stemMask,
@@ -639,6 +646,7 @@ void BaseTrackPlayerImpl::slotLoadFailed(TrackPointer pTrack, const QString& rea
     }
     m_pChannelToCloneFrom = nullptr;
     m_bCloneInTimeDomain = false;
+    m_bLoadInPlace = false;
 
     // Alert user.
     // The QMessageBox blocks the event loop (and the GUI since it's modal dialog),
@@ -690,8 +698,9 @@ void BaseTrackPlayerImpl::slotTrackLoaded(TrackPointer pNewTrack,
         m_pKey->set(m_pLoadedTrack->getKey());
         slotSetTrackColor(m_pLoadedTrack->getColor());
 
-        if(m_pConfig->getValue(
-                ConfigKey("[Mixer Profile]", "EqAutoReset"), false)) {
+        if (!m_bLoadInPlace &&
+                m_pConfig->getValue(
+                        ConfigKey("[Mixer Profile]", "EqAutoReset"), false)) {
             if (m_pLowFilter) {
                 m_pLowFilter->set(1.0);
             }
@@ -711,12 +720,16 @@ void BaseTrackPlayerImpl::slotTrackLoaded(TrackPointer pNewTrack,
                 m_pHighFilterKill->set(0.0);
             }
         }
-        if (m_pConfig->getValue(
-                ConfigKey("[Mixer Profile]", "GainAutoReset"), false)) {
+        if (!m_bLoadInPlace &&
+                m_pConfig->getValue(
+                        ConfigKey("[Mixer Profile]", "GainAutoReset"), false)) {
             m_pPreGain->set(1.0);
         }
 
-        if (!m_pChannelToCloneFrom) {
+        if (m_bLoadInPlace) {
+            // andy-custom: stem/original replaced in place - tempo, pitch and
+            // the key match stay as they were, no Zouk mode re-match.
+        } else if (!m_pChannelToCloneFrom) {
             BaseTrackPlayer::TrackLoadReset reset = m_pConfig->getValue(
                     ConfigKey("[Controls]", "SpeedAutoReset"), RESET_PITCH);
             if (reset == RESET_SPEED || reset == RESET_PITCH_AND_SPEED) {
@@ -801,6 +814,7 @@ void BaseTrackPlayerImpl::slotTrackLoaded(TrackPointer pNewTrack,
 
     m_pChannelToCloneFrom = nullptr;
     m_bCloneInTimeDomain = false;
+    m_bLoadInPlace = false;
 
     // Update the PlayerInfo class that is used in EngineBroadcast to replace
     // the metadata of a stream
@@ -867,7 +881,21 @@ void BaseTrackPlayerImpl::loadCounterpartAligned(TrackPointer pTrack,
         const QString& sourceGroup,
         double signedOffsetSeconds) {
     EngineChannel* pChannel = m_pEngineMixer->getChannel(sourceGroup);
-    if (!pTrack || !pChannel || pChannel == m_pChannel) {
+    if (!pTrack || !pChannel) {
+        return;
+    }
+    if (pChannel == m_pChannel) {
+        // Replace in place - never on a playing deck.
+        if (m_pPlay->toBool()) {
+            return;
+        }
+        m_bLoadInPlaceRequested = true;
+        m_cloneTimeOffsetSeconds = signedOffsetSeconds;
+        slotLoadTrack(pTrack,
+#ifdef __STEM__
+                mixxx::StemChannelSelection(),
+#endif
+                false);
         return;
     }
     m_pChannelToCloneFrom = pChannel;

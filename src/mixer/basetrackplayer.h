@@ -112,6 +112,8 @@ class BaseTrackPlayerImpl : public BaseTrackPlayer {
     /// Deck does, and the position is transferred sample-exactly in the engine
     /// through the time domain, shifted by `signedOffsetSeconds` (the codec
     /// delay between the two files, see stemswap::signedOffsetSeconds()).
+    /// `sourceGroup` == this deck (only while it is stopped): the track is
+    /// replaced in place - same position, tempo, pitch, EQ and gain stay.
     void loadCounterpartAligned(TrackPointer pTrack,
             const QString& sourceGroup,
             double signedOffsetSeconds);
@@ -183,6 +185,10 @@ class BaseTrackPlayerImpl : public BaseTrackPlayer {
     /// markers copied from the other deck must then be converted too.
     bool m_bCloneInTimeDomain;
     double m_cloneTimeOffsetSeconds;
+    /// andy-custom: loadCounterpartAligned() into this deck itself. Requested
+    /// is consumed by the next slotLoadTrack(), active lasts until it loaded.
+    bool m_bLoadInPlaceRequested = false;
+    bool m_bLoadInPlace = false;
 
     PerformanceTimer m_ejectTimer;
 

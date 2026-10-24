@@ -469,9 +469,10 @@ void WTrackMenu::createActions() {
     if (featureIsEnabled(Feature::SwapWithStem)) {
         m_pSwapWithStemAct = make_parented<QAction>(tr("Swap with Stem Track"), this);
         m_pSwapWithStemAct->setToolTip(
-                tr("Load the stem/original counterpart of this track into another "
-                   "deck at the same position, aligned to the measured audio "
-                   "offset. The playing deck is not touched - fade over by hand."));
+                tr("Load the stem/original counterpart of this track at the same "
+                   "position, aligned to the measured audio offset. A playing "
+                   "deck is not touched - the counterpart goes into another deck, "
+                   "fade over by hand. A stopped deck gets it in place."));
         connect(m_pSwapWithStemAct, &QAction::triggered, this, &WTrackMenu::slotSwapWithStem);
     }
 
@@ -1426,8 +1427,15 @@ void WTrackMenu::updateMenus() {
                         ? tr("Swap with Original Track (none found)")
                         : tr("Swap with Stem Track (none found)");
             } else {
-                swapText = isStem ? tr("Swap with Original Track")
-                                  : tr("Swap with Stem Track");
+                const bool deckPlaying =
+                        ControlObject::get(ConfigKey(m_deckGroup, QStringLiteral("play"))) > 0.0;
+                if (deckPlaying) {
+                    swapText = isStem ? tr("Swap with Original Track")
+                                      : tr("Swap with Stem Track");
+                } else {
+                    swapText = isStem ? tr("Replace with Original Track")
+                                      : tr("Replace with Stem Track");
+                }
             }
         }
         m_pSwapWithStemAct->setEnabled(swapEnabled);
@@ -1686,17 +1694,25 @@ QString freeDeckForStemSwap(const QString& sourceGroup) {
 
 /// Second half of WTrackMenu::slotSwapWithStem(), once the offset is known.
 /// May run a moment after the click, so everything is checked again.
+/// `inPlace`: the source deck was stopped, so the counterpart replaces its
+/// track in that deck (Andy, 2026-10-24) - unless it started playing since.
 void finishStemSwap(Library* pLibrary,
         const TrackPointer& pCounterpart,
         const QString& sourceGroup,
         TrackId sourceTrackId,
-        double signedOffset) {
+        double signedOffset,
+        bool inPlace) {
     // The source deck must still hold the track the swap was asked for -
     // otherwise the position would be taken from a different song.
     const TrackPointer pSourceNow = PlayerInfo::instance().getTrackInfo(sourceGroup);
     if (!pSourceNow || pSourceNow->getId() != sourceTrackId) {
         qInfo() << "Stem swap dropped: the track in" << sourceGroup
                 << "changed while the offset was measured";
+        return;
+    }
+    if (inPlace && ControlObject::get(ConfigKey(sourceGroup, QStringLiteral("play"))) <= 0.0) {
+        // Same deck, same position; tempo, pitch, EQ and fader stay.
+        pLibrary->loadCounterpartAligned(pCounterpart, sourceGroup, sourceGroup, signedOffset);
         return;
     }
     const QString targetGroup = freeDeckForStemSwap(sourceGroup);
@@ -1747,10 +1763,13 @@ void WTrackMenu::slotSwapWithStem() {
         return;
     }
 
-    // Refuse up front if there is no free deck, so the answer comes at once
-    // rather than after the measurement. The deck is picked again when the
-    // measurement is done - it may have started playing in the meantime.
-    if (freeDeckForStemSwap(m_deckGroup).isEmpty()) {
+    // A stopped deck gets the counterpart in place, a playing one is never
+    // touched. Refuse up front if there is no free deck, so the answer comes
+    // at once rather than after the measurement. The deck is picked again
+    // when the measurement is done - it may have started playing meanwhile.
+    const bool inPlace =
+            ControlObject::get(ConfigKey(m_deckGroup, QStringLiteral("play"))) <= 0.0;
+    if (!inPlace && freeDeckForStemSwap(m_deckGroup).isEmpty()) {
         QMessageBox::information(this,
                 tr("Swap with Stem Track"),
                 tr("No free deck available. Stop or eject a deck first - the "
@@ -1777,7 +1796,8 @@ void WTrackMenu::slotSwapWithStem() {
                 pCounterpart,
                 sourceGroup,
                 sourceTrackId,
-                mixxx::stemswap::signedOffsetSeconds(cached.value(), direction));
+                mixxx::stemswap::signedOffsetSeconds(cached.value(), direction),
+                inPlace);
         return;
     }
 
@@ -1797,7 +1817,14 @@ void WTrackMenu::slotSwapWithStem() {
     connect(pWatcher,
             &QFutureWatcherBase::finished,
             pLibrary,
-            [pWatcher, pLibrary, pCounterpart, sourceGroup, sourceTrackId, stemId, direction]() {
+            [pWatcher,
+                    pLibrary,
+                    pCounterpart,
+                    sourceGroup,
+                    sourceTrackId,
+                    stemId,
+                    direction,
+                    inPlace]() {
                 s_stemSwapInFlight = false;
                 const std::optional<mixxx::stemaudioalign::AudioOffset> offset =
                         pWatcher->result();
@@ -1810,7 +1837,8 @@ void WTrackMenu::slotSwapWithStem() {
                         sourceGroup,
                         sourceTrackId,
                         mixxx::stemswap::signedOffsetSeconds(
-                                offset ? offset->seconds : 0.0, direction));
+                                offset ? offset->seconds : 0.0, direction),
+                        inPlace);
             });
     pWatcher->setFuture(QtConcurrent::run([pOriginal, pStem]() {
         return mixxx::stemaudioalign::measureTrackOffset(pOriginal, pStem);
