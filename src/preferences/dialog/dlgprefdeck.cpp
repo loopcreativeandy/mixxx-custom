@@ -4,6 +4,7 @@
 
 #include "control/controlobject.h"
 #include "control/controlproxy.h"
+#include "control/controlpushbutton.h"
 #include "defs_urls.h"
 #include "engine/controls/ratecontrol.h"
 #include "engine/sync/enginesync.h"
@@ -38,7 +39,7 @@ DlgPrefDeck::DlgPrefDeck(QWidget* parent, UserSettingsPointer pConfig)
                   ConfigKey(kControlsGroup, QStringLiteral("ShowDurationRemaining")))),
           m_pControlTrackTimeFormat(std::make_unique<ControlObject>(
                   ConfigKey(kControlsGroup, QStringLiteral("TimeFormat")))),
-          m_pControlZoukMode(std::make_unique<ControlObject>(
+          m_pControlZoukMode(std::make_unique<ControlPushButton>(
                   ConfigKey(kControlsGroup, QStringLiteral("zouk_mode")))),
           m_pNumDecks(make_parented<ControlProxy>(
                   kAppGroup, QStringLiteral("num_decks"), this)),
@@ -233,6 +234,7 @@ DlgPrefDeck::DlgPrefDeck(QWidget* parent, UserSettingsPointer pConfig)
     m_bZoukKeyMatchOnLoad = m_pConfig->getValue(
             ConfigKey(kControlsGroup, QStringLiteral("ZoukKeyMatchOnLoad")),
             kDefaultZoukKeyMatchOnLoad);
+    m_pControlZoukMode->setButtonMode(mixxx::control::ButtonMode::Toggle);
     m_pControlZoukMode->set(m_bZoukKeyMatchOnLoad ? 1.0 : 0.0);
     checkBoxZoukKeyMatchOnLoad->setChecked(m_bZoukKeyMatchOnLoad);
     connect(checkBoxZoukKeyMatchOnLoad,

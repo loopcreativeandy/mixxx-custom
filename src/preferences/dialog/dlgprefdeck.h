@@ -12,6 +12,7 @@
 
 class ControlProxy;
 class ControlObject;
+class ControlPushButton;
 class QWidget;
 
 namespace {
@@ -104,8 +105,10 @@ class DlgPrefDeck : public DlgPreferencePage, public Ui::DlgPrefDeckDlg  {
     const std::unique_ptr<ControlObject> m_pControlTrackTimeDisplay;
     const std::unique_ptr<ControlObject> m_pControlTrackTimeFormat;
     // Live mirror of the ZoukKeyMatchOnLoad config key so widgets (WKey
-    // clash warning) can react without a restart.
-    const std::unique_ptr<ControlObject> m_pControlZoukMode;
+    // clash warning) can react without a restart. A toggle-mode push button:
+    // a plain CO makes skin buttons fall back to push mode (1 on press, 0 on
+    // release), which undid the Zouk click in the skin settings switch.
+    const std::unique_ptr<ControlPushButton> m_pControlZoukMode;
 
     const parented_ptr<ControlProxy> m_pNumDecks;
     const parented_ptr<ControlProxy> m_pNumSamplers;
