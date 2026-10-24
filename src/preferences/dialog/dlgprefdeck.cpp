@@ -239,6 +239,12 @@ DlgPrefDeck::DlgPrefDeck(QWidget* parent, UserSettingsPointer pConfig)
             &QCheckBox::toggled,
             this,
             &DlgPrefDeck::slotZoukKeyMatchOnLoadCheckbox);
+    // The skin settings Zouk/Fusion switch (and controllers) set the CO
+    // directly: save it right away and keep the checkbox in sync.
+    connect(m_pControlZoukMode.get(),
+            &ControlObject::valueChanged,
+            this,
+            &DlgPrefDeck::slotZoukModeControlChanged);
 
     m_bRateDownIncreasesSpeed = m_pConfig->getValue(
             ConfigKey(kControlsGroup, QStringLiteral("RateDir")), kDefaultRateDirectionInverted);
@@ -649,6 +655,14 @@ void DlgPrefDeck::slotCloneDeckOnLoadDoubleTapCheckbox(bool checked) {
 
 void DlgPrefDeck::slotZoukKeyMatchOnLoadCheckbox(bool checked) {
     m_bZoukKeyMatchOnLoad = checked;
+}
+
+void DlgPrefDeck::slotZoukModeControlChanged(double value) {
+    const bool zoukMode = value > 0.0;
+    m_pConfig->setValue(ConfigKey(kControlsGroup, QStringLiteral("ZoukKeyMatchOnLoad")),
+            zoukMode);
+    m_bZoukKeyMatchOnLoad = zoukMode;
+    checkBoxZoukKeyMatchOnLoad->setChecked(zoukMode);
 }
 
 void DlgPrefDeck::slotSetTrackTimeDisplay(QAbstractButton* b) {

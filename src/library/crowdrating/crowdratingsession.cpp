@@ -200,8 +200,12 @@ void CrowdRatingSession::slotStartOrEndSession() {
     pStyleBox->setInsertPolicy(QComboBox::NoInsert);
     pStyleBox->addItems({QStringLiteral("Fusion"), QStringLiteral("Zouk")});
     pStyleBox->lineEdit()->setPlaceholderText(tr("Fusion, Zouk or type another"));
-    const QString lastStyle = m_pConfig->getValueString(kLastStyleKey);
-    pStyleBox->setCurrentText(lastStyle.isEmpty() ? QStringLiteral("Fusion") : lastStyle);
+    // Preselect from the Zouk/Fusion switch (skin settings / Preferences ->
+    // Decks); another style can still be typed.
+    const bool zoukMode = ControlObject::get(
+                                  ConfigKey(QStringLiteral("[Controls]"),
+                                          QStringLiteral("zouk_mode"))) > 0.0;
+    pStyleBox->setCurrentText(zoukMode ? QStringLiteral("Zouk") : QStringLiteral("Fusion"));
     pLayout->addRow(tr("Event / session:"), pEventEdit);
     pLayout->addRow(tr("Style:"), pStyleBox);
     auto* pButtons = new QDialogButtonBox(

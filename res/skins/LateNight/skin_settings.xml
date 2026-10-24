@@ -25,6 +25,34 @@ Description:
         <Size>240f,1me</Size>
         <Children>
 
+<!-- andy-custom: Zouk / Fusion switch = [Controls],zouk_mode, the same
+     setting as Preferences > Decks > Zouk mode (auto key-match on load) -->
+          <WidgetGroup>
+            <Layout>horizontal</Layout>
+            <Size>0me,23min</Size>
+            <Children>
+              <Label>
+                <ObjectName>SkinSettingsLabelButton</ObjectName>
+                <Size>74f,23f</Size>
+                <Text>Style</Text>
+                <Alignment>left</Alignment>
+              </Label>
+              <Template src="skins:LateNight/helpers/skin_settings_numToggle_header.xml">
+                <SetVariable name="Text">Zouk</SetVariable>
+                <SetVariable name="Setting">[Controls],zouk_mode</SetVariable>
+                <SetVariable name="IsEqual">1</SetVariable>
+                <SetVariable name="Width">60f</SetVariable>
+              </Template>
+              <Template src="skins:LateNight/helpers/skin_settings_numToggle_header.xml">
+                <SetVariable name="Text">Fusion</SetVariable>
+                <SetVariable name="Setting">[Controls],zouk_mode</SetVariable>
+                <SetVariable name="IsEqual">0</SetVariable>
+                <SetVariable name="Width">70f</SetVariable>
+              </Template>
+              <WidgetGroup><Size>0me,0f</Size></WidgetGroup>
+            </Children>
+          </WidgetGroup>
+
           <!-- Decks -->
           <WidgetGroup>
             <Layout>horizontal</Layout>
