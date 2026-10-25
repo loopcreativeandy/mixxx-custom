@@ -6,6 +6,7 @@
 #include "controllers/midi/portmidicontroller.h"
 #include "controllers/midi/portmididevice.h"
 #include "test/mixxxtest.h"
+#include "util/time.h"
 
 using ::testing::_;
 using ::testing::DoAll;
@@ -100,6 +101,46 @@ class PortMidiControllerTest : public MixxxTest {
     void pollDevice() {
         m_pController->poll();
     }
+
+    // CP125 output watchdog: no threads, no dialogs, scripted replacement devices.
+    void installWatchdogFakes() {
+        m_pController->m_closeOutputDetached =
+                [this](PortMidiDevice* pDevice,
+                        std::shared_ptr<std::atomic<bool>> pClosed) {
+                    m_detachedClosed.append(pDevice);
+                    m_pClosedFlag = pClosed;
+                };
+        m_pController->m_createOutputDevice = [this]() -> PortMidiDevice* {
+            if (m_nextOutputs.isEmpty()) {
+                return new MockPortMidiDevice(&m_outputDeviceInfo, 0);
+            }
+            return m_nextOutputs.takeFirst();
+        };
+        m_pController->m_showOutputDialog = [this](bool offline) {
+            m_dialogs.append(offline);
+        };
+        mixxx::Time::setTestMode(true);
+    }
+
+    void TearDown() override {
+        mixxx::Time::setTestMode(false);
+        qDeleteAll(m_detachedClosed);
+        qDeleteAll(m_nextOutputs);
+        MixxxTest::TearDown();
+    }
+
+    bool outputOffline() const {
+        return m_pController->m_bOutputOffline;
+    }
+
+    PortMidiDevice* currentOutput() const {
+        return m_pController->m_pOutputDevice.get();
+    }
+
+    QList<PortMidiDevice*> m_detachedClosed;
+    std::shared_ptr<std::atomic<bool>> m_pClosedFlag;
+    QList<MockPortMidiDevice*> m_nextOutputs;
+    QList<bool> m_dialogs;
 
     PmDeviceInfo m_inputDeviceInfo;
     PmDeviceInfo m_outputDeviceInfo;
@@ -443,3 +484,125 @@ TEST_F(PortMidiControllerTest, Poll_Read_SysEx_BufferOverflow) {
     pollDevice();
     pollDevice();
 };
+
+// CP125: three failed writes in a row take the output offline: the dead stream
+// is handed to the detached closer (never closed inline), nothing more is
+// written to it, and the warning is shown once.
+TEST_F(PortMidiControllerTest, OutputWatchdog_GoesOfflineAfterRepeatedFailures) {
+    installWatchdogFakes();
+    EXPECT_CALL(*m_mockOutput, isOpen()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*m_mockOutput, close()).Times(0);
+    EXPECT_CALL(*m_mockOutput, writeShort(_))
+            .Times(3)
+            .WillRepeatedly(Return(pmHostError));
+
+    m_pController->sendShortMsg(0x90, 0x40, 0x01);
+    m_pController->sendShortMsg(0x90, 0x41, 0x01);
+    EXPECT_FALSE(outputOffline());
+    m_pController->sendShortMsg(0x90, 0x42, 0x01);
+    EXPECT_TRUE(outputOffline());
+    // more sends while offline reach no device
+    m_pController->sendShortMsg(0x90, 0x43, 0x01);
+    m_pController->sendShortMsg(0x90, 0x44, 0x01);
+
+    ASSERT_EQ(1, m_detachedClosed.size());
+    EXPECT_EQ(m_mockOutput, m_detachedClosed.first());
+    EXPECT_NE(m_mockOutput, currentOutput());
+    EXPECT_EQ(QList<bool>{true}, m_dialogs);
+}
+
+// A single failure (glitch) followed by a success keeps the output online.
+TEST_F(PortMidiControllerTest, OutputWatchdog_SuccessResetsFailureCount) {
+    installWatchdogFakes();
+    EXPECT_CALL(*m_mockOutput, isOpen()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*m_mockOutput, writeShort(_))
+            .WillOnce(Return(pmHostError))
+            .WillOnce(Return(pmHostError))
+            .WillOnce(Return(pmNoError))
+            .WillOnce(Return(pmHostError))
+            .WillOnce(Return(pmHostError));
+    for (int i = 0; i < 5; ++i) {
+        m_pController->sendShortMsg(0x90, 0x40, 0x01);
+    }
+    EXPECT_FALSE(outputOffline());
+    EXPECT_TRUE(m_detachedClosed.isEmpty());
+}
+
+// Reconnect waits for the dead stream's close and the retry interval, then
+// opens a fresh stream and replays the latest message per note/CC in first-sent
+// order (note off replaces note on of the same note; non-LED messages skipped).
+TEST_F(PortMidiControllerTest, OutputWatchdog_ReconnectReplaysLedState) {
+    installWatchdogFakes();
+    auto* pFresh = new MockPortMidiDevice(&m_outputDeviceInfo, 0);
+    m_nextOutputs.append(pFresh);
+
+    EXPECT_CALL(*m_mockOutput, isOpen()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*m_mockOutput, writeShort(_)).WillRepeatedly(Return(pmHostError));
+    EXPECT_CALL(*m_mockInput, isOpen()).WillRepeatedly(Return(false));
+
+    m_pController->sendShortMsg(0x90, 0x10, 0x01); // note 0x10 green
+    m_pController->sendShortMsg(0xB0, 0x30, 0x7F); // CC 0x30
+    m_pController->sendShortMsg(0x90, 0x11, 0x05); // -> offline
+    ASSERT_TRUE(outputOffline());
+    m_nextOutputs.clear(); // now owned by the controller
+    m_pController->sendShortMsg(0x90, 0x10, 0x03); // while offline: red
+    m_pController->sendShortMsg(0x80, 0x11, 0x00); // note off replaces note on
+    m_pController->sendShortMsg(0xF8, 0x00, 0x00); // clock: not cached
+
+    Sequence replay;
+    EXPECT_CALL(*pFresh, openOutput()).Times(0);
+    // close still running: no reopen even after the interval
+    mixxx::Time::addTestTime(std::chrono::seconds(3));
+    pollDevice();
+    ::testing::Mock::VerifyAndClearExpectations(pFresh);
+
+    m_pClosedFlag->store(true);
+    // interval restarted by the last attempt: nothing before it passes
+    EXPECT_CALL(*pFresh, openOutput()).Times(0);
+    pollDevice();
+    ::testing::Mock::VerifyAndClearExpectations(pFresh);
+
+    EXPECT_CALL(*pFresh, openOutput()).WillOnce(Return(pmNoError));
+    EXPECT_CALL(*pFresh, writeShort(0x011090)).Times(0);
+    EXPECT_CALL(*pFresh, writeShort(0x031090)).InSequence(replay).WillOnce(Return(pmNoError));
+    EXPECT_CALL(*pFresh, writeShort(0x7F30B0)).InSequence(replay).WillOnce(Return(pmNoError));
+    EXPECT_CALL(*pFresh, writeShort(0x001180)).InSequence(replay).WillOnce(Return(pmNoError));
+    mixxx::Time::addTestTime(std::chrono::seconds(3));
+    pollDevice();
+
+    EXPECT_FALSE(outputOffline());
+    EXPECT_EQ(pFresh, currentOutput());
+    EXPECT_EQ((QList<bool>{true, false}), m_dialogs);
+
+    // back online: sends go straight to the new stream
+    EXPECT_CALL(*pFresh, isOpen()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*pFresh, writeShort(0x014290)).WillOnce(Return(pmNoError));
+    m_pController->sendShortMsg(0x90, 0x42, 0x01);
+}
+
+// Reopen works but the replay fails: the new stream is closed detached too and
+// the output stays offline (no "lights back" message).
+TEST_F(PortMidiControllerTest, OutputWatchdog_ReplayFailureStaysOffline) {
+    installWatchdogFakes();
+    auto* pFresh = new MockPortMidiDevice(&m_outputDeviceInfo, 0);
+    m_nextOutputs.append(pFresh);
+    EXPECT_CALL(*m_mockOutput, isOpen()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*m_mockOutput, writeShort(_)).WillRepeatedly(Return(pmHostError));
+    EXPECT_CALL(*m_mockInput, isOpen()).WillRepeatedly(Return(false));
+    for (int i = 0; i < 3; ++i) {
+        m_pController->sendShortMsg(0x90, 0x20 + i, 0x01);
+    }
+    ASSERT_TRUE(outputOffline());
+    m_nextOutputs.clear();
+    m_pClosedFlag->store(true);
+
+    EXPECT_CALL(*pFresh, openOutput()).WillOnce(Return(pmNoError));
+    EXPECT_CALL(*pFresh, writeShort(_)).WillOnce(Return(pmHostError));
+    mixxx::Time::addTestTime(std::chrono::seconds(3));
+    pollDevice();
+
+    EXPECT_TRUE(outputOffline());
+    ASSERT_EQ(2, m_detachedClosed.size());
+    EXPECT_EQ(pFresh, m_detachedClosed.last());
+    EXPECT_EQ(QList<bool>{true}, m_dialogs);
+}

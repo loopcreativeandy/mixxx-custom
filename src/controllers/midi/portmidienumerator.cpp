@@ -114,6 +114,16 @@ PortMidiEnumerator::~PortMidiEnumerator() {
     while (dev_it.hasNext()) {
         delete dev_it.next();
     }
+    // CP125: Pm_Terminate() closes every stream that is still open, including a
+    // dead output whose close is hanging on a detached thread - that would hang
+    // the rescan (seen: 7 minutes). Keep PortMidi initialized instead; the next
+    // enumerator reuses the existing device list.
+    const int pendingCloses = PortMidiController::pendingDetachedCloses();
+    if (pendingCloses > 0) {
+        qWarning() << "PortMidi: skipping Pm_Terminate,"
+                   << pendingCloses << "dead output stream(s) still closing";
+        return;
+    }
     PmError err = Pm_Terminate();
     // Based on reading the source, it's not possible for this to fail.
     if (err != pmNoError) {

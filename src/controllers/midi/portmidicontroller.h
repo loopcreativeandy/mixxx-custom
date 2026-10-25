@@ -2,7 +2,11 @@
 
 #include <portmidi.h>
 
+#include <QHash>
 #include <QScopedPointer>
+#include <atomic>
+#include <functional>
+#include <memory>
 
 #include "controllers/midi/midicontroller.h"
 #include "controllers/midi/portmididevice.h"
@@ -85,6 +89,13 @@ class PortMidiController : public MidiController {
         return std::nullopt;
     }
 
+    /// CP125: number of dead output streams whose Pm_Close() is still running
+    /// on a detached thread. While > 0, Pm_Terminate() must not run: it would
+    /// close the same dead handle again and hang the caller.
+    static int pendingDetachedCloses() {
+        return s_pendingDetachedCloses.load();
+    }
+
   private slots:
     bool poll() override;
 
@@ -113,8 +124,38 @@ class PortMidiController : public MidiController {
         m_pOutputDevice.reset(device);
     }
 
+    // CP125 output watchdog. When Windows starts rejecting every message to
+    // the device (seen live 2026-10-25: "PortMidi: Host error" from
+    // midiOutShortMsg while input kept working), the output is declared
+    // offline: no more writes, the dead stream is closed on a detached thread
+    // (midiOutClose on it can block for minutes), and poll() keeps reopening
+    // the output. On success every cached note/CC message is replayed, so the
+    // controller LEDs show the current state again.
+    void cacheOutputMessage(unsigned int word);
+    void setOutputOffline();
+    void tryReconnectOutput();
+    void closeOutputDetached(PortMidiDevice* pDevice);
+    void showOutputDialog(bool offline);
+
     QScopedPointer<PortMidiDevice> m_pInputDevice;
-    QScopedPointer<PortMidiDevice> m_pOutputDevice;
+    std::unique_ptr<PortMidiDevice> m_pOutputDevice; // CP125: released to the detached closer
+
+    const PmDeviceInfo* m_pOutputDeviceInfo;
+    int m_outputDeviceIndex;
+    int m_outputFailures;
+    bool m_bOutputOffline;
+    mixxx::Duration m_nextOutputReconnect;
+    // last message per (status type + channel, note/CC number), in send order
+    QHash<quint16, unsigned int> m_outputCache;
+    QList<quint16> m_outputCacheOrder;
+    // set by the detached thread when the dead stream's close() has returned
+    std::shared_ptr<std::atomic<bool>> m_pDeadOutputClosed;
+    // replaceable for tests
+    std::function<PortMidiDevice*()> m_createOutputDevice;
+    std::function<void(PortMidiDevice*, std::shared_ptr<std::atomic<bool>>)>
+            m_closeOutputDetached;
+    std::function<void(bool)> m_showOutputDialog;
+    static std::atomic<int> s_pendingDetachedCloses;
 
     PmEvent m_midiBuffer[MIXXX_PORTMIDI_BUFFER_LEN];
 
