@@ -2855,7 +2855,10 @@ void WTrackMenu::slotRateOrTagForFiles() {
             ? tracks.first()->getInfo()
             : tr("%n track(s)", "", tracks.size());
     const QString comment = tracks.size() == 1 ? tracks.first()->getComment() : QString();
-    const auto edit = mixxx::trackedits::askForEdit(this, subject, comment);
+    const auto edit = mixxx::trackedits::askForEdit(this,
+            subject,
+            comment,
+            mixxx::trackedits::loadTagList(m_pConfig->getSettingsPath()));
     if (!edit) {
         return;
     }

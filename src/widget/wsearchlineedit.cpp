@@ -14,6 +14,7 @@
 #include <QStringLiteral>
 #include <QToolButton>
 
+#include "library/trackedits/trackeditlog.h"
 #include "moc_wsearchlineedit.cpp"
 #include "preferences/configobject.h"
 #include "skin/legacy/skincontext.h"
@@ -34,8 +35,6 @@ const QString kDisabledText = QStringLiteral("- - -");
 
 const QString kLibraryConfigGroup = QStringLiteral("[Library]");
 const QString kSavedQueriesConfigGroup = QStringLiteral("[SearchQueries]");
-
-const QString kSearchTagsFileName = QStringLiteral("search_tags.txt");
 
 // Border width, max. 2 px when focused (in official skins)
 constexpr int kBorderWidth = 2;
@@ -283,25 +282,11 @@ void WSearchLineEdit::loadQueriesFromConfig() {
 }
 
 void WSearchLineEdit::loadSearchTags() {
-    // Settings dir first: it survives reinstalls. The install dir is a fallback.
-    QStringList candidates;
-    if (m_pConfig) {
-        candidates << QDir(m_pConfig->getSettingsPath()).filePath(kSearchTagsFileName);
-    }
-    candidates << QDir(QCoreApplication::applicationDirPath()).filePath(kSearchTagsFileName);
-    for (const QString& path : std::as_const(candidates)) {
-        QFile file(path);
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            continue;
-        }
-        while (!file.atEnd()) {
-            const QString tag = QString::fromUtf8(file.readLine()).trimmed();
-            if (!tag.isEmpty() && !tag.startsWith('#') && !m_searchTags.contains(tag)) {
-                m_searchTags.append(tag);
-            }
-        }
-        kLogger.info() << "Loaded" << m_searchTags.size() << "search tags from" << path;
-        return;
+    QString loadedFrom;
+    m_searchTags = mixxx::trackedits::loadTagList(
+            m_pConfig ? m_pConfig->getSettingsPath() : QString(), &loadedFrom);
+    if (!loadedFrom.isEmpty()) {
+        kLogger.info() << "Loaded" << m_searchTags.size() << "search tags from" << loadedFrom;
     }
 }
 

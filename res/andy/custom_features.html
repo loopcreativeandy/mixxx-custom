@@ -217,7 +217,7 @@ page (Enter = next hit).</p>
 <a name="tagging"></a>
 <h2>Tagging &amp; played status</h2>
 <ul>
-<li><b>Metadata &rarr; Rate / Tag for the Files&hellip;</b> (track menu, also from a deck, works on a selection): tier rating for today (S/A/B/C/D), hand energy (00000 ambient &hellip; 99999 party), tags to add / remove. Nothing is written to the file or the DB yet &mdash; one line per track goes to <code>track_edits/track_edits.jsonl</code> in the settings folder, which Clawy applies to the files later (PhoneDJ format). <span class="dim">CP119</span></li>
+<li><b>Metadata &rarr; Rate / Tag for the Files&hellip;</b> (track menu, also from a deck, works on a selection): tier rating for today (S/A/B/C/D), hand energy (00000 ambient &hellip; 99999 party), tags to add / remove &mdash; typing 2+ letters suggests your tags from <code>search_tags.txt</code> (Up/Down + Enter picks one, <code>, </code> is added for the next). Nothing is written to the file or the DB yet &mdash; one line per track goes to <code>track_edits/track_edits.jsonl</code> in the settings folder, which Clawy applies to the files later (PhoneDJ format). <span class="dim">CP119, CP123</span></li>
 <li>Track menu &rarr; <b>Mark as Played / Mark as Unplayed</b> (any selection; play count untouched). <span class="dim">CP34</span></li>
 <li><b>Mark related tracks played</b> (Preferences &rarr; Auto DJ): marking a track played also marks its stem/original counterpart and other versions of the same song (remixes, edits, typos), so Auto DJ skips them. Optionally counts them as really played. <span class="dim">CP66</span></li>
 </ul>
@@ -248,7 +248,7 @@ page (Enter = next hit).</p>
 <tr><td><code>andys_spectrum.ini</code></td><td>Spectrum feel + band count</td><td>live if Spectrum Live Reload; bands = restart</td></tr>
 <tr><td><code>andys_layout.ini</code></td><td><code>min_width.&lt;Name&gt;</code>, <code>min_height.&lt;Name&gt;</code>, <code>row_height_min_factor</code>, <code>auto_center</code></td><td>restart (auto_center live)</td></tr>
 <tr><td><code>andys_smart_playlists.ini</code></td><td>Smart playlists (edit via the sidebar instead)</td><td>&mdash;</td></tr>
-<tr><td><code>search_tags.txt</code></td><td>Tag list for search completion (not created automatically)</td><td>skin load</td></tr>
+<tr><td><code>search_tags.txt</code></td><td>Tag list for the search box and the Rate / Tag dialog suggestions (not created automatically)</td><td>search: skin load; dialog: each time it opens</td></tr>
 <tr><td><code>live_sessions/</code></td><td>Crowd rating logs (JSONL)</td><td>written</td></tr>
 <tr><td><code>track_edits/track_edits.jsonl</code></td><td>Rate / Tag for the Files log</td><td>written</td></tr>
 <tr><td><code>jitter-trace/</code></td><td>Per-callback audio timing CSVs for dropout forensics (last 24 kept) <span class="dim">CP71</span></td><td>written</td></tr>

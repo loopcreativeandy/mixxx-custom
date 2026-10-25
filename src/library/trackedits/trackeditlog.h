@@ -9,6 +9,7 @@
 
 #include "preferences/usersettings.h"
 
+class QLineEdit;
 class QWidget;
 
 // andy-custom: rate / tag tracks for later.
@@ -47,9 +48,32 @@ QString logFilePath(const UserSettingsPointer& pConfig);
 // Appends one line per entry; false if the file can't be written.
 bool appendLines(const QString& filePath, const QList<QJsonObject>& lines);
 
-// nullopt when cancelled or nothing was entered.
+// The tag list from search_tags.txt (one tag per line, # = comment), looked
+// up in the settings dir first, then next to the executable. File order is
+// kept: it is the suggestion priority. Shared with the library search box.
+QStringList loadTagList(const QString& settingsPath, QString* pLoadedFrom = nullptr);
+
+// The comma-separated entry the cursor is in: [start, end) without the
+// leading blanks; word = the typed part from start up to the cursor.
+struct TagSegment {
+    int start;
+    int end;
+    QString word;
+};
+TagSegment tagSegmentAt(const QString& text, int cursor);
+
+// Replaces the entry at the cursor with tag. At the end of the text a ", "
+// follows so the next tag can be typed right away. *pNewCursor = after it.
+QString replaceTagSegment(const QString& text, int cursor, const QString& tag, int* pNewCursor);
+
+// Popup tag completion for a comma-separated field (no-op without tags).
+void attachTagCompleter(QLineEdit* pEdit, const QStringList& tags);
+
+// nullopt when cancelled or nothing was entered. tagSuggestions feed the
+// popup completion in the add / remove fields.
 std::optional<TrackEdit> askForEdit(QWidget* pParent,
         const QString& subject,
-        const QString& currentComment);
+        const QString& currentComment,
+        const QStringList& tagSuggestions = {});
 
 } // namespace mixxx::trackedits

@@ -1,6 +1,10 @@
 #include "library/trackedits/trackeditlog.h"
 
+#include <QAbstractItemView>
+#include <algorithm>
 #include <QComboBox>
+#include <QCompleter>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -12,6 +16,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QStringListModel>
 
 namespace mixxx::trackedits {
 
@@ -29,7 +34,103 @@ const char* const kEnergyLabels[] = {"ambient",
         "peak",
         "party"};
 
+const QString kTagListFileName = QStringLiteral("search_tags.txt");
+constexpr int kMinTagCompletionChars = 2;
+
 } // namespace
+
+QStringList loadTagList(const QString& settingsPath, QString* pLoadedFrom) {
+    // Settings dir first: it survives reinstalls. The install dir is a fallback.
+    QStringList candidates;
+    if (!settingsPath.isEmpty()) {
+        candidates << QDir(settingsPath).filePath(kTagListFileName);
+    }
+    candidates << QDir(QCoreApplication::applicationDirPath()).filePath(kTagListFileName);
+    for (const QString& path : std::as_const(candidates)) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            continue;
+        }
+        QStringList tags;
+        while (!file.atEnd()) {
+            const QString tag = QString::fromUtf8(file.readLine()).trimmed();
+            if (!tag.isEmpty() && !tag.startsWith('#') && !tags.contains(tag)) {
+                tags.append(tag);
+            }
+        }
+        if (pLoadedFrom) {
+            *pLoadedFrom = path;
+        }
+        return tags;
+    }
+    return {};
+}
+
+TagSegment tagSegmentAt(const QString& text, int cursor) {
+    cursor = std::clamp(cursor, 0, static_cast<int>(text.size()));
+    int start = static_cast<int>(text.lastIndexOf(QChar(','), cursor - 1)) + 1;
+    while (start < cursor && text.at(start).isSpace()) {
+        start++;
+    }
+    int end = static_cast<int>(text.indexOf(QChar(','), cursor));
+    if (end < 0) {
+        end = static_cast<int>(text.size());
+    }
+    return TagSegment{start, end, text.mid(start, cursor - start)};
+}
+
+QString replaceTagSegment(const QString& text, int cursor, const QString& tag, int* pNewCursor) {
+    const TagSegment segment = tagSegmentAt(text, cursor);
+    const QString rest = text.mid(segment.end);
+    const QString before = text.left(segment.start) + tag;
+    const QString result = before + (rest.isEmpty() ? QStringLiteral(", ") : rest);
+    if (pNewCursor) {
+        *pNewCursor = rest.isEmpty() ? static_cast<int>(result.size())
+                                     : static_cast<int>(before.size());
+    }
+    return result;
+}
+
+// Popup completion for a comma-separated tag field, like the tag completion
+// in the library search box: type 2+ letters of a tag, pick it with
+// Up/Down + Enter (or a click), the entry is replaced and ", " appended.
+void attachTagCompleter(QLineEdit* pEdit, const QStringList& tags) {
+    if (tags.isEmpty()) {
+        return;
+    }
+    auto* pCompleter = new QCompleter(new QStringListModel(tags, pEdit), pEdit);
+    pCompleter->setCaseSensitivity(Qt::CaseInsensitive);
+    pCompleter->setFilterMode(Qt::MatchStartsWith);
+    pCompleter->setModelSorting(QCompleter::UnsortedModel); // file order = priority
+    pCompleter->setCompletionMode(QCompleter::PopupCompletion);
+    pCompleter->setMaxVisibleItems(12);
+    // setWidget, not QLineEdit::setCompleter: that would complete the whole
+    // text instead of the entry under the cursor.
+    pCompleter->setWidget(pEdit);
+    QObject::connect(pEdit, &QLineEdit::textEdited, pCompleter, [pEdit, pCompleter] {
+        const TagSegment segment = tagSegmentAt(pEdit->text(), pEdit->cursorPosition());
+        if (segment.word.size() < kMinTagCompletionChars) {
+            pCompleter->popup()->hide();
+            return;
+        }
+        pCompleter->setCompletionPrefix(segment.word);
+        if (pCompleter->completionCount() == 0) {
+            pCompleter->popup()->hide();
+            return;
+        }
+        pCompleter->complete();
+        pCompleter->popup()->setCurrentIndex(pCompleter->completionModel()->index(0, 0));
+    });
+    QObject::connect(pCompleter,
+            qOverload<const QString&>(&QCompleter::activated),
+            pEdit,
+            [pEdit](const QString& tag) {
+                int cursor = 0;
+                pEdit->setText(replaceTagSegment(
+                        pEdit->text(), pEdit->cursorPosition(), tag, &cursor));
+                pEdit->setCursorPosition(cursor);
+            });
+}
 
 QStringList splitTags(const QString& text) {
     QStringList tags;
@@ -89,7 +190,8 @@ bool appendLines(const QString& filePath, const QList<QJsonObject>& lines) {
 
 std::optional<TrackEdit> askForEdit(QWidget* pParent,
         const QString& subject,
-        const QString& currentComment) {
+        const QString& currentComment,
+        const QStringList& tagSuggestions) {
     QDialog dialog(pParent);
     dialog.setWindowTitle(QObject::tr("Rate / Tag for the Files"));
     auto* pLayout = new QFormLayout(&dialog);
@@ -126,6 +228,8 @@ std::optional<TrackEdit> askForEdit(QWidget* pParent,
     auto* pRemoveEdit = new QLineEdit(&dialog);
     pRemoveEdit->setPlaceholderText(QObject::tr("comma-separated"));
     pLayout->addRow(QObject::tr("Remove tags:"), pRemoveEdit);
+    attachTagCompleter(pAddEdit, tagSuggestions);
+    attachTagCompleter(pRemoveEdit, tagSuggestions);
 
     auto* pButtons = new QDialogButtonBox(
             QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
