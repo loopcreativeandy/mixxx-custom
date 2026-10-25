@@ -1,11 +1,15 @@
 #pragma once
 
+#include <QElapsedTimer>
+#include <QList>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <memory>
 
 #include "control/controlobject.h"
 #include "preferences/usersettings.h"
+#include "track/track_decl.h"
 
 class EngineMixer;
 class ControlPushButton;
@@ -51,7 +55,32 @@ class RecordingManager : public QObject {
     void slotSetRecording(bool recording);
     void slotToggleRecording(double value);
 
+  private slots:
+    void slotCurrentPlayingTrackChanged(TrackPointer pTrack);
+
   private:
+    // CP124: short recordings (<= 6 tracks) are renamed on stop to Andy's set
+    // naming convention, see recording/recordingname.h.
+    struct PlayedTrack {
+        TrackPointer pTrack;
+        qint64 playedMillis;
+    };
+    struct PendingRename {
+        QString location;
+        QString cueLocation;
+        QString dateTimeBase;
+        QStringList titles;
+        bool zoukMode = true;
+    };
+    void accrueCurrentTrack();
+    void prepareAutoRename();
+    void performAutoRename();
+    QList<PlayedTrack> m_playedTracks;
+    TrackPointer m_pCurrentPlayingTrack;
+    QElapsedTimer m_currentPlayingSince;
+    QString m_dateTimeBase;
+    PendingRename m_pendingRename;
+
     QString formatDateTimeForFilename(const QDateTime& dateTime) const;
     // slotBytesRecorded just noticed that recording must be interrupted
     // to split the file. The nth filename will follow the date/time

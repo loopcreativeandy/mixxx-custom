@@ -1532,6 +1532,7 @@ add_library(
   src/preferences/settingsmanager.cpp
   src/preferences/upgrade.cpp
   src/recording/recordingmanager.cpp
+  src/recording/recordingname.cpp
   src/skin/legacy/colorschemeparser.cpp
   src/skin/legacy/imgcolor.cpp
   src/skin/legacy/imginvert.cpp
@@ -2821,6 +2822,7 @@ if(BUILD_TESTING)
     src/test/rotary_test.cpp
     src/test/samplebuffertest.cpp
     src/test/schemamanager_test.cpp
+    src/test/recordingname_test.cpp
     src/test/searchqueryparsertest.cpp
     src/test/seratobeatgridtest.cpp
     src/test/seratomarkerstest.cpp

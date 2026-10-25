@@ -2,6 +2,8 @@
 
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QMutex>
 #include <QStorageInfo>
@@ -11,10 +13,32 @@
 #include "engine/sidechain/enginerecord.h"
 #include "engine/sidechain/enginesidechain.h"
 #include "errordialoghandler.h"
+#include "mixer/playerinfo.h"
 #include "moc_recordingmanager.cpp"
 #include "recording/defs_recording.h"
+#include "recording/recordingname.h"
+#include "track/track.h"
 
 #define MIN_DISK_FREE 1024 * 1024 * 1024ll // one gibibyte
+
+namespace {
+// A track counts for the auto name once it was the main (loudest) deck for
+// this long in total — skips tracks that only flashed up in a transition.
+constexpr qint64 kMinPlayedMillisForName = 30 * 1000;
+
+bool isSameTrack(const TrackPointer& a, const TrackPointer& b) {
+    if (a == b) {
+        return true;
+    }
+    if (!a || !b) {
+        return false;
+    }
+    if (a->getId().isValid() && b->getId().isValid()) {
+        return a->getId() == b->getId();
+    }
+    return a->getLocation() == b->getLocation();
+}
+} // namespace
 
 RecordingManager::RecordingManager(UserSettingsPointer pConfig, EngineMixer* pEngine)
         : m_pConfig(pConfig),
@@ -134,6 +158,19 @@ void RecordingManager::startRecording() {
     m_pConfig->set(ConfigKey(RECORDING_PREF_KEY, "Path"), m_recordingLocation);
     m_pConfig->set(ConfigKey(RECORDING_PREF_KEY, "CuePath"), ConfigValue(m_recording_base_file + QStringLiteral(".cue")));
 
+    m_dateTimeBase = date_time_str;
+    m_playedTracks.clear();
+    m_pendingRename = PendingRename();
+    // Connected here, not in the constructor: CoreServices creates PlayerInfo
+    // after the RecordingManager.
+    connect(&PlayerInfo::instance(),
+            &PlayerInfo::currentPlayingTrackChanged,
+            this,
+            &RecordingManager::slotCurrentPlayingTrackChanged,
+            Qt::UniqueConnection);
+    m_pCurrentPlayingTrack = PlayerInfo::instance().getCurrentPlayingTrack();
+    m_currentPlayingSince.start();
+
     m_pCoRecStatus->set(RECORD_READY);
 }
 
@@ -162,6 +199,9 @@ void RecordingManager::splitContinueRecording()
 
 void RecordingManager::stopRecording() {
     qDebug() << "Recording stopped";
+    if (m_bRecording) {
+        prepareAutoRename();
+    }
     m_pCoRecStatus->set(RECORD_OFF);
     m_recordingFile = "";
     m_recordingLocation = "";
@@ -276,6 +316,14 @@ void RecordingManager::warnFreespace() {
 void RecordingManager::slotIsRecording(bool isRecordingActive, bool error) {
     //qDebug() << "SlotIsRecording " << isRecording << error;
 
+    // CP124: the engine has closed the file by now (it emits this after
+    // closeFile()), so the recording is saved — rename it before the
+    // Recordings view refreshes on isRecording(false).
+    if (!isRecordingActive && !error && !m_pendingRename.location.isEmpty()) {
+        performAutoRename();
+    }
+    m_pendingRename = PendingRename();
+
     // Notify the GUI controls, see dlgrecording.cpp.
     m_bRecording = isRecordingActive;
     emit isRecording(isRecordingActive);
@@ -289,6 +337,98 @@ void RecordingManager::slotIsRecording(bool isRecordingActive, bool error) {
                        +"<p>"+tr("You can change the location of the Recordings folder in Preferences -> Recording.")
                        +"</p></html>");
         ErrorDialogHandler::instance()->requestErrorDialog(props);
+    }
+}
+
+void RecordingManager::accrueCurrentTrack() {
+    if (!m_pCurrentPlayingTrack || !m_currentPlayingSince.isValid()) {
+        return;
+    }
+    const qint64 elapsed = m_currentPlayingSince.restart();
+    for (auto& played : m_playedTracks) {
+        if (isSameTrack(played.pTrack, m_pCurrentPlayingTrack)) {
+            played.playedMillis += elapsed;
+            return;
+        }
+    }
+    m_playedTracks.append(PlayedTrack{m_pCurrentPlayingTrack, elapsed});
+}
+
+void RecordingManager::slotCurrentPlayingTrackChanged(TrackPointer pTrack) {
+    if (m_pCoRecStatus->get() == RECORD_OFF) {
+        return;
+    }
+    accrueCurrentTrack();
+    m_pCurrentPlayingTrack = pTrack;
+    m_currentPlayingSince.restart();
+}
+
+void RecordingManager::prepareAutoRename() {
+    accrueCurrentTrack();
+    m_pCurrentPlayingTrack.reset();
+    m_pendingRename = PendingRename();
+    if (m_iNumberSplits > 1 || m_dateTimeBase.isEmpty()) {
+        // Split recordings are long sets; their part files keep their names.
+        return;
+    }
+    QStringList titles;
+    for (const auto& played : std::as_const(m_playedTracks)) {
+        if (played.playedMillis < kMinPlayedMillisForName) {
+            continue;
+        }
+        const QString title = played.pTrack->getTitle().trimmed().isEmpty()
+                ? QFileInfo(played.pTrack->getLocation()).completeBaseName()
+                : played.pTrack->getTitle();
+        if (!recordingname::camelCaseTitle(title).isEmpty()) {
+            titles.append(title);
+        }
+    }
+    m_playedTracks.clear();
+    qInfo() << "Recording: tracks played" << titles;
+    if (titles.isEmpty() || titles.size() > recordingname::kMaxTracksForAutoName) {
+        return;
+    }
+    m_pendingRename.location = m_recordingLocation;
+    m_pendingRename.cueLocation = m_recording_base_file + QStringLiteral(".cue");
+    m_pendingRename.dateTimeBase = m_dateTimeBase;
+    m_pendingRename.titles = titles;
+    m_pendingRename.zoukMode =
+            ControlObject::get(ConfigKey(QStringLiteral("[Controls]"),
+                    QStringLiteral("zouk_mode"))) > 0.0;
+}
+
+void RecordingManager::performAutoRename() {
+    const QFileInfo oldInfo(m_pendingRename.location);
+    if (!oldInfo.exists()) {
+        qWarning() << "Recording: auto-rename skipped, file not found"
+                   << m_pendingRename.location;
+        return;
+    }
+    const QString base = recordingname::buildBaseName(m_pendingRename.dateTimeBase,
+            m_pendingRename.zoukMode,
+            m_pendingRename.titles);
+    const QDir dir = oldInfo.absoluteDir();
+    const QString suffix = oldInfo.suffix();
+    QString newBase = base;
+    for (int i = 2; QFileInfo::exists(dir.filePath(newBase + QChar('.') + suffix)); ++i) {
+        newBase = base + QChar('_') + QString::number(i);
+    }
+    const QString newLocation = dir.filePath(newBase + QChar('.') + suffix);
+    if (!QFile::rename(oldInfo.absoluteFilePath(), newLocation)) {
+        // The recording itself is saved either way; only the name stays.
+        qWarning() << "Recording: auto-rename failed, keeping"
+                   << oldInfo.absoluteFilePath();
+        return;
+    }
+    qInfo() << "Recording: renamed" << oldInfo.fileName() << "->"
+            << QFileInfo(newLocation).fileName();
+    m_pConfig->set(ConfigKey(RECORDING_PREF_KEY, "Path"), newLocation);
+    if (QFileInfo::exists(m_pendingRename.cueLocation)) {
+        const QString newCue = dir.filePath(newBase + QStringLiteral(".cue"));
+        if (!QFileInfo::exists(newCue) &&
+                QFile::rename(m_pendingRename.cueLocation, newCue)) {
+            m_pConfig->set(ConfigKey(RECORDING_PREF_KEY, "CuePath"), ConfigValue(newCue));
+        }
     }
 }
 
