@@ -2,6 +2,14 @@
 
 #ifndef __APPLE__
 #include <QApplication>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPointer>
+#include <QTextBrowser>
+#include <QVBoxLayout>
 #include <QWindow>
 #endif
 #include <QUrl>
@@ -102,6 +110,67 @@ QUrl documentationUrl(
     } else {
         return QUrl(docUrl);
     }
+}
+// Help > Andy's Custom Features: an index of everything the custom build
+// adds, rendered from res/andy/custom_features.html. One non-modal instance;
+// the find box jumps to the next hit on Enter and wraps around.
+void showAndysFeaturesHelp(QWidget* pParent) {
+    static QPointer<QDialog> s_pDialog;
+    if (s_pDialog) {
+        s_pDialog->show();
+        s_pDialog->raise();
+        s_pDialog->activateWindow();
+        return;
+    }
+    auto* pDialog = new QDialog(pParent);
+    s_pDialog = pDialog;
+    pDialog->setAttribute(Qt::WA_DeleteOnClose);
+    pDialog->setWindowTitle(QObject::tr("Andy's Custom Features"));
+    pDialog->resize(900, 760);
+
+    auto* pBrowser = new QTextBrowser(pDialog);
+    pBrowser->setOpenExternalLinks(true);
+    pBrowser->setSource(QUrl(QStringLiteral("qrc:/andy/custom_features.html")));
+
+    auto* pFind = new QLineEdit(pDialog);
+    pFind->setPlaceholderText(QObject::tr("Find on this page (Enter = next hit)"));
+    pFind->setClearButtonEnabled(true);
+    auto* pFindLabel = new QLabel(QObject::tr("Find:"), pDialog);
+    pFindLabel->setBuddy(pFind);
+
+    const auto findText = [pBrowser](const QString& text, bool fromTop) {
+        if (text.isEmpty()) {
+            return;
+        }
+        if (fromTop) {
+            pBrowser->moveCursor(QTextCursor::Start);
+        }
+        if (!pBrowser->find(text)) {
+            // wrap around
+            pBrowser->moveCursor(QTextCursor::Start);
+            pBrowser->find(text);
+        }
+    };
+    QObject::connect(pFind, &QLineEdit::textEdited, pBrowser, [findText](const QString& text) {
+        findText(text, true);
+    });
+    QObject::connect(pFind, &QLineEdit::returnPressed, pBrowser, [pFind, findText] {
+        findText(pFind->text(), false);
+    });
+
+    auto* pButtons = new QDialogButtonBox(QDialogButtonBox::Close, pDialog);
+    QObject::connect(pButtons, &QDialogButtonBox::rejected, pDialog, &QDialog::close);
+
+    auto* pFindRow = new QHBoxLayout();
+    pFindRow->addWidget(pFindLabel);
+    pFindRow->addWidget(pFind);
+    auto* pLayout = new QVBoxLayout(pDialog);
+    pLayout->addLayout(pFindRow);
+    pLayout->addWidget(pBrowser);
+    pLayout->addWidget(pButtons);
+
+    pDialog->show();
+    pFind->setFocus();
 }
 }  // namespace
 
@@ -797,6 +866,19 @@ void WMainMenuBar::initialize() {
                 slotVisitUrl(keyboardShortcutsUrl);
             });
     pHelpMenu->addAction(pHelpKbdShortcuts);
+
+    // Andy's Custom Features (custom build only)
+    QString andysFeaturesTitle = tr("Andy's Custom &Features...");
+    QString andysFeaturesText = tr(
+            "Index of everything this custom build adds, and how to use it.");
+    auto* pHelpAndysFeatures = new QAction(andysFeaturesTitle, this);
+    pHelpAndysFeatures->setMenuRole(QAction::NoRole);
+    pHelpAndysFeatures->setStatusTip(andysFeaturesText);
+    pHelpAndysFeatures->setWhatsThis(buildWhatsThis(andysFeaturesTitle, andysFeaturesText));
+    connect(pHelpAndysFeatures, &QAction::triggered, this, [this] {
+        showAndysFeaturesHelp(window());
+    });
+    pHelpMenu->addAction(pHelpAndysFeatures);
 
     // User Settings Directory
     const QString& settingsDirPath = m_pConfig->getSettingsPath();

@@ -1,0 +1,287 @@
+<html>
+<head>
+<style>
+h1 { font-size: x-large; }
+h2 { font-size: large; margin-top: 18px; }
+h3 { font-size: medium; margin-top: 10px; }
+td { padding: 3px 6px; vertical-align: top; }
+th { padding: 3px 6px; text-align: left; }
+code { font-family: monospace; }
+.dim { color: #888888; }
+</style>
+</head>
+<body>
+
+<a name="top"></a>
+<h1>Andy's Mixxx &mdash; custom features</h1>
+<p>Everything this build adds on top of stock Mixxx 2.6, grouped by area, with where to find it
+and how to use it. The grey tag (<span class="dim">CP112</span>) is the checkpoint it was
+built in, so it can be looked up in the build log. Use the search box above to find a word on this
+page (Enter = next hit).</p>
+
+<p><b>Contents:</b>
+<a href="#keys">Keyboard shortcuts</a> &middot;
+<a href="#search">Library &amp; search</a> &middot;
+<a href="#playlists">Playlists &amp; sidebar</a> &middot;
+<a href="#similar">Find Similar</a> &middot;
+<a href="#stems">Stems</a> &middot;
+<a href="#preview">Preview deck</a> &middot;
+<a href="#decks">Decks, tempo &amp; key</a> &middot;
+<a href="#loading">Loading tracks</a> &middot;
+<a href="#cue">Headphones / cue</a> &middot;
+<a href="#waveforms">Waveforms</a> &middot;
+<a href="#skin">Skins &amp; layout</a> &middot;
+<a href="#spectrum">Spectrum analyzer</a> &middot;
+<a href="#live">Live gigs</a> &middot;
+<a href="#tagging">Tagging &amp; played status</a> &middot;
+<a href="#prefs">Added preferences</a> &middot;
+<a href="#files">Config files</a> &middot;
+<a href="#controller">APC Mini controller</a> &middot;
+<a href="#fixes">Fixes under the hood</a></p>
+
+<!-- ============================================================ -->
+<a name="keys"></a>
+<h2>Keyboard shortcuts</h2>
+<table border="1" cellspacing="0">
+<tr><th>Key</th><th>What it does</th><th></th></tr>
+<tr><td><code>Ctrl+Shift+F</code></td><td><b>Search in Tracks</b> &mdash; jumps from any playlist/crate to the Tracks view and puts the cursor in the search box (last Tracks search is selected, so typing replaces it). Plain <code>Ctrl+F</code> still searches in the current view.</td><td class="dim">CP112</td></tr>
+<tr><td><code>p</code> / <code>Shift+p</code></td><td>Preview the selected track / start-stop the preview (stock keys). Since CP87 they take the track from whichever list has the focus &mdash; also the side panes.</td><td class="dim">CP87</td></tr>
+<tr><td><code>Left</code> / <code>Right</code></td><td>While the preview deck plays: skip 10&nbsp;% back / forward. <code>Right</code> on a <i>different</i> track loads that one into the preview and plays it. When nothing previews, they are normal cursor keys.</td><td class="dim">CP85, CP86</td></tr>
+<tr><td><code>Ctrl+Shift+P</code></td><td>Toggle the beat click in the preview deck (beatgrid check).</td><td class="dim">CP88</td></tr>
+<tr><td><code>Ctrl+L</code></td><td>Start / end a live session (crowd rating log). Live Broadcasting no longer uses Ctrl+L.</td><td class="dim">CP113d</td></tr>
+<tr><td><code>Ctrl++</code> / <code>Ctrl+-</code> / <code>Ctrl+0</code></td><td>Crowd rating for the loudest playing deck: worked well / didn't work / neutral (numpad keys work too). Only while a live session runs.</td><td class="dim">CP113</td></tr>
+<tr><td><code>Ctrl+Z</code></td><td><b>Undo loop change</b> on the deck whose loop changed last; press again to walk further back. In a text field Ctrl+Z stays normal text undo.</td><td class="dim">CP115</td></tr>
+<tr><td><code>F2</code> / <code>Del</code></td><td>Rename / remove the selected smart playlist or playlist folder in the sidebar.</td><td class="dim">CP43, CP68</td></tr>
+<tr><td>Mouse on the BPM number</td><td>Left click = tap tempo (as stock). <b>Right click = type a BPM</b>, Enter sets the rate so the track plays at that tempo; Esc or clicking elsewhere cancels. Mouse wheel does nothing (no accidents).</td><td class="dim">CP55, CP56</td></tr>
+</table>
+<p class="dim">All Ctrl shortcuts above are also in the <b>Options</b> menu, and can be remapped in mixxx.cfg under <code>[KeyboardShortcuts]</code> (<code>OptionsMenu_LiveSession</code>, <code>OptionsMenu_CrowdRatePlus/Minus/Neutral</code>, <code>OptionsMenu_LoopUndo</code>).</p>
+
+<!-- ============================================================ -->
+<a name="search"></a>
+<h2>Library &amp; search</h2>
+<ul>
+<li><b>Search in Tracks: <code>Ctrl+Shift+F</code></b> &mdash; see above. <span class="dim">CP112</span></li>
+<li><b>Tag completion in the search box.</b> Type the start of one of your <code>!</code> tags (e.g. <code>last</code>) and the rest is suggested inline (<code>LastSong!</code>); <code>Right</code> accepts, typing on replaces it, Backspace drops it. The tag list is <code>search_tags.txt</code> in the settings folder (one tag per line, <code>#</code> = comment; first match in the file wins, so the order sets the priority). Read when the skin loads. <span class="dim">CP111</span></li>
+<li><b>Stem search mode.</b> Button right of the search box cycles <b>ALL &rarr; STEMS only &rarr; NO STEMS</b>; also in the skin settings (wrench) &rarr; Library &rarr; &ldquo;Search shows&rdquo;. Only narrows <i>typed</i> searches &mdash; browsing a playlist without search text is never filtered. Works in every list (Tracks, playlists, crates, Similar). <span class="dim">CP114</span></li>
+<li><b>Track # searchable globally.</b> The Track # column (where your chord tokens live) is part of the plain free-text search, sorts as text and is left-aligned. &ldquo;Search related Tracks &rarr; Track Number&rdquo; searches its value. <span class="dim">CP54, CP57, CP58</span></li>
+<li><b>Stem tracks have a violet row tint</b> in every track list (unless the track has its own colour). Colour/opacity in <code>andys_stem_colors.ini</code>. <span class="dim">CP6, CP7</span></li>
+<li><b>&ldquo;Add to Playlist&rdquo; shows 20 playlists</b> plus &ldquo;Show All Playlists (N more)&hellip;&rdquo; instead of a full-screen menu. <span class="dim">CP96</span></li>
+<li><b>Library controls act on the focused list.</b> Load buttons, <code>p</code>, Auto DJ add, rating and colour keys (and mapped controller buttons) use the list you clicked into last &mdash; main library or a side pane. <span class="dim">CP87</span></li>
+<li>Fix: the library no longer jumps back to the selected track ~5&nbsp;s after a search that ended with a space. <span class="dim">CP110</span></li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="playlists"></a>
+<h2>Playlists &amp; sidebar</h2>
+<ul>
+<li><b>Sort order:</b> playlists are sorted by leading underscores first (<code>_</code> to <code>_____</code> = pin level 1&ndash;5, more underscores = higher), then newest first. <span class="dim">CP2</span></li>
+<li><b>Folders:</b> name a playlist <code>Folder/Name</code> and it appears inside an expandable <i>Folder</i> (one level). Right-click a playlist &rarr; <b>Move to Folder</b> (existing folder, New Folder&hellip;, Remove from Folder). Right-click a folder &rarr; <b>Rename Folder</b> (or F2). Open/closed state is remembered. <span class="dim">CP40, CP43</span></li>
+<li><b>Only 10 rows + &ldquo;More&hellip; (N)&rdquo;:</b> the Playlists node shows the top 10 entries; click More for all. Collapsing Playlists folds it back to 10. A selected / just-created playlist is never hidden. <span class="dim">CP106</span></li>
+<li><b>Smart playlists</b> (sidebar &rarr; <i>Smart Playlists</i>): saved searches that update with the library. Right-click the root &rarr; New Smart Playlist &rarr; name + search query (full search syntax: <code>artist:</code>, <code>bpm:120-125</code>, <code>-</code>, <code>|</code>, &hellip;). Right-click one &rarr; Edit Search Query / Rename / Remove. The search bar narrows inside it. Re-evaluated when you click it, never during a set. Stored in <code>andys_smart_playlists.ini</code>, not in the database. <span class="dim">CP68</span></li>
+<li>Right-click a playlist &rarr; <b>Mark all tracks played / unplayed</b>.</li>
+<li>Right-click a playlist &rarr; <b>Replace Tracks With Stem Versions</b> / <b>Replace Stem Tracks With Originals</b> &mdash; swaps the whole playlist in place; tracks without a counterpart stay. <span class="dim">CP46</span></li>
+<li>Right-click a playlist &rarr; <b>Open in side pane</b> (see <a href="#skin">side panes</a>).</li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="similar"></a>
+<h2>Find Similar</h2>
+<ul>
+<li>Right-click a track &rarr; <b>Find Similar</b> &rarr; the <i>Similar</i> sidebar item lists every track with similarity &ge; 0.9 (at least the 10 closest), with a <b>Rank</b> column (the seed track on top as rank 0) and a <b>Similarity</b> column. The search bar filters inside the results. <span class="dim">CP95, CP102</span></li>
+<li>On a stem track it uses the original's sound vector. &ldquo;(no similarity data)&rdquo; = the track is not in the index yet. <span class="dim">CP99</span></li>
+<li>Needs <code>similarity.sqlite</code> at the library root (built by Clawy's exporter); nothing is written to the Mixxx database. Threshold: <code>[Similarity] min_score</code> in mixxx.cfg (default 0.9).</li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="stems"></a>
+<h2>Stems</h2>
+<h3>Look</h3>
+<ul>
+<li><b>RGB stem waveforms:</b> each stem is coloured by frequency content (like the normal RGB waveform), the outline keeps the stem colour. <span class="dim">CP4</span></li>
+<li><b>Fixed stem colours across the library:</b> drums amber, bass red, other cyan, vocals pink &mdash; editable live in <code>andys_stem_colors.ini</code> (applies on next track load). <span class="dim">CP3, CP7</span></li>
+<li><b>One lane per stem:</b> Preferences &rarr; Waveforms &rarr; &ldquo;Show each stem in a separate lane&rdquo; (live toggle). Lanes keep a fixed order, the stem strip knobs line up with the lanes. <span class="dim">CP17, CP19, CP47</span></li>
+</ul>
+<h3>Stem &harr; original</h3>
+<ul>
+<li><b>Metadata &rarr; Import From Original Track</b> (on stem tracks): copies hot cues, loops, beat grid, BPM, key and metadata from the normal version. Alignment is measured from the audio, so cues land right even with a codec delay. Warns before overwriting your own cues. <span class="dim">CP45, CP51, CP53, CP93</span></li>
+<li><b>Deck track menu &rarr; Swap with Stem / Original Track</b> (deck <b>playing</b>): loads the counterpart into a free deck with its <b>fader down</b>, at the exact same musical position, same tempo/pitch, playing &mdash; you fade over yourself. The playing deck is never touched. <span class="dim">CP97, CP97b, CP100</span></li>
+<li><b>Deck track menu &rarr; Replace with Stem / Original Track</b> (deck <b>stopped</b>): swaps the track <i>in the same deck</i> at the same position; tempo, pitch, EQ and gain stay. <span class="dim">CP120</span></li>
+<li><b>Track menu in a playlist / Auto DJ &rarr; Replace with Stem Version / Replace with Original</b> (mixed selection: &ldquo;Swap Stem and Original Versions&rdquo;): swaps just the selected rows in place. Not in history playlists. <span class="dim">CP116</span></li>
+<li>Whole playlist: see <a href="#playlists">Playlists</a>. Marking one version played can mark the other too: see <a href="#tagging">Tagging</a>.</li>
+</ul>
+<h3>Performance</h3>
+<ul>
+<li><b>Parallel Stems</b> (Preferences &rarr; Sound Hardware): time-stretches the 4 stems on several CPU cores instead of one &mdash; helps with keylock on stem decks. <span class="dim">CP39</span></li>
+<li>Stem tracks no longer re-analyse their waveform on every load. <span class="dim">CP60, CP101</span></li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="preview"></a>
+<h2>Preview deck (pre-listening)</h2>
+<ul>
+<li><code>p</code> previews the selected track (stock) &mdash; now from the focused list, side panes included. <span class="dim">CP87</span></li>
+<li><code>Left</code>/<code>Right</code> skip &plusmn;10&nbsp;% while it plays; <code>Right</code> on another track hands the preview over to it. Step size: <code>[PreviewDeck1],seek_percent_size</code>. <span class="dim">CP85, CP86</span></li>
+<li><b>Beatgrid check click:</b> a click on every beat while the preview plays &mdash; if clicks and drums drift apart, the grid/BPM is wrong. Preferences &rarr; Beat Detection &rarr; &ldquo;Beatgrid Check&rdquo; (+ click volume), or <code>Ctrl+Shift+P</code>. Never on the main decks. <span class="dim">CP88</span></li>
+<li><b>Where the preview deck sits</b> (AndyVideo skin settings): Sidebar / Above Library / Below Library / Above Pane / Below Pane, plus <b>Preview Auto-Hide</b> (only visible while previewing). <span class="dim">CP74</span></li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="decks"></a>
+<h2>Decks, tempo &amp; key</h2>
+<ul>
+<li><b>Type a BPM:</b> right-click the deck's BPM number, type, Enter. Left click still taps tempo. <span class="dim">CP55, CP56</span></li>
+<li><b>Zouk / Fusion switch</b> at the top of the skin settings (= Preferences &rarr; Decks &rarr; Zouk mode). <b>Zouk</b> = every loaded track is automatically key-matched to the playing deck (like pressing MATCH), and the key turns <span style="color:#E53935"><b>red</b></span> when two playing decks clash (Camelot distance &gt; 2). <span class="dim">CP35, CP36, CP118, CP121</span></li>
+<li><b>Key offset in the key label:</b> <code>11m (4m +1)</code> = playing in 11m now, track is 4m, moved +1 semitone. Turns <span style="color:#FF9800"><b>orange</b></span> with a decimal (<code>+1.3</code>) when between semitones. Hover it: original key + what reset does; hover the key &uarr;/&darr; buttons: which key you'd land on. Toggle: skin settings &rarr; Decks &rarr; &ldquo;Key Offset (semitones)&rdquo;. <span class="dim">CP72, CP73, CP75, CP103</span></li>
+<li><b>Controller mode frame:</b> when you change the &plusmn;-pad mode on the APC Mini, a yellow frame shows for ~2&nbsp;s around the deck controls it now drives (jump, loop move, loop size, jump size, tempo, key; orange for key fine). <span class="dim">CP104</span></li>
+<li><b>Crowd rating tint:</b> during a live session a deck is tinted green/red/yellow with the latest rating of its track. <span class="dim">CP113</span></li>
+<li><b>Undo loop change:</b> <code>Ctrl+Z</code> or Options &rarr; Undo Loop Change (controller: <code>[LoopUndo],undo</code>). Loop in+out set within 300&nbsp;ms = one step. A toast shows what was undone. <span class="dim">CP115</span></li>
+<li class="dim">The asymmetric (&minus;32/+8&nbsp;%) and exponential pitch faders were tried and removed again (CP28&ndash;CP30).</li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="loading"></a>
+<h2>Loading tracks</h2>
+<ul>
+<li>Loading from the library (load button / controller / <i>load to next deck</i>) <b>alternates over the free decks</b>: 1, 2, 1, 2&hellip; A playing deck is skipped. <span class="dim">CP41, CP94</span></li>
+<li>If <b>every visible deck is playing</b>, the track replaces a <b>muted</b> one (fader down, EQs/stems all down, muted, or off the main mix) &mdash; never a deck that is merely quiet. No muted deck &rarr; nothing loads (it never spills into hidden decks 3/4). <span class="dim">CP94</span></li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="cue"></a>
+<h2>Headphones / cue</h2>
+<ul>
+<li><b>Auto Headphones</b> (Preferences &rarr; Mixer &rarr; &ldquo;Auto Headphones: cue silent decks automatically&rdquo;, or <code>[Master],auto_headphones</code>): the quietest loaded deck is put on the headphones automatically. Pressing a headphone button yourself wins until you press again; while the preview deck plays, nothing is auto-cued. <span class="dim">CP89&ndash;CP89d</span></li>
+<li><b>Cue before EQ</b> (<code>[Master],headphone_pre_eq</code>, APC pad row 8 #3): hear a deck in the headphones without its EQ (killed bands audible). <b>Cue without filter</b> (<code>[Master],headphone_pre_filter</code>, pad #4). Per session, not saved. <span class="dim">CP79&ndash;CP82, CP109</span></li>
+<li><b>Stem cue</b> (<code>[Master],stem_cue_1..4</code>, APC pads row 8 #5&ndash;8 in stem mode while deck 4 is empty): e.g. hear all <i>vocal</i> stems raw in the headphones even with the vocal fader down; the other stems are heard as the crowd hears them. Only affects decks on headphones. <span class="dim">CP107, CP108</span></li>
+<li>Hotcue right-click popup now opens on the correct monitor (external screens). <span class="dim">CP92</span></li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="waveforms"></a>
+<h2>Waveforms</h2>
+<ul>
+<li><b>Zoom out to 50</b> (was 10) &mdash; ~1&frac12; minutes of look-ahead. When beat lines get too dense they thin to every 4th, then every 16th, then disappear. On the APC Mini: SHIFT + fader 9. <span class="dim">CP105</span></li>
+<li><b>Killed EQ ghost:</b> a killed band leaves a dimmed grey trace instead of a blank gap. Preferences &rarr; Waveforms &rarr; &ldquo;Show killed EQ bands as a dimmed ghost&rdquo;. <span class="dim">CP84</span></li>
+<li>Fix: two decks with different sample rates now scroll at the same speed after tempo-matching. <span class="dim">CP83</span></li>
+<li>Stem waveform features: see <a href="#stems">Stems</a>.</li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="skin"></a>
+<h2>Skins &amp; layout</h2>
+<h3>AndyVideo skin</h3>
+<ul>
+<li>Video-first layout: decks + mixer + <a href="#spectrum">spectrum analyzer</a> on the left, a <b>presenter column</b> with your playlist pane on the right (draggable width). The mixer/spectrum column stays centred on resize (<code>auto_center</code> in <code>andys_layout.ini</code>). No private info lines on camera. <span class="dim">CP9&ndash;CP14</span></li>
+<li><b>Classic Layout</b> (skin settings &rarr; Layout): LateNight-style decks and library, playlist pane as a strip below the library. In classic: <b>AutoDJ At Bottom</b> swaps Auto DJ and the playlist pane. <span class="dim">CP48, CP65</span></li>
+<li>Free splitter resizing, decks keep their height (library gives way), constant sidebar width, splitter handle can't vanish under the waveform. <span class="dim">CP70, CP74, CP77, CP78</span></li>
+<li><b>Collapsible skin settings:</b> every section of the wrench panel folds (click the header or the &#9662;/&#9656; arrow); remembered. <span class="dim">CP117</span></li>
+</ul>
+<h3>Side panes (both skins)</h3>
+<ul>
+<li><b>Second playlist pane:</b> right-click a playlist &rarr; <b>Open in side pane</b>. Drag tracks between it and the library, own columns and sort. &#x23CF; button unloads it. Select 2+ tracks &rarr; total duration and count in the header. <span class="dim">CP8, CP11, CP31, CP33</span></li>
+<li><b>Spoiler-free mode</b> (&ndash; / &#x1F441; button in the pane header): shows only the played songs plus the next one &mdash; nothing to spoil on camera. <span class="dim">CP24, CP32</span></li>
+<li><b>Auto DJ side pane:</b> a full Auto DJ next to the library, so Auto DJ and a playlist are open at the same time; can be shrunk to zero. <span class="dim">CP8b, CP27</span></li>
+</ul>
+<h3>Everywhere</h3>
+<ul>
+<li>&ldquo;ANDY'S MIXXX&rdquo; logo, splash and window title. Installs side by side with official Mixxx (&ldquo;Andys Mixxx&rdquo;); both share the settings folder and database. <span class="dim">CP5, CP11</span></li>
+<li><b>Latency meter</b> (toolbar) shows the <i>peak</i> per callback, not the average. Border: yellow/amber = close to the limit, <span style="color:#E53935">red</span> = real buffer underflow. <span class="dim">CP39</span></li>
+<li>Minimum widget sizes / tighter library rows: <code>andys_layout.ini</code> (restart needed). <span class="dim">CP12</span></li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="spectrum"></a>
+<h2>Spectrum analyzer</h2>
+<ul>
+<li>Retro LED spectrum of the main output (AndyVideo, presenter and classic layout). On/off: skin settings &rarr; <b>Spectrum Analyzer</b> &mdash; off costs zero CPU. <span class="dim">CP10, CP37, CP38, CP49</span></li>
+<li>Feel (fall speed, gravity, peak hold, attack, frame rate) and band count (default 32) in <code>andys_spectrum.ini</code>. Motion values reload live when <b>Spectrum Live Reload</b> is on (skin settings); the band count needs a restart. <span class="dim">CP12&ndash;CP13c, CP18, CP62, CP63</span></li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="live"></a>
+<h2>Live gigs</h2>
+<ul>
+<li><b>Live session / crowd rating:</b> <code>Ctrl+L</code> or Options &rarr; Start Live DJing&hellip; &rarr; event name + style (Zouk/Fusion preselected from the switch). While it runs:
+  <ul>
+  <li>every track audible for &ge; 30&nbsp;s is logged as played;</li>
+  <li><code>Ctrl++</code> / <code>Ctrl+-</code> / <code>Ctrl+0</code> rate the loudest deck (toast + deck tint), or right-click a track &rarr; Crowd Rating;</li>
+  <li>log file: <code>live_sessions/yyMMdd_&lt;event&gt;.jsonl</code> in the settings folder. Restart mid-gig &rarr; Mixxx offers to continue the session.</li>
+  </ul>
+  Nothing is written to the database or the star rating. <span class="dim">CP113&ndash;CP113d</span></li>
+<li><b>Practice mode</b> (Preferences &rarr; Library &rarr; Session History): browsing/cueing/tagging doesn't count &mdash; no play count, last played or history entry. Turn it off for real gigs. <span class="dim">CP91</span></li>
+<li><b>Loop undo:</b> <code>Ctrl+Z</code>. <span class="dim">CP115</span></li>
+<li>Gig safety: don't press &ldquo;Rescan controllers&rdquo; mid-set (drops all controllers for a moment).</li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="tagging"></a>
+<h2>Tagging &amp; played status</h2>
+<ul>
+<li><b>Metadata &rarr; Rate / Tag for the Files&hellip;</b> (track menu, also from a deck, works on a selection): tier rating for today (S/A/B/C/D), hand energy (00000 ambient &hellip; 99999 party), tags to add / remove. Nothing is written to the file or the DB yet &mdash; one line per track goes to <code>track_edits/track_edits.jsonl</code> in the settings folder, which Clawy applies to the files later (PhoneDJ format). <span class="dim">CP119</span></li>
+<li>Track menu &rarr; <b>Mark as Played / Mark as Unplayed</b> (any selection; play count untouched). <span class="dim">CP34</span></li>
+<li><b>Mark related tracks played</b> (Preferences &rarr; Auto DJ): marking a track played also marks its stem/original counterpart and other versions of the same song (remixes, edits, typos), so Auto DJ skips them. Optionally counts them as really played. <span class="dim">CP66</span></li>
+</ul>
+
+<!-- ============================================================ -->
+<a name="prefs"></a>
+<h2>Added preferences (where to find them)</h2>
+<table border="1" cellspacing="0">
+<tr><th>Page</th><th>Setting</th></tr>
+<tr><td>Decks</td><td>Zouk mode &mdash; match key automatically when loading</td></tr>
+<tr><td>Mixer</td><td>Auto Headphones</td></tr>
+<tr><td>Waveforms</td><td>Show each stem in a separate lane &middot; Show killed EQ bands as a dimmed ghost</td></tr>
+<tr><td>Library &rarr; Session History</td><td>Practice mode</td></tr>
+<tr><td>Auto DJ</td><td>Mark Related Tracks Played (counterpart / same song / count as really played)</td></tr>
+<tr><td>Beat Detection</td><td>Beatgrid Check click + click volume</td></tr>
+<tr><td>Sound Hardware</td><td>Parallel Stems</td></tr>
+<tr><td>Controllers</td><td><b>Rescan controllers</b> button &mdash; plug in a controller after Mixxx started, no restart needed <span class="dim">CP81</span></td></tr>
+<tr><td>Skin settings (wrench)</td><td>Style Zouk/Fusion &middot; Key Offset &middot; Classic Layout &middot; AutoDJ At Bottom &middot; Preview position + Auto-Hide &middot; Spectrum Analyzer &middot; Spectrum Live Reload &middot; Search shows</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<a name="files"></a>
+<h2>Config files (settings folder)</h2>
+<p>Help &rarr; Settings directory opens it (Windows: <code>%LOCALAPPDATA%\Mixxx\</code>). All are plain text, created with commented defaults on first run where marked.</p>
+<table border="1" cellspacing="0">
+<tr><th>File</th><th>What</th><th>Reload</th></tr>
+<tr><td><code>andys_stem_colors.ini</code></td><td>Stem colours + stem row tint/opacity</td><td>live (~2&nbsp;s); stems on next load</td></tr>
+<tr><td><code>andys_spectrum.ini</code></td><td>Spectrum feel + band count</td><td>live if Spectrum Live Reload; bands = restart</td></tr>
+<tr><td><code>andys_layout.ini</code></td><td><code>min_width.&lt;Name&gt;</code>, <code>min_height.&lt;Name&gt;</code>, <code>row_height_min_factor</code>, <code>auto_center</code></td><td>restart (auto_center live)</td></tr>
+<tr><td><code>andys_smart_playlists.ini</code></td><td>Smart playlists (edit via the sidebar instead)</td><td>&mdash;</td></tr>
+<tr><td><code>search_tags.txt</code></td><td>Tag list for search completion (not created automatically)</td><td>skin load</td></tr>
+<tr><td><code>live_sessions/</code></td><td>Crowd rating logs (JSONL)</td><td>written</td></tr>
+<tr><td><code>track_edits/track_edits.jsonl</code></td><td>Rate / Tag for the Files log</td><td>written</td></tr>
+<tr><td><code>jitter-trace/</code></td><td>Per-callback audio timing CSVs for dropout forensics (last 24 kept) <span class="dim">CP71</span></td><td>written</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<a name="controller"></a>
+<h2>APC Mini controller (myController.js, v40)</h2>
+<p>The mapping is installed separately (copy <code>myController.js</code> + the .midi.xml into the controllers folder, then disable/enable it in Preferences &rarr; Controllers). Short version:</p>
+<ul>
+<li><b>Grid:</b> per deck a transport row above its 8 hotcues (deck 1 on top). Transport: play &middot; cue &middot; rate &minus;/+ &middot; reloop &middot; beatloop &middot; &minus; &middot; +. Play pad: yellow = stopped, red = playing &amp; audible, green = playing but silent; on a live deck press play twice to stop.</li>
+<li><b>Hotcues:</b> empty = set, yellow = jump, green = loop cue. On an audible deck the first press arms (red), the second jumps. SHIFT + pad = delete (grid turns red).</li>
+<li><b>&plusmn; pad modes</b> (green scene buttons, right column): 1 beat jump &middot; 2 move loop &middot; 3 loop size &middot; 4 jump size &middot; 5 tempo &middot; 7 key &plusmn;1 semitone &middot; 8 key &plusmn;10 cents. The screen shows a yellow frame around the matching controls.</li>
+<li><b>Deck pair:</b> SHIFT + scene buttons 5&ndash;8 selects deck 1&ndash;4; the faders work on the pair 1+2 or 3+4.</li>
+<li><b>Faders, EQ mode:</b> 1&ndash;3 low/mid/high EQ crossfade between the pair &middot; 4 filter crossfade &middot; 5 deck A volume &middot; 6/7 deck A/B rate &middot; 8 deck B volume &middot; 9 headphone mix (SHIFT = waveform zoom).</li>
+<li><b>Stem mode</b> (SHIFT + rightmost track button): faders 5&ndash;8 crossfade drums / bass / other / vocals between the pair; stem mix survives track loads.</li>
+<li><b>Track buttons:</b> tap = reset the fader below; <b>hold = subtract-only</b> (fader can only make things quieter &mdash; take both sides out). EQ mode right half: PFL A &middot; sync A &middot; sync B &middot; PFL B. Filter button blinks while a filter is off-centre.</li>
+<li><b>Row 8 cue pads</b> (deck 4 empty): pad 3 cue before EQ &middot; pad 4 cue without filter &middot; pads 5&ndash;8 stem cue (stem mode).</li>
+</ul>
+<p class="dim">Full details: mixxx-build/controller/FEATURES.md + CHANGELOG.md (ask Clawy).</p>
+
+<!-- ============================================================ -->
+<a name="fixes"></a>
+<h2>Fixes under the hood</h2>
+<ul class="dim">
+<li>Fonts and stylesheets load in installed builds (install path with an apostrophe broke every stylesheet). <span>CP5</span></li>
+<li>Crash guards for broken stem files / analysis data; spoiler-mode hang; startup crash in the side pane. <span>CP4, CP22, CP24</span></li>
+<li>Spectrum config no longer touches files from the audio engine (ARM crash); real-time-safe spectrum. <span>CP61, CP76</span></li>
+<li>Imported stem cues no longer ~95&nbsp;ms early; play markers line up between stem and normal decks. <span>CP51, CP52</span></li>
+<li>Rubber Band worker pool really runs in parallel (upstream bug). <span>CP39</span></li>
+<li>Blank library fix; preferences no longer undo live toggles; search history no longer re-runs searches. <span>CP77, CP90, CP110</span></li>
+</ul>
+
+<p class="dim"><a href="#top">Back to top</a></p>
+</body>
+</html>
