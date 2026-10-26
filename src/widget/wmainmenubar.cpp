@@ -1,7 +1,5 @@
 #include "widget/wmainmenubar.h"
 
-#ifndef __APPLE__
-#include <QApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
@@ -9,7 +7,10 @@
 #include <QLineEdit>
 #include <QPointer>
 #include <QTextBrowser>
+#include <QTextCursor>
 #include <QVBoxLayout>
+#ifndef __APPLE__
+#include <QApplication>
 #include <QWindow>
 #endif
 #include <QUrl>
