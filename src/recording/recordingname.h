@@ -10,7 +10,7 @@
 namespace recordingname {
 
 /// Short recordings with at most this many tracks get renamed.
-constexpr int kMaxTracksForAutoName = 6;
+constexpr int kMaxTracksForAutoName = 10;
 
 /// "Deixa Eu Falar Pra Você (feat. X) [Remix]" -> "DeixaEuFalarPraVoce".
 /// Drops (...) / [...] parts and anything from " feat." / " ft." on,
@@ -24,6 +24,6 @@ QString camelCaseTitle(const QString& title);
 QString buildBaseName(const QString& dateTimeBase,
         bool zoukMode,
         const QStringList& trackTitles,
-        int maxLength = 180);
+        int maxLength = 200);
 
 } // namespace recordingname

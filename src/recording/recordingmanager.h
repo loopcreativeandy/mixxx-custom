@@ -62,7 +62,7 @@ class RecordingManager : public QObject {
     void slotPlayedTick();
 
   private:
-    // CP124: short recordings (<= 6 tracks) are renamed on stop to Andy's set
+    // CP124/CP128: short recordings (<= 10 tracks) are renamed on stop to Andy's set
     // naming convention, see recording/recordingname.h.
     struct PlayedTrack {
         TrackPointer pTrack;
