@@ -623,10 +623,11 @@ void WMainMenuBar::initialize() {
 
     // Application-wide, but a focused text field (search box, track editor)
     // still gets Ctrl+Z for its own text undo first.
-    QString loopUndoTitle = tr("&Undo Loop Change");
+    QString loopUndoTitle = tr("&Undo Loop / Cue Change");
     QString loopUndoText = tr(
-            "Put back the loop as it was before the last change, on the deck "
-            "whose loop changed last. Again to go further back.");
+            "Put back the loop, hotcues and intro/outro markers as they were "
+            "before the last change, on the deck that changed last. Again to "
+            "go further back.");
     auto* pOptionsLoopUndo = new QAction(loopUndoTitle, this);
     pOptionsLoopUndo->setShortcut(loopUndoKey);
     pOptionsLoopUndo->setShortcutContext(Qt::ApplicationShortcut);

@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <QFileDialog>
 #include <QOpenGLContext>
+#include <QRegularExpression>
 #include <QTimer>
 #include <QUrl>
 
@@ -354,6 +355,24 @@ void MixxxMainWindow::initialize() {
             m_pCoreServices->getSettings(), this);
     // andy-custom: decks exist by now (PlayerManager), so it sees all of them.
     m_pLoopUndo = std::make_unique<LoopUndo>(this);
+    // andy-custom CP129: undo also covers the loaded tracks' hotcues and
+    // intro/outro markers, so it needs to know which track is on which deck.
+    connect(&PlayerInfo::instance(),
+            &PlayerInfo::trackChanged,
+            m_pLoopUndo.get(),
+            [this](const QString& group, TrackPointer pNewTrack, TrackPointer) {
+                static const QRegularExpression kDeckGroup(
+                        QStringLiteral("^\\[Channel(\\d+)\\]$"));
+                const QRegularExpressionMatch match = kDeckGroup.match(group);
+                if (match.hasMatch() && m_pLoopUndo) {
+                    m_pLoopUndo->setTrack(match.captured(1).toInt() - 1, pNewTrack);
+                }
+            });
+    for (int i = 0; i < m_pLoopUndo->deckCount(); ++i) {
+        m_pLoopUndo->setTrack(i,
+                PlayerInfo::instance().getTrackInfo(
+                        QStringLiteral("[Channel%1]").arg(i + 1)));
+    }
 
     // Connect signals to the menubar. Should be done before emit skinLoaded.
     connectMenuBar();

@@ -1,12 +1,14 @@
 #include "mixer/loopundo.h"
 
 #include <QLabel>
+#include <QStringList>
 #include <QWidget>
 #include <algorithm>
 
 #include "control/controlproxy.h"
 #include "control/controlpushbutton.h"
 #include "moc_loopundo.cpp"
+#include "track/track.h"
 
 namespace {
 
@@ -17,7 +19,49 @@ bool isValidPosition(double position) {
     return position >= 0.0;
 }
 
+// The cues undo covers: hotcues and saved loops on a hotcue slot, intro and
+// outro. Not the main cue (CUE sets it all the time) or hidden ones.
+bool isUndoableCue(const Cue& cue) {
+    switch (cue.getType()) {
+    case mixxx::CueType::Intro:
+    case mixxx::CueType::Outro:
+        return true;
+    case mixxx::CueType::HotCue:
+    case mixxx::CueType::Loop:
+        return cue.getHotCue() != Cue::kNoHotCue;
+    default:
+        return false;
+    }
+}
+
+QString cueName(const LoopUndo::CueState& cue) {
+    switch (cue.type) {
+    case mixxx::CueType::Intro:
+        return LoopUndo::tr("intro marker");
+    case mixxx::CueType::Outro:
+        return LoopUndo::tr("outro marker");
+    default:
+        return LoopUndo::tr("hotcue %1").arg(cue.hotCue + 1);
+    }
+}
+
+const LoopUndo::CueState* findCue(
+        const LoopUndo::CueStates& cues, const CuePointer& pCue) {
+    for (const auto& cue : cues) {
+        if (cue.pCue == pCue) {
+            return &cue;
+        }
+    }
+    return nullptr;
+}
+
 } // namespace
+
+bool LoopUndo::CueState::sameValues(const CueState& other) const {
+    return type == other.type && hotCue == other.hotCue &&
+            start == other.start && end == other.end &&
+            label == other.label && color == other.color;
+}
 
 LoopUndo::LoopUndo(QWidget* pMainWindow, int settleMs)
         : m_pMainWindow(pMainWindow),
@@ -103,6 +147,93 @@ LoopUndo::LoopState LoopUndo::currentState(const Deck& deck) const {
     return LoopState{deck.pStart->get(), deck.pEnd->get()};
 }
 
+LoopUndo::CueStates LoopUndo::currentCues(const Deck& deck) {
+    CueStates cues;
+    if (!deck.pTrack) {
+        return cues;
+    }
+    const QList<CuePointer> cuePoints = deck.pTrack->getCuePoints();
+    for (const auto& pCue : cuePoints) {
+        if (!pCue || !isUndoableCue(*pCue)) {
+            continue;
+        }
+        const Cue::StartAndEndPositions pos = pCue->getStartAndEndPosition();
+        cues.push_back(CueState{pCue,
+                pCue->getType(),
+                pCue->getHotCue(),
+                pos.startPosition,
+                pos.endPosition,
+                pCue->getLabel(),
+                pCue->getColor()});
+    }
+    return cues;
+}
+
+bool LoopUndo::sameCues(const CueStates& a, const CueStates& b) {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    for (const auto& cue : a) {
+        const CueState* pOther = findCue(b, cue.pCue);
+        if (!pOther || !cue.sameValues(*pOther)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+QString LoopUndo::describeChange(const LoopState& loopBefore,
+        const LoopState& loopAfter,
+        const CueStates& before,
+        const CueStates& after) {
+    QStringList names;
+    if (loopBefore != loopAfter) {
+        names << tr("loop");
+    }
+    for (const auto& cue : before) {
+        const CueState* pAfter = findCue(after, cue.pCue);
+        if (!pAfter || !cue.sameValues(*pAfter)) {
+            names << cueName(cue);
+        }
+    }
+    for (const auto& cue : after) {
+        if (!findCue(before, cue.pCue)) {
+            names << cueName(cue);
+        }
+    }
+    names.removeDuplicates();
+    if (names.size() > 2) {
+        return tr("%1 + %2 more").arg(names.first()).arg(names.size() - 1);
+    }
+    return names.join(QStringLiteral(" + "));
+}
+
+void LoopUndo::setTrack(int deckIndex, TrackPointer pTrack) {
+    if (deckIndex < 0 || deckIndex >= static_cast<int>(m_decks.size())) {
+        return;
+    }
+    Deck* pDeck = m_decks[deckIndex].get();
+    if (pDeck->pTrack == pTrack) {
+        return;
+    }
+    // Per deck, not disconnect(track, this): the same track can be on two decks.
+    disconnect(pDeck->cuesConnection);
+    pDeck->pTrack = std::move(pTrack);
+    if (pDeck->pTrack) {
+        // Emitted on whichever thread changed the cue (engine, controller,
+        // GUI); queued to the GUI thread where all of this runs.
+        pDeck->cuesConnection = connect(pDeck->pTrack.get(),
+                &Track::cuesUpdated,
+                this,
+                [this, deckIndex]() {
+                    onLoopChanged(deckIndex);
+                });
+    }
+    dropSteps(deckIndex);
+    pDeck->stableCues = currentCues(*pDeck);
+    startIgnoring(deckIndex);
+}
+
 void LoopUndo::onLoopChanged(int deckIndex) {
     Deck* pDeck = m_decks[deckIndex].get();
     if (pDeck->pRoll->valid() && pDeck->pRoll->toBool()) {
@@ -120,19 +251,28 @@ void LoopUndo::startIgnoring(int deckIndex) {
 void LoopUndo::onSettled(int deckIndex) {
     Deck* pDeck = m_decks[deckIndex].get();
     const LoopState current = currentState(*pDeck);
+    CueStates currentCueStates = currentCues(*pDeck);
     if (pDeck->ignoreChanges) {
         pDeck->ignoreChanges = false;
         pDeck->stable = current;
+        pDeck->stableCues = std::move(currentCueStates);
         return;
     }
-    if (current == pDeck->stable) {
+    if (current == pDeck->stable && sameCues(currentCueStates, pDeck->stableCues)) {
         return;
     }
-    m_steps.push_back(Step{deckIndex, pDeck->stable});
+    m_steps.push_back(Step{deckIndex,
+            pDeck->stable,
+            pDeck->stableCues,
+            describeChange(pDeck->stable,
+                    current,
+                    pDeck->stableCues,
+                    currentCueStates)});
     if (static_cast<int>(m_steps.size()) > kMaxSteps) {
         m_steps.erase(m_steps.begin());
     }
     pDeck->stable = current;
+    pDeck->stableCues = std::move(currentCueStates);
 }
 
 void LoopUndo::flushPending() {
@@ -158,19 +298,72 @@ void LoopUndo::slotUndo() {
     // one to undo.
     flushPending();
     if (m_steps.empty()) {
-        showToast(tr("No loop change to undo"));
+        showToast(tr("Nothing to undo"));
         return;
     }
     const Step step = m_steps.back();
     m_steps.pop_back();
     Deck* pDeck = m_decks[step.deck].get();
-    applyState(pDeck, step.before);
+    if (currentState(*pDeck) != step.before) {
+        applyState(pDeck, step.before);
+    }
+    applyCues(pDeck, step.beforeCues);
     // The engine's own reactions to these writes (e.g. dropping an end that
     // is now before the start) arrive as changes too; none of them is a step.
     pDeck->ignoreChanges = true;
     pDeck->pSettleTimer->start();
     pDeck->stable = currentState(*pDeck);
-    showToast(tr("Deck %1: loop change undone").arg(step.deck + 1));
+    pDeck->stableCues = currentCues(*pDeck);
+    showToast(tr("Deck %1: %2 change undone").arg(step.deck + 1).arg(step.what));
+}
+
+void LoopUndo::applyCues(Deck* pDeck, const CueStates& cues) {
+    if (!pDeck->pTrack) {
+        return;
+    }
+    const CueStates current = currentCues(*pDeck);
+    // Removals first: a hotcue slot or the one intro/outro has to be free
+    // before the old cue goes back into it.
+    for (const auto& cue : current) {
+        if (!findCue(cues, cue.pCue)) {
+            pDeck->pTrack->removeCue(cue.pCue);
+        }
+    }
+    for (const auto& cue : cues) {
+        const CueState* pNow = findCue(current, cue.pCue);
+        if (pNow) {
+            if (cue.sameValues(*pNow)) {
+                continue;
+            }
+            // Still there, but moved / renamed / recoloured / re-slotted.
+            if (pNow->type != cue.type) {
+                cue.pCue->setType(cue.type);
+            }
+            if (pNow->hotCue != cue.hotCue) {
+                cue.pCue->setHotCue(cue.hotCue);
+            }
+            if (pNow->start != cue.start || pNow->end != cue.end) {
+                cue.pCue->setStartAndEndPosition(cue.start, cue.end);
+            }
+            if (pNow->label != cue.label) {
+                cue.pCue->setLabel(cue.label);
+            }
+            if (pNow->color != cue.color) {
+                cue.pCue->setColor(cue.color);
+            }
+            continue;
+        }
+        // Deleted: a new cue with the old values (the old object may already
+        // be gone from the database).
+        if (!cue.start.isValid() && !cue.end.isValid()) {
+            continue;
+        }
+        CuePointer pNew = pDeck->pTrack->createAndAddCue(
+                cue.type, cue.hotCue, cue.start, cue.end, cue.color);
+        if (pNew && !cue.label.isEmpty()) {
+            pNew->setLabel(cue.label);
+        }
+    }
 }
 
 void LoopUndo::applyState(Deck* pDeck, const LoopState& state) {

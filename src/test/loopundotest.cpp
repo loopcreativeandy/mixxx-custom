@@ -5,6 +5,7 @@
 #include "control/controlproxy.h"
 #include "mixer/loopundo.h"
 #include "test/mockedenginebackendtest.h"
+#include "track/track.h"
 
 namespace {
 
@@ -24,6 +25,30 @@ class LoopUndoTest : public MockedEngineBackendTest {
         // LoopUndo creates [LoopUndo],undo, so it has to exist first.
         m_pLoopUndo = std::make_unique<LoopUndo>(nullptr, kNeverSettles);
         m_pUndoButton = std::make_unique<ControlProxy>("[LoopUndo]", "undo");
+        // In the app PlayerInfo::trackChanged does this.
+        m_pLoopUndo->setTrack(0, m_pTrack1);
+        m_pLoopUndo->flushPending();
+    }
+
+    CuePointer addHotcue(int index, double framePos) {
+        CuePointer pCue = m_pTrack1->createAndAddCue(mixxx::CueType::HotCue,
+                index,
+                mixxx::audio::FramePos(framePos),
+                mixxx::audio::kInvalidFramePos);
+        m_pLoopUndo->flushPending();
+        return pCue;
+    }
+
+    /// Engine sample position of the CueControl CO, -1 when not set.
+    double co(const QString& item) {
+        return ControlProxy(m_sGroup1, item).get();
+    }
+
+    void press(const QString& item) {
+        ControlProxy proxy(m_sGroup1, item);
+        proxy.set(1);
+        proxy.set(0);
+        m_pLoopUndo->flushPending();
     }
 
     void TearDown() override {
@@ -141,6 +166,117 @@ TEST_F(LoopUndoTest, LoadingATrackDropsThatDecksHistory) {
     EXPECT_LT(0, m_pLoopUndo->stepCount());
 
     m_pTrack1 = m_pMixerDeck1->loadFakeTrack(false, 0.0);
+    m_pLoopUndo->flushPending();
+    EXPECT_EQ(0, m_pLoopUndo->stepCount());
+}
+
+// CP129: hotcues and intro/outro markers.
+
+TEST_F(LoopUndoTest, UndoOfANewHotcueRemovesIt) {
+    addHotcue(0, 1000);
+    EXPECT_DOUBLE_EQ(2000, co("hotcue_1_position"));
+
+    pressUndo();
+    EXPECT_FALSE(m_pTrack1->findHotcueByIndex(0));
+    EXPECT_DOUBLE_EQ(-1, co("hotcue_1_position"));
+}
+
+TEST_F(LoopUndoTest, DeletedHotcueComesBackWithLabelAndColor) {
+    CuePointer pCue = addHotcue(2, 5000);
+    pCue->setLabel(QStringLiteral("drop"));
+    pCue->setColor(mixxx::RgbColor(0x00FF00));
+    m_pLoopUndo->flushPending();
+
+    press(QStringLiteral("hotcue_3_clear")); // the accidental delete
+    EXPECT_FALSE(m_pTrack1->findHotcueByIndex(2));
+
+    pressUndo();
+    CuePointer pBack = m_pTrack1->findHotcueByIndex(2);
+    ASSERT_TRUE(pBack);
+    EXPECT_EQ(mixxx::audio::FramePos(5000), pBack->getPosition());
+    EXPECT_EQ(QStringLiteral("drop"), pBack->getLabel());
+    EXPECT_EQ(mixxx::RgbColor(0x00FF00), pBack->getColor());
+    EXPECT_DOUBLE_EQ(10000, co("hotcue_3_position"));
+}
+
+TEST_F(LoopUndoTest, MovedHotcueGoesBack) {
+    CuePointer pCue = addHotcue(0, 1000);
+    pCue->setStartPosition(mixxx::audio::FramePos(8000));
+    m_pLoopUndo->flushPending();
+
+    pressUndo();
+    EXPECT_EQ(mixxx::audio::FramePos(1000), pCue->getPosition());
+    EXPECT_DOUBLE_EQ(2000, co("hotcue_1_position"));
+}
+
+TEST_F(LoopUndoTest, ClearedOutroEndComesBack) {
+    m_pTrack1->createAndAddCue(mixxx::CueType::Outro,
+            Cue::kNoHotCue,
+            mixxx::audio::FramePos(40000),
+            mixxx::audio::FramePos(60000));
+    m_pLoopUndo->flushPending();
+    EXPECT_DOUBLE_EQ(120000, co("outro_end_position"));
+
+    press(QStringLiteral("outro_end_clear"));
+    EXPECT_DOUBLE_EQ(-1, co("outro_end_position"));
+
+    pressUndo();
+    EXPECT_DOUBLE_EQ(80000, co("outro_start_position"));
+    EXPECT_DOUBLE_EQ(120000, co("outro_end_position"));
+}
+
+TEST_F(LoopUndoTest, ClearedIntroStartWithoutEndComesBack) {
+    m_pTrack1->createAndAddCue(mixxx::CueType::Intro,
+            Cue::kNoHotCue,
+            mixxx::audio::FramePos(3000),
+            mixxx::audio::kInvalidFramePos);
+    m_pLoopUndo->flushPending();
+
+    press(QStringLiteral("intro_start_clear")); // removes the whole cue
+    EXPECT_FALSE(m_pTrack1->findCueByType(mixxx::CueType::Intro));
+
+    pressUndo();
+    CuePointer pIntro = m_pTrack1->findCueByType(mixxx::CueType::Intro);
+    ASSERT_TRUE(pIntro);
+    EXPECT_EQ(mixxx::audio::FramePos(3000), pIntro->getPosition());
+    EXPECT_DOUBLE_EQ(6000, co("intro_start_position"));
+}
+
+TEST_F(LoopUndoTest, CueAndLoopStepsShareOneHistory) {
+    setLoop1(10000, 50000);
+    addHotcue(0, 1000);
+
+    pressUndo(); // the hotcue, it changed last
+    EXPECT_FALSE(m_pTrack1->findHotcueByIndex(0));
+    expectLoop1(10000, 50000);
+    pressUndo(); // then the loop
+    expectLoop1(-1, -1);
+}
+
+TEST_F(LoopUndoTest, MainCueIsNotAStep) {
+    const int steps = m_pLoopUndo->stepCount();
+    m_pTrack1->setMainCuePosition(mixxx::audio::FramePos(7000));
+    m_pLoopUndo->flushPending();
+    EXPECT_EQ(steps, m_pLoopUndo->stepCount());
+}
+
+TEST_F(LoopUndoTest, UndoOfACueIsNotAStep) {
+    addHotcue(0, 1000);
+    press(QStringLiteral("hotcue_1_clear"));
+    const int steps = m_pLoopUndo->stepCount();
+
+    pressUndo();
+    m_pLoopUndo->flushPending();
+    EXPECT_EQ(steps - 1, m_pLoopUndo->stepCount());
+    EXPECT_TRUE(m_pTrack1->findHotcueByIndex(0));
+}
+
+TEST_F(LoopUndoTest, NewTrackDropsItsDecksCueHistory) {
+    addHotcue(0, 1000);
+    EXPECT_LT(0, m_pLoopUndo->stepCount());
+
+    m_pTrack1 = m_pMixerDeck1->loadFakeTrack(false, 0.0);
+    m_pLoopUndo->setTrack(0, m_pTrack1);
     m_pLoopUndo->flushPending();
     EXPECT_EQ(0, m_pLoopUndo->stepCount());
 }
