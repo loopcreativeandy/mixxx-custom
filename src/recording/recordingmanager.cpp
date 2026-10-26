@@ -1,6 +1,7 @@
 #include "recording/recordingmanager.h"
 
 #include <QDateTime>
+#include <algorithm>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -9,11 +10,14 @@
 #include <QStorageInfo>
 
 #include "control/controlpushbutton.h"
+#include "engine/channels/enginechannel.h"
 #include "engine/enginemixer.h"
+#include "engine/enginexfader.h"
 #include "engine/sidechain/enginerecord.h"
 #include "engine/sidechain/enginesidechain.h"
 #include "errordialoghandler.h"
 #include "mixer/playerinfo.h"
+#include "mixer/playermanager.h"
 #include "moc_recordingmanager.cpp"
 #include "recording/defs_recording.h"
 #include "recording/recordingname.h"
@@ -22,9 +26,15 @@
 #define MIN_DISK_FREE 1024 * 1024 * 1024ll // one gibibyte
 
 namespace {
-// A track counts for the auto name once it was the main (loudest) deck for
-// this long in total — skips tracks that only flashed up in a transition.
+// A track counts for the auto name once it was audible on the main mix for
+// this long in total (same rule as the live crowd-rating session) — skips
+// tracks that only flashed up or were only cued in the headphones.
 constexpr qint64 kMinPlayedMillisForName = 30 * 1000;
+// Below this main-mix gain (volume fader x crossfader) a deck is not audible.
+constexpr double kAudibleGain = 0.1;
+// Same pregain cut-off PlayerInfo uses for the "currently playing" deck.
+constexpr double kMinPregain = 0.25;
+constexpr int kPlayedTickMillis = 1000;
 
 bool isSameTrack(const TrackPointer& a, const TrackPointer& b) {
     if (a == b) {
@@ -61,6 +71,7 @@ RecordingManager::RecordingManager(UserSettingsPointer pConfig, EngineMixer* pEn
             this,
             &RecordingManager::slotToggleRecording);
     m_pCoRecStatus = std::make_unique<ControlObject>(ConfigKey(RECORDING_PREF_KEY, "status"));
+    connect(&m_playedTimer, &QTimer::timeout, this, &RecordingManager::slotPlayedTick);
 
     m_split_size = getFileSplitSize();
     m_split_time = getFileSplitSeconds();
@@ -161,15 +172,8 @@ void RecordingManager::startRecording() {
     m_dateTimeBase = date_time_str;
     m_playedTracks.clear();
     m_pendingRename = PendingRename();
-    // Connected here, not in the constructor: CoreServices creates PlayerInfo
-    // after the RecordingManager.
-    connect(&PlayerInfo::instance(),
-            &PlayerInfo::currentPlayingTrackChanged,
-            this,
-            &RecordingManager::slotCurrentPlayingTrackChanged,
-            Qt::UniqueConnection);
-    m_pCurrentPlayingTrack = PlayerInfo::instance().getCurrentPlayingTrack();
-    m_currentPlayingSince.start();
+    m_lastPlayedTick.start();
+    m_playedTimer.start(kPlayedTickMillis);
 
     m_pCoRecStatus->set(RECORD_READY);
 }
@@ -340,32 +344,77 @@ void RecordingManager::slotIsRecording(bool isRecordingActive, bool error) {
     }
 }
 
-void RecordingManager::accrueCurrentTrack() {
-    if (!m_pCurrentPlayingTrack || !m_currentPlayingSince.isValid()) {
-        return;
+bool RecordingManager::isDeckAudible(int deckIndex) {
+    while (static_cast<int>(m_deckProxies.size()) <= deckIndex) {
+        const QString group = PlayerManager::groupForDeck(
+                static_cast<int>(m_deckProxies.size()));
+        DeckProxies deck;
+        deck.pPlay = std::make_unique<PollingControlProxy>(group, QStringLiteral("play"));
+        deck.pVolume = std::make_unique<PollingControlProxy>(group, QStringLiteral("volume"));
+        deck.pPregain = std::make_unique<PollingControlProxy>(group, QStringLiteral("pregain"));
+        deck.pOrientation = std::make_unique<PollingControlProxy>(
+                group, QStringLiteral("orientation"));
+        deck.pMute = std::make_unique<PollingControlProxy>(group, QStringLiteral("mute"));
+        m_deckProxies.push_back(std::move(deck));
     }
-    const qint64 elapsed = m_currentPlayingSince.restart();
+    if (!m_pXfader) {
+        m_pXfader = std::make_unique<PollingControlProxy>(
+                QStringLiteral("[Master]"), QStringLiteral("crossfader"));
+    }
+    const DeckProxies& deck = m_deckProxies[deckIndex];
+    if (deck.pPlay->get() == 0.0 || deck.pPregain->get() <= kMinPregain ||
+            deck.pMute->get() > 0.0) {
+        return false;
+    }
+    CSAMPLE_GAIN xfl, xfr;
+    // Same simplification as PlayerInfo::updateCurrentPlayingDeck().
+    EngineXfader::getXfadeGains(m_pXfader->get(), 1.0, 0.0, MIXXX_XFADER_ADDITIVE, false, &xfl, &xfr);
+    const auto orient = static_cast<int>(deck.pOrientation->get());
+    double xfvol = 1.0;
+    if (orient == EngineChannel::LEFT) {
+        xfvol = xfl;
+    } else if (orient == EngineChannel::RIGHT) {
+        xfvol = xfr;
+    }
+    return deck.pVolume->get() * xfvol >= kAudibleGain;
+}
+
+void RecordingManager::accrueTrack(const TrackPointer& pTrack, qint64 elapsedMillis) {
     for (auto& played : m_playedTracks) {
-        if (isSameTrack(played.pTrack, m_pCurrentPlayingTrack)) {
-            played.playedMillis += elapsed;
+        if (isSameTrack(played.pTrack, pTrack)) {
+            played.playedMillis += elapsedMillis;
             return;
         }
     }
-    m_playedTracks.append(PlayedTrack{m_pCurrentPlayingTrack, elapsed});
+    // Ordered by first audible appearance.
+    m_playedTracks.append(PlayedTrack{pTrack, elapsedMillis});
 }
 
-void RecordingManager::slotCurrentPlayingTrackChanged(TrackPointer pTrack) {
-    if (m_pCoRecStatus->get() == RECORD_OFF) {
+void RecordingManager::slotPlayedTick() {
+    if (m_pCoRecStatus->get() == RECORD_OFF || !m_lastPlayedTick.isValid()) {
+        m_playedTimer.stop();
         return;
     }
-    accrueCurrentTrack();
-    m_pCurrentPlayingTrack = pTrack;
-    m_currentPlayingSince.restart();
+    // Real elapsed time, the timer may fire late under load.
+    const qint64 elapsed = std::clamp<qint64>(
+            m_lastPlayedTick.restart(), 0, 5 * kPlayedTickMillis);
+    const int numDecks = PlayerInfo::instance().numDecks();
+    for (int i = 0; i < numDecks; ++i) {
+        if (!isDeckAudible(i)) {
+            continue;
+        }
+        const TrackPointer pTrack =
+                PlayerInfo::instance().getTrackInfo(PlayerManager::groupForDeck(i));
+        if (pTrack) {
+            accrueTrack(pTrack, elapsed);
+        }
+    }
 }
 
 void RecordingManager::prepareAutoRename() {
-    accrueCurrentTrack();
-    m_pCurrentPlayingTrack.reset();
+    slotPlayedTick();
+    m_playedTimer.stop();
+    m_lastPlayedTick.invalidate();
     m_pendingRename = PendingRename();
     if (m_iNumberSplits > 1 || m_dateTimeBase.isEmpty()) {
         // Split recordings are long sets; their part files keep their names.

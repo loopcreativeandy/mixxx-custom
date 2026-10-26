@@ -5,9 +5,12 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QTimer>
 #include <memory>
+#include <vector>
 
 #include "control/controlobject.h"
+#include "control/pollingcontrolproxy.h"
 #include "preferences/usersettings.h"
 #include "track/track_decl.h"
 
@@ -56,7 +59,7 @@ class RecordingManager : public QObject {
     void slotToggleRecording(double value);
 
   private slots:
-    void slotCurrentPlayingTrackChanged(TrackPointer pTrack);
+    void slotPlayedTick();
 
   private:
     // CP124: short recordings (<= 6 tracks) are renamed on stop to Andy's set
@@ -72,12 +75,25 @@ class RecordingManager : public QObject {
         QStringList titles;
         bool zoukMode = true;
     };
-    void accrueCurrentTrack();
+    // Every deck counts on its own while it is audible on the main mix (not
+    // only the single loudest deck: with two decks at the same level that
+    // always picked deck 1, so deck 2's tracks went missing from the name).
+    struct DeckProxies {
+        std::unique_ptr<PollingControlProxy> pPlay;
+        std::unique_ptr<PollingControlProxy> pVolume;
+        std::unique_ptr<PollingControlProxy> pPregain;
+        std::unique_ptr<PollingControlProxy> pOrientation;
+        std::unique_ptr<PollingControlProxy> pMute;
+    };
+    bool isDeckAudible(int deckIndex);
+    void accrueTrack(const TrackPointer& pTrack, qint64 elapsedMillis);
     void prepareAutoRename();
     void performAutoRename();
     QList<PlayedTrack> m_playedTracks;
-    TrackPointer m_pCurrentPlayingTrack;
-    QElapsedTimer m_currentPlayingSince;
+    QTimer m_playedTimer;
+    QElapsedTimer m_lastPlayedTick;
+    std::vector<DeckProxies> m_deckProxies;
+    std::unique_ptr<PollingControlProxy> m_pXfader;
     QString m_dateTimeBase;
     PendingRename m_pendingRename;
 
