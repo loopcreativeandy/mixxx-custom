@@ -173,6 +173,7 @@ void RecordingManager::startRecording() {
     m_playedTracks.clear();
     m_pendingRename = PendingRename();
     m_lastPlayedTick.start();
+    m_recordingClock.start();
     m_playedTimer.start(kPlayedTickMillis);
 
     m_pCoRecStatus->set(RECORD_READY);
@@ -387,7 +388,10 @@ void RecordingManager::accrueTrack(const TrackPointer& pTrack, qint64 elapsedMil
         }
     }
     // Ordered by first audible appearance.
-    m_playedTracks.append(PlayedTrack{pTrack, elapsedMillis});
+    const qint64 firstAudible = m_recordingClock.isValid()
+            ? std::max<qint64>(0, m_recordingClock.elapsed() - elapsedMillis)
+            : 0;
+    m_playedTracks.append(PlayedTrack{pTrack, elapsedMillis, firstAudible});
 }
 
 void RecordingManager::slotPlayedTick() {
@@ -415,16 +419,25 @@ void RecordingManager::prepareAutoRename() {
     slotPlayedTick();
     m_playedTimer.stop();
     m_lastPlayedTick.invalidate();
+    m_recordingClock.invalidate();
     m_pendingRename = PendingRename();
     if (m_iNumberSplits > 1 || m_dateTimeBase.isEmpty()) {
         // Split recordings are long sets; their part files keep their names.
+        // (Their tracks are spread over the parts, so no tracklist either.)
+        m_playedTracks.clear();
         return;
     }
     QStringList titles;
+    QList<mixxx::settracklist::Entry> tracklist;
     for (const auto& played : std::as_const(m_playedTracks)) {
         if (played.playedMillis < kMinPlayedMillisForName) {
             continue;
         }
+        tracklist.append(mixxx::settracklist::Entry{played.pTrack->getLocation(),
+                played.pTrack->getArtist(),
+                played.pTrack->getTitle(),
+                played.firstAudibleMillis,
+                played.playedMillis});
         const QString title = played.pTrack->getTitle().trimmed().isEmpty()
                 ? QFileInfo(played.pTrack->getLocation()).completeBaseName()
                 : played.pTrack->getTitle();
@@ -434,10 +447,14 @@ void RecordingManager::prepareAutoRename() {
     }
     m_playedTracks.clear();
     qInfo() << "Recording: tracks played" << titles;
-    if (titles.isEmpty() || titles.size() > recordingname::kMaxTracksForAutoName) {
+    if (tracklist.isEmpty()) {
         return;
     }
     m_pendingRename.location = m_recordingLocation;
+    m_pendingRename.tracklist = tracklist;
+    if (titles.isEmpty() || titles.size() > recordingname::kMaxTracksForAutoName) {
+        return;
+    }
     m_pendingRename.cueLocation = m_recording_base_file + QStringLiteral(".cue");
     m_pendingRename.dateTimeBase = m_dateTimeBase;
     m_pendingRename.titles = titles;
@@ -453,6 +470,19 @@ void RecordingManager::performAutoRename() {
                    << m_pendingRename.location;
         return;
     }
+    // CP130: the tracklist goes with the file under its final name.
+    QString finalLocation = renameRecording(oldInfo);
+    if (!m_pendingRename.tracklist.isEmpty() &&
+            mixxx::settracklist::write(finalLocation, m_pendingRename.tracklist)) {
+        qInfo() << "Recording: tracklist of" << m_pendingRename.tracklist.size()
+                << "tracks stored with" << QFileInfo(finalLocation).fileName();
+    }
+}
+
+QString RecordingManager::renameRecording(const QFileInfo& oldInfo) {
+    if (m_pendingRename.titles.isEmpty()) {
+        return oldInfo.absoluteFilePath();
+    }
     const QString base = recordingname::buildBaseName(m_pendingRename.dateTimeBase,
             m_pendingRename.zoukMode,
             m_pendingRename.titles);
@@ -467,7 +497,7 @@ void RecordingManager::performAutoRename() {
         // The recording itself is saved either way; only the name stays.
         qWarning() << "Recording: auto-rename failed, keeping"
                    << oldInfo.absoluteFilePath();
-        return;
+        return oldInfo.absoluteFilePath();
     }
     qInfo() << "Recording: renamed" << oldInfo.fileName() << "->"
             << QFileInfo(newLocation).fileName();
@@ -479,6 +509,7 @@ void RecordingManager::performAutoRename() {
             m_pConfig->set(ConfigKey(RECORDING_PREF_KEY, "CuePath"), ConfigValue(newCue));
         }
     }
+    return newLocation;
 }
 
 bool RecordingManager::isRecordingActive() const {

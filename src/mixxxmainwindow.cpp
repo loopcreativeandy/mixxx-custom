@@ -38,6 +38,7 @@
 #endif
 #include "control/controlindicatortimer.h"
 #include "library/crowdrating/crowdratingsession.h"
+#include "library/settracklistwatcher.h"
 #include "mixer/loopundo.h"
 #include "library/library.h"
 #include "library/library_decl.h"
@@ -373,6 +374,24 @@ void MixxxMainWindow::initialize() {
                 PlayerInfo::instance().getTrackInfo(
                         QStringLiteral("[Channel%1]").arg(i + 1)));
     }
+    // andy-custom CP130: playing a recorded set marks its songs played as the
+    // play position reaches them.
+    m_pSetTracklistWatcher = std::make_unique<SetTracklistWatcher>(
+            m_pCoreServices->getTrackCollectionManager().get(),
+            m_pCoreServices->getSettings(),
+            this);
+    connect(&PlayerInfo::instance(),
+            &PlayerInfo::trackChanged,
+            m_pSetTracklistWatcher.get(),
+            [this](const QString& group, TrackPointer pNewTrack, TrackPointer) {
+                if (m_pSetTracklistWatcher && group.startsWith(QStringLiteral("[Channel"))) {
+                    m_pSetTracklistWatcher->setTrack(group, pNewTrack);
+                }
+            });
+    for (int i = 0; i < m_pLoopUndo->deckCount(); ++i) {
+        const QString group = QStringLiteral("[Channel%1]").arg(i + 1);
+        m_pSetTracklistWatcher->setTrack(group, PlayerInfo::instance().getTrackInfo(group));
+    }
 
     // Connect signals to the menubar. Should be done before emit skinLoaded.
     connectMenuBar();
@@ -581,6 +600,7 @@ MixxxMainWindow::~MixxxMainWindow() {
     // PlayerInfo it uses still exist.
     m_pCrowdRatingSession.reset();
     m_pLoopUndo.reset();
+    m_pSetTracklistWatcher.reset();
 
     // TODO() Verify if this comment still applies:
     // WMainMenuBar holds references to controls so we need to delete it

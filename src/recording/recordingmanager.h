@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QFileInfo>
+
 #include <QElapsedTimer>
 #include <QList>
 #include <QObject>
@@ -11,6 +13,7 @@
 
 #include "control/controlobject.h"
 #include "control/pollingcontrolproxy.h"
+#include "library/settracklist.h"
 #include "preferences/usersettings.h"
 #include "track/track_decl.h"
 
@@ -67,6 +70,8 @@ class RecordingManager : public QObject {
     struct PlayedTrack {
         TrackPointer pTrack;
         qint64 playedMillis;
+        // CP130: offset of the first audible moment within the recording.
+        qint64 firstAudibleMillis;
     };
     struct PendingRename {
         QString location;
@@ -74,6 +79,9 @@ class RecordingManager : public QObject {
         QString dateTimeBase;
         QStringList titles;
         bool zoukMode = true;
+        // CP130: the set's tracklist, stored with the recording once it is
+        // closed (any track count; the rename only happens for 1-10 titles).
+        QList<mixxx::settracklist::Entry> tracklist;
     };
     // Every deck counts on its own while it is audible on the main mix (not
     // only the single loudest deck: with two decks at the same level that
@@ -89,9 +97,12 @@ class RecordingManager : public QObject {
     void accrueTrack(const TrackPointer& pTrack, qint64 elapsedMillis);
     void prepareAutoRename();
     void performAutoRename();
+    /// Returns the recording's location after the rename (unchanged if none).
+    QString renameRecording(const QFileInfo& oldInfo);
     QList<PlayedTrack> m_playedTracks;
     QTimer m_playedTimer;
     QElapsedTimer m_lastPlayedTick;
+    QElapsedTimer m_recordingClock;
     std::vector<DeckProxies> m_deckProxies;
     std::unique_ptr<PollingControlProxy> m_pXfader;
     QString m_dateTimeBase;

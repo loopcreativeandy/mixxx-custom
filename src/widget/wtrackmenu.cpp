@@ -32,6 +32,7 @@
 #include "library/library.h"
 #include "library/playlisttablemodel.h"
 #include "library/relatedtracks.h"
+#include "library/settracklist.h"
 #include "library/similarity/similarityindex.h"
 #include "library/stemaudioalign.h"
 #include "library/stemoriginal.h"
@@ -2833,6 +2834,11 @@ void WTrackMenu::slotMarkAsPlayed() {
             progressLabelText,
             &trackOperator);
     propagatePlayedStateToRelatedTracks(trackOperator.markedTracks(), true);
+    // andy-custom CP130: a recorded set takes its songs along.
+    mixxx::settracklist::markSetsOf(m_pLibrary->trackCollectionManager(),
+            m_pConfig,
+            trackOperator.markedTracks(),
+            true);
 }
 
 void WTrackMenu::slotMarkAsUnplayed() {
@@ -2844,6 +2850,11 @@ void WTrackMenu::slotMarkAsUnplayed() {
             progressLabelText,
             &trackOperator);
     propagatePlayedStateToRelatedTracks(trackOperator.markedTracks(), false);
+    // andy-custom CP130: a recorded set takes its songs along.
+    mixxx::settracklist::markSetsOf(m_pLibrary->trackCollectionManager(),
+            m_pConfig,
+            trackOperator.markedTracks(),
+            false);
 }
 
 void WTrackMenu::slotRateOrTagForFiles() {
