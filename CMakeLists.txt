@@ -1417,6 +1417,7 @@ add_library(
   src/library/sidebarmodel.cpp
   src/library/starrating.cpp
   src/library/relatedtracks.cpp
+  src/library/settracklist.cpp
   src/library/stemaudioalign.cpp
   src/library/stemoriginal.cpp
   src/library/stemswap.cpp
@@ -2836,6 +2837,7 @@ if(BUILD_TESTING)
     src/test/spectrumconfigtest.cpp
     src/test/sqliteliketest.cpp
     src/test/relatedtracks_test.cpp
+    src/test/settracklist_test.cpp
     src/test/stemcolorconfigtest.cpp
     src/test/stemoriginal_test.cpp
     src/test/synccontroltest.cpp
