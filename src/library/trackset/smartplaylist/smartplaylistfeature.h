@@ -54,6 +54,7 @@ class SmartPlaylistFeature : public BaseTrackSetFeature {
 
   private:
     void initActions();
+    void seedCuePlaylistsOnce(UserSettingsPointer pConfig);
     void rebuildChildModel();
     /// Index into m_playlists for a sidebar index, or -1.
     int playlistIndexFromModelIndex(const QModelIndex& index) const;

@@ -89,6 +89,8 @@ SearchQueryParser::SearchQueryParser(TrackCollection* pTrackCollection, QStringL
                      << "r" << "rating"
                      << "br" << "bitrate"
                      << "id";
+    // andy-custom CP131: cue rules (cues:none|any|proper|longloop)
+    m_cueFilterMatcher = QRegularExpression(QStringLiteral("^-?(cues|cue):(.*)$"));
     m_specialFilters << "y" << "year"
                      << "k" << "key"
                      << "b" << "bpm"
@@ -217,7 +219,12 @@ void SearchQueryParser::parseTokens(QStringList tokens,
         const QRegularExpressionMatch textFilterMatch = m_textFilterMatcher.match(token);
         const QRegularExpressionMatch numericFilterMatch = m_numericFilterMatcher.match(token);
         const QRegularExpressionMatch specialFilterMatch = m_specialFilterMatcher.match(token);
-        if (textFilterMatch.hasMatch()) {
+        const QRegularExpressionMatch cueFilterMatch = m_cueFilterMatcher.match(token);
+        CueRuleFilterNode::Rule cueRule;
+        if (cueFilterMatch.hasMatch() &&
+                CueRuleFilterNode::parseRule(cueFilterMatch.captured(2), &cueRule)) {
+            pNode = std::make_unique<CueRuleFilterNode>(cueRule);
+        } else if (textFilterMatch.hasMatch()) {
             const QString field = resolveFilter(textFilterMatch.captured(1));
             auto [argument, matchMode] = getTextArgument(textFilterMatch.captured(2), &tokens);
 

@@ -8,6 +8,7 @@
 #include "library/trackset/crate/crateschema.h"
 #include "library/trackset/crate/cratestorage.h" // for CrateTrackSelectResult
 #include "track/keyutils.h"
+#include "track/cue.h"
 #include "track/track.h"
 #include "util/db/dbconnection.h"
 #include "util/db/sqllikewildcards.h"
@@ -971,4 +972,95 @@ QString DateAddedFilterNode::toSql() const {
     }
 
     return QString();
+}
+
+bool CueRuleFilterNode::parseRule(const QString& argument, Rule* pRule) {
+    const QString arg = argument.trimmed().toLower();
+    if (arg == QLatin1String("none") || arg == QLatin1String("untagged")) {
+        *pRule = Rule::None;
+    } else if (arg == QLatin1String("any") || arg == QLatin1String("tagged")) {
+        *pRule = Rule::Any;
+    } else if (arg == QLatin1String("proper") || arg == QLatin1String("properly")) {
+        *pRule = Rule::Proper;
+    } else if (arg == QLatin1String("longloop") || arg == QLatin1String("long")) {
+        *pRule = Rule::LongLoop;
+    } else {
+        return false;
+    }
+    return true;
+}
+
+bool CueRuleFilterNode::match(const TrackPointer& pTrack) const {
+    const QList<CuePointer> cues = pTrack->getCuePoints();
+    int padded = 0;
+    int yellowHotcues = 0;
+    bool greenLoop = false;
+    bool longLoop = false;
+    const double bpm = pTrack->getBpm();
+    const double sampleRate = pTrack->getSampleRate().value();
+    for (const CuePointer& pCue : cues) {
+        if (!pCue || pCue->getHotCue() == Cue::kNoHotCue) {
+            continue;
+        }
+        const mixxx::CueType type = pCue->getType();
+        if (type != mixxx::CueType::HotCue && type != mixxx::CueType::Loop) {
+            continue;
+        }
+        ++padded;
+        const auto color = static_cast<mixxx::RgbColor::code_t>(pCue->getColor()) & 0xFFFFFF;
+        if (type == mixxx::CueType::HotCue && color == kYellowHotcueColor) {
+            ++yellowHotcues;
+        }
+        if (type == mixxx::CueType::Loop) {
+            if (color == kGreenLoopColor) {
+                greenLoop = true;
+            }
+            if (bpm > 0 && sampleRate > 0 &&
+                    pCue->getLengthFrames() / sampleRate * bpm / 60.0 > kLongLoopBeats) {
+                longLoop = true;
+            }
+        }
+    }
+    switch (m_rule) {
+    case Rule::None:
+        return padded == 0;
+    case Rule::Any:
+        return padded > 0;
+    case Rule::Proper:
+        return greenLoop && yellowHotcues >= kMinYellowHotcues;
+    case Rule::LongLoop:
+        return longLoop;
+    }
+    return false;
+}
+
+QString CueRuleFilterNode::toSql() const {
+    // cues.position/length are stored in samples (2 per stereo frame), colours
+    // as 0xRRGGBB integers. Type 1 = hotcue, 4 = loop (mixxx::CueType).
+    const QString padded = QStringLiteral(
+            "SELECT track_id FROM cues WHERE hotcue>=0 AND type IN (1,4)");
+    switch (m_rule) {
+    case Rule::None:
+        return QStringLiteral("id NOT IN (%1)").arg(padded);
+    case Rule::Any:
+        return QStringLiteral("id IN (%1)").arg(padded);
+    case Rule::Proper:
+        return QStringLiteral(
+                "id IN (SELECT track_id FROM cues WHERE hotcue>=0 AND type=4 "
+                "AND (color & 16777215)=%1) "
+                "AND id IN (SELECT track_id FROM cues WHERE hotcue>=0 AND type=1 "
+                "AND (color & 16777215)=%2 GROUP BY track_id HAVING COUNT(*)>=%3)")
+                .arg(QString::number(kGreenLoopColor),
+                        QString::number(kYellowHotcueColor),
+                        QString::number(kMinYellowHotcues));
+    case Rule::LongLoop:
+        return QStringLiteral(
+                "id IN (SELECT cues.track_id FROM cues "
+                "JOIN library AS cue_lib ON cue_lib.id=cues.track_id "
+                "WHERE cues.hotcue>=0 AND cues.type=4 AND cue_lib.bpm>0 "
+                "AND cue_lib.samplerate>0 "
+                "AND cues.length/2.0/cue_lib.samplerate*cue_lib.bpm/60.0>%1)")
+                .arg(QString::number(kLongLoopBeats));
+    }
+    return QStringLiteral("0");
 }

@@ -1381,3 +1381,114 @@ TEST_F(SearchQueryParserTest, QuotedOrOperator) {
     pTrackI->setComment("house");
     EXPECT_TRUE(pQuery->match(pTrackI));
 }
+
+// andy-custom CP131: cue rules for cue-based smart playlists.
+namespace {
+TrackPointer newCueRuleTrack(const QString& location) {
+    TrackPointer pTrack(Track::newDummy(location, TrackId()));
+    pTrack->setAudioProperties(mixxx::audio::ChannelCount(2),
+            mixxx::audio::SampleRate(44100),
+            mixxx::audio::Bitrate(320),
+            mixxx::Duration::fromSeconds(300));
+    pTrack->trySetBpm(120.0);
+    return pTrack;
+}
+// 120 BPM @ 44.1 kHz: one beat = 22050 frames
+constexpr double kFramesPerBeat = 22050.0;
+const mixxx::RgbColor kYellow(0xF8D200);
+const mixxx::RgbColor kGreen(0x32BE44);
+const mixxx::RgbColor kOrange(0xFF8000);
+} // namespace
+
+TEST_F(SearchQueryParserTest, CueRuleParsing) {
+    CueRuleFilterNode::Rule rule;
+    EXPECT_TRUE(CueRuleFilterNode::parseRule("none", &rule));
+    EXPECT_EQ(CueRuleFilterNode::Rule::None, rule);
+    EXPECT_TRUE(CueRuleFilterNode::parseRule("Tagged", &rule));
+    EXPECT_EQ(CueRuleFilterNode::Rule::Any, rule);
+    EXPECT_TRUE(CueRuleFilterNode::parseRule("proper", &rule));
+    EXPECT_EQ(CueRuleFilterNode::Rule::Proper, rule);
+    EXPECT_TRUE(CueRuleFilterNode::parseRule("longloop", &rule));
+    EXPECT_EQ(CueRuleFilterNode::Rule::LongLoop, rule);
+    EXPECT_FALSE(CueRuleFilterNode::parseRule("bogus", &rule));
+
+    EXPECT_TRUE(m_parser.parseQuery("cues:proper", QString())->toSql().contains("FROM cues"));
+    // negation and OR groups work like every other filter
+    const QString toTag = m_parser.parseQuery(
+                                          "comment:SSSSS -cues:proper | comment:AAAAA -cues:proper",
+                                          QString())
+                                  ->toSql();
+    EXPECT_TRUE(toTag.contains("NOT (id IN (SELECT track_id FROM cues")) << qPrintable(toTag);
+    EXPECT_TRUE(toTag.contains(" OR ")) << qPrintable(toTag);
+    // unknown rule = plain text search, no cue SQL
+    EXPECT_FALSE(m_parser.parseQuery("cues:bogus", QString())->toSql().contains("FROM cues"));
+}
+
+TEST_F(SearchQueryParserTest, CueRuleMatch) {
+    auto none = m_parser.parseQuery("cues:none", QString());
+    auto any = m_parser.parseQuery("cues:any", QString());
+    auto proper = m_parser.parseQuery("cues:proper", QString());
+    auto longLoop = m_parser.parseQuery("cues:longloop", QString());
+
+    // Only the slot-less remembered loop (orange) -> still untagged.
+    TrackPointer pEmpty = newCueRuleTrack("empty.mp3");
+    pEmpty->createAndAddCue(mixxx::CueType::Loop,
+            Cue::kNoHotCue,
+            mixxx::audio::FramePos(0),
+            mixxx::audio::FramePos(200 * kFramesPerBeat),
+            kOrange);
+    EXPECT_TRUE(none->match(pEmpty));
+    EXPECT_FALSE(any->match(pEmpty));
+    EXPECT_FALSE(longLoop->match(pEmpty)); // slot-less long loop ignored
+
+    // Green loop + 1 yellow -> tagged, not proper.
+    TrackPointer pHalf = newCueRuleTrack("half.mp3");
+    pHalf->createAndAddCue(mixxx::CueType::Loop,
+            0,
+            mixxx::audio::FramePos(0),
+            mixxx::audio::FramePos(32 * kFramesPerBeat),
+            kGreen);
+    pHalf->createAndAddCue(mixxx::CueType::HotCue,
+            2,
+            mixxx::audio::FramePos(64 * kFramesPerBeat),
+            mixxx::audio::kInvalidFramePos,
+            kYellow);
+    EXPECT_FALSE(none->match(pHalf));
+    EXPECT_TRUE(any->match(pHalf));
+    EXPECT_FALSE(proper->match(pHalf));
+    EXPECT_FALSE(longLoop->match(pHalf));
+
+    // + second yellow -> proper. + a 129-beat loop on a pad -> long loop.
+    pHalf->createAndAddCue(mixxx::CueType::HotCue,
+            3,
+            mixxx::audio::FramePos(96 * kFramesPerBeat),
+            mixxx::audio::kInvalidFramePos,
+            kYellow);
+    EXPECT_TRUE(proper->match(pHalf));
+    pHalf->createAndAddCue(mixxx::CueType::Loop,
+            7,
+            mixxx::audio::FramePos(100 * kFramesPerBeat),
+            mixxx::audio::FramePos(229 * kFramesPerBeat),
+            kOrange);
+    EXPECT_TRUE(longLoop->match(pHalf));
+
+    // Two yellows but the loop is orange -> not proper; exactly 128 beats -> not long.
+    TrackPointer pNoGreen = newCueRuleTrack("nogreen.mp3");
+    pNoGreen->createAndAddCue(mixxx::CueType::HotCue,
+            0,
+            mixxx::audio::FramePos(0),
+            mixxx::audio::kInvalidFramePos,
+            kYellow);
+    pNoGreen->createAndAddCue(mixxx::CueType::HotCue,
+            1,
+            mixxx::audio::FramePos(kFramesPerBeat),
+            mixxx::audio::kInvalidFramePos,
+            kYellow);
+    pNoGreen->createAndAddCue(mixxx::CueType::Loop,
+            6,
+            mixxx::audio::FramePos(0),
+            mixxx::audio::FramePos(128 * kFramesPerBeat),
+            kOrange);
+    EXPECT_FALSE(proper->match(pNoGreen));
+    EXPECT_FALSE(longLoop->match(pNoGreen));
+}

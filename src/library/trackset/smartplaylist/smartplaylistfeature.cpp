@@ -32,9 +32,54 @@ SmartPlaylistFeature::SmartPlaylistFeature(Library* pLibrary, UserSettingsPointe
     initActions();
 
     m_playlists = SmartPlaylistStorage::load();
+    seedCuePlaylistsOnce(pConfig);
 
     m_pSidebarModel->setRootItem(TreeItem::newRoot(this));
     rebuildChildModel();
+}
+
+// andy-custom CP131 (IDEA-15/16/18): the cue-based smart playlists are added
+// once. A flag in mixxx.cfg remembers that, so a playlist Andy deletes or
+// renames later does not come back; existing names are never overwritten.
+void SmartPlaylistFeature::seedCuePlaylistsOnce(UserSettingsPointer pConfig) {
+    const ConfigKey seededKey(QStringLiteral("[Library]"),
+            QStringLiteral("AndyCueSmartPlaylistsSeeded"));
+    if (!pConfig || pConfig->getValue(seededKey, 0) >= 1) {
+        return;
+    }
+    const QList<SmartPlaylistDefinition> seeds = {
+            {QStringLiteral("Cues: long loops"), QStringLiteral("cues:longloop")},
+            {QStringLiteral("Cues: untagged"), QStringLiteral("cues:none")},
+            {QStringLiteral("Cues: tagged"), QStringLiteral("cues:any")},
+            {QStringLiteral("Cues: properly tagged"), QStringLiteral("cues:proper")},
+            {QStringLiteral("Cues: to tag (S/A)"),
+                    QStringLiteral("comment:SSSSS -cues:proper | "
+                                   "comment:AAAAA -cues:proper")},
+    };
+    bool changed = false;
+    for (const SmartPlaylistDefinition& seed : seeds) {
+        const bool exists = std::any_of(m_playlists.cbegin(),
+                m_playlists.cend(),
+                [&seed](const SmartPlaylistDefinition& playlist) {
+                    return playlist.name.compare(seed.name, Qt::CaseInsensitive) == 0;
+                });
+        if (!exists) {
+            m_playlists.append(seed);
+            changed = true;
+        }
+    }
+    if (changed) {
+        std::sort(m_playlists.begin(),
+                m_playlists.end(),
+                [](const SmartPlaylistDefinition& lhs, const SmartPlaylistDefinition& rhs) {
+                    return lhs.name.compare(rhs.name, Qt::CaseInsensitive) < 0;
+                });
+        if (!SmartPlaylistStorage::save(m_playlists)) {
+            // Keep them for this session; try again next start.
+            return;
+        }
+    }
+    pConfig->setValue(seededKey, 1);
 }
 
 void SmartPlaylistFeature::initActions() {

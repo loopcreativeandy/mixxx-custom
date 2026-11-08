@@ -54,6 +54,7 @@ class SearchQueryParser {
     QRegularExpression m_crateFilterMatcher;
     QRegularExpression m_numericFilterMatcher;
     QRegularExpression m_specialFilterMatcher;
+    QRegularExpression m_cueFilterMatcher; // andy-custom CP131
 
     DISALLOW_COPY_AND_ASSIGN(SearchQueryParser);
 };

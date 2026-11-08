@@ -300,4 +300,36 @@ class DateAddedFilterNode : public QueryNode {
     QDateTime m_dateEnd;
 };
 
+/// andy-custom (CP131, IDEA-15/16/18): filters on the track's saved cues
+/// (`cues` table), for cue-based smart playlists. Search syntax `cues:<rule>`.
+/// Only cues on a hotcue pad count - the slot-less loop Mixxx remembers
+/// automatically (always orange) is ignored. Colours are Andy's convention
+/// (mixxx-build/HOTCUE_CONVENTION.md).
+class CueRuleFilterNode : public QueryNode {
+  public:
+    enum class Rule {
+        None,     ///< cues:none     no hotcue/loop on any pad ("untagged")
+        Any,      ///< cues:any      at least one hotcue/loop on a pad ("tagged")
+        Proper,   ///< cues:proper   >=1 green loop on a pad AND >=2 yellow hotcues
+        LongLoop, ///< cues:longloop a loop on a pad longer than 128 beats
+    };
+    static constexpr unsigned int kGreenLoopColor = 0x32BE44;
+    static constexpr unsigned int kYellowHotcueColor = 0xF8D200;
+    static constexpr int kMinYellowHotcues = 2;
+    static constexpr double kLongLoopBeats = 128.0;
+
+    /// Returns false (and leaves *pRule untouched) for an unknown argument.
+    static bool parseRule(const QString& argument, Rule* pRule);
+
+    explicit CueRuleFilterNode(Rule rule)
+            : m_rule(rule) {
+    }
+
+    bool match(const TrackPointer& pTrack) const override;
+    QString toSql() const override;
+
+  private:
+    Rule m_rule;
+};
+
 #endif /* SEARCHQUERY_H */
