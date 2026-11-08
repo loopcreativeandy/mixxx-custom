@@ -46,9 +46,9 @@ bool writeTag(const QString& audioLocation, const QByteArray& json) {
     if (file.isNull()) {
         return false;
     }
-    TagLib::PropertyMap properties = file.properties();
+    TagLib::PropertyMap properties = file.file()->properties();
     properties.replace(kTagKey, TagLib::StringList(toTagLibString(QString::fromUtf8(json))));
-    const TagLib::PropertyMap rejected = file.setProperties(properties);
+    const TagLib::PropertyMap rejected = file.file()->setProperties(properties);
     if (rejected.contains(kTagKey)) {
         // e.g. a WAV file's RIFF INFO tag: only the sidecar holds the list.
         return false;
@@ -59,7 +59,7 @@ bool writeTag(const QString& audioLocation, const QByteArray& json) {
     // Some tag types take any key on set but drop it on save; trust only
     // what reads back.
     TagLib::FileRef check(TAGLIB_FILENAME_FROM_QSTRING(audioLocation));
-    return !check.isNull() && check.properties().contains(kTagKey);
+    return !check.isNull() && check.file()->properties().contains(kTagKey);
 }
 
 QByteArray readTag(const QString& audioLocation) {
@@ -67,7 +67,7 @@ QByteArray readTag(const QString& audioLocation) {
     if (file.isNull()) {
         return {};
     }
-    const TagLib::PropertyMap properties = file.properties();
+    const TagLib::PropertyMap properties = file.file()->properties();
     const auto it = properties.find(kTagKey);
     if (it == properties.end() || it->second.isEmpty()) {
         return {};
