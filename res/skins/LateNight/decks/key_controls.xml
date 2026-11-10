@@ -57,6 +57,11 @@
                 <Connection>
                   <ConfigKey><Variable name="Group"/>,visual_key</ConfigKey>
                 </Connection>
+                <!-- Andy CP133: yellow ring while a key smart playlist uses this deck -->
+                <Connection>
+                  <ConfigKey><Variable name="Group"/>,andy_key_reference</ConfigKey>
+                  <BindProperty>highlight</BindProperty>
+                </Connection>
               </Key>
             </Children>
             <Connection>
@@ -85,6 +90,11 @@
                 <DisplayOffset>true</DisplayOffset>
                 <Connection>
                   <ConfigKey><Variable name="Group"/>,visual_key</ConfigKey>
+                </Connection>
+                <!-- Andy CP133: yellow ring while a key smart playlist uses this deck -->
+                <Connection>
+                  <ConfigKey><Variable name="Group"/>,andy_key_reference</ConfigKey>
+                  <BindProperty>highlight</BindProperty>
                 </Connection>
               </Key>
             </Children>

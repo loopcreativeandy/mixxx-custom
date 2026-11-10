@@ -1453,6 +1453,7 @@ add_library(
   src/library/similarity/similarityindex.cpp
   src/library/trackset/similar/similarfeature.cpp
   src/library/trackset/similar/similartablemodel.cpp
+  src/library/trackset/smartplaylist/keyreference.cpp
   src/library/trackset/smartplaylist/smartplaylistfeature.cpp
   src/library/trackset/smartplaylist/smartplayliststorage.cpp
   src/library/trackset/smartplaylist/smartplaylisttablemodel.cpp
@@ -2784,6 +2785,7 @@ if(BUILD_TESTING)
     src/test/indexrange_test.cpp
     src/test/itunesxmlimportertest.cpp
     src/test/keyfactorytest.cpp
+    src/test/keyreferencetest.cpp
     src/test/keyutilstest.cpp
     src/test/lcstest.cpp
     src/test/learningutilstest.cpp

@@ -4,6 +4,8 @@
 #include <QModelIndex>
 #include <QPointer>
 #include <QVariant>
+#include <memory>
+#include <vector>
 
 #include "library/trackset/basetracksetfeature.h"
 #include "library/trackset/smartplaylist/smartplayliststorage.h"
@@ -11,6 +13,7 @@
 #include "preferences/usersettings.h"
 #include "util/parented_ptr.h"
 
+class ControlObject;
 class Library;
 class WLibrary;
 class WLibraryTextBrowser;
@@ -25,7 +28,7 @@ class SmartPlaylistFeature : public BaseTrackSetFeature {
     Q_OBJECT
   public:
     SmartPlaylistFeature(Library* pLibrary, UserSettingsPointer pConfig);
-    ~SmartPlaylistFeature() override = default;
+    ~SmartPlaylistFeature() override;
 
     QVariant title() override;
 
@@ -51,11 +54,20 @@ class SmartPlaylistFeature : public BaseTrackSetFeature {
     void slotRenameSmartPlaylist();
     void slotDeleteSmartPlaylist();
     void htmlLinkClicked(const QUrl& link);
+    /// CP133: drop the yellow key ring once something else is shown.
+    void slotLibraryShowTrackModel(QAbstractItemModel* pModel);
+    void slotLibrarySwitchToView(const QString& view);
 
   private:
     void initActions();
     void seedCuePlaylistsOnce(UserSettingsPointer pConfig);
     void rebuildChildModel();
+    /// CP133: key lever (0..2) for a sidebar index, or -1.
+    int keyLeverFromModelIndex(const QModelIndex& index) const;
+    /// CP133: picks the reference deck, filters the model, relabels the item.
+    void activateKeyLever(int lever, const QModelIndex& index);
+    /// CP133: 0-based deck index for the yellow ring, -1 clears it.
+    void setKeyReferenceDeck(int deckIndex);
     /// Index into m_playlists for a sidebar index, or -1.
     int playlistIndexFromModelIndex(const QModelIndex& index) const;
     /// Asks for a query string; returns false if the dialog was cancelled.
@@ -79,5 +91,10 @@ class SmartPlaylistFeature : public BaseTrackSetFeature {
     parented_ptr<QAction> m_pDeleteAction;
 
     QModelIndex m_lastRightClickedIndex;
+    /// CP133: lever shown right now, -1 when no key list is shown.
+    int m_activeKeyLever = -1;
+    /// CP133: [ChannelN],andy_key_reference - the skin binds it to the key
+    /// display's "highlight" property (yellow ring).
+    std::vector<std::unique_ptr<ControlObject>> m_keyReferenceControls;
     QPointer<WLibrary> m_pLibraryWidget;
 };

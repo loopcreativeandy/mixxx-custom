@@ -10,7 +10,10 @@
 #include <memory>
 #include <vector>
 
+#include "control/controlobject.h"
 #include "library/library.h"
+#include "library/trackset/smartplaylist/keyreference.h"
+#include "track/keyutils.h"
 #include "library/trackcollectionmanager.h"
 #include "library/treeitem.h"
 #include "moc_smartplaylistfeature.cpp"
@@ -20,6 +23,17 @@
 namespace {
 
 const QString kRootViewName = QStringLiteral("SMARTPLAYLISTHOME");
+
+// CP133: sidebar data of the three built-in key lists. Regular smart playlists
+// carry their int index, so these strings never collide with them.
+const QString kKeyLeverPrefix = QStringLiteral("andykey:");
+// Library::m_sTrackViewName (private there).
+const QString kTrackViewName = QStringLiteral("WTrackTableView");
+// LateNight has at most four decks; the ring controls must exist before the
+// skin is parsed, so they are created up front.
+constexpr int kKeyReferenceDecks = 4;
+// Matches no track: the key column holds key names, never this.
+const QString kNoReferenceQuery = QStringLiteral("key:\"andy-no-reference-deck\"");
 
 } // anonymous namespace
 
@@ -34,9 +48,25 @@ SmartPlaylistFeature::SmartPlaylistFeature(Library* pLibrary, UserSettingsPointe
     m_playlists = SmartPlaylistStorage::load();
     seedCuePlaylistsOnce(pConfig);
 
+    for (int i = 0; i < kKeyReferenceDecks; ++i) {
+        m_keyReferenceControls.push_back(std::make_unique<ControlObject>(
+                ConfigKey(QStringLiteral("[Channel%1]").arg(i + 1),
+                        QStringLiteral("andy_key_reference"))));
+    }
+    connect(pLibrary,
+            &Library::showTrackModel,
+            this,
+            &SmartPlaylistFeature::slotLibraryShowTrackModel);
+    connect(pLibrary,
+            &Library::switchToView,
+            this,
+            &SmartPlaylistFeature::slotLibrarySwitchToView);
+
     m_pSidebarModel->setRootItem(TreeItem::newRoot(this));
     rebuildChildModel();
 }
+
+SmartPlaylistFeature::~SmartPlaylistFeature() = default;
 
 // andy-custom CP131 (IDEA-15/16/18): the cue-based smart playlists are added
 // once. A flag in mixxx.cfg remembers that, so a playlist Andy deletes or
@@ -180,7 +210,12 @@ void SmartPlaylistFeature::rebuildChildModel() {
     m_pSidebarModel->setRootItem(TreeItem::newRoot(this));
 
     std::vector<std::unique_ptr<TreeItem>> rows;
-    rows.reserve(m_playlists.size());
+    rows.reserve(andykey::kLeverCount + m_playlists.size());
+    for (int lever = 0; lever < andykey::kLeverCount; ++lever) {
+        rows.push_back(std::make_unique<TreeItem>(
+                andykey::leverLabel(static_cast<andykey::Lever>(lever)),
+                QVariant(kKeyLeverPrefix + QString::number(lever))));
+    }
     for (int i = 0; i < m_playlists.size(); ++i) {
         rows.push_back(std::make_unique<TreeItem>(m_playlists.at(i).name, QVariant(i)));
     }
@@ -361,12 +396,118 @@ void SmartPlaylistFeature::slotDeleteSmartPlaylist() {
     saveAndRebuild();
 }
 
+int SmartPlaylistFeature::keyLeverFromModelIndex(const QModelIndex& index) const {
+    if (!index.isValid()) {
+        return -1;
+    }
+    TreeItem* pItem = m_pSidebarModel->getItem(index);
+    if (pItem == nullptr || pItem->isRoot()) {
+        return -1;
+    }
+    const QVariant data = pItem->getData();
+    if (data.typeId() != QMetaType::QString) {
+        return -1;
+    }
+    const QString text = data.toString();
+    if (!text.startsWith(kKeyLeverPrefix)) {
+        return -1;
+    }
+    bool ok = false;
+    const int lever = text.mid(kKeyLeverPrefix.size()).toInt(&ok);
+    if (!ok || lever < 0 || lever >= andykey::kLeverCount) {
+        return -1;
+    }
+    return lever;
+}
+
+void SmartPlaylistFeature::setKeyReferenceDeck(int deckIndex) {
+    for (int i = 0; i < static_cast<int>(m_keyReferenceControls.size()); ++i) {
+        m_keyReferenceControls[i]->set(i == deckIndex ? 1.0 : 0.0);
+    }
+}
+
+void SmartPlaylistFeature::activateKeyLever(int lever, const QModelIndex& index) {
+    const auto keyLever = static_cast<andykey::Lever>(lever);
+    const int numDecks = static_cast<int>(
+            ControlObject::get(ConfigKey(QStringLiteral("[App]"), QStringLiteral("num_decks"))));
+    QList<andykey::DeckState> decks;
+    for (int i = 0; i < numDecks; ++i) {
+        const QString group = QStringLiteral("[Channel%1]").arg(i + 1);
+        andykey::DeckState deck;
+        deck.loaded = ControlObject::get(ConfigKey(group, QStringLiteral("track_loaded"))) > 0.0;
+        deck.playing = ControlObject::get(ConfigKey(group, QStringLiteral("play"))) > 0.0;
+        deck.volume = ControlObject::get(ConfigKey(group, QStringLiteral("volume")));
+        deck.orientation = static_cast<int>(
+                ControlObject::get(ConfigKey(group, QStringLiteral("orientation"))));
+        // "key" is the current key, pitch and key shift included.
+        deck.key = KeyUtils::keyFromNumericValue(
+                ControlObject::get(ConfigKey(group, QStringLiteral("key"))));
+        decks.append(deck);
+    }
+    const double crossfader =
+            ControlObject::get(ConfigKey(QStringLiteral("[Master]"), QStringLiteral("crossfader")));
+    const int deckIndex = andykey::pickReferenceDeck(decks, crossfader);
+
+    QString label = andykey::leverLabel(keyLever);
+    QString query = kNoReferenceQuery;
+    if (deckIndex < 0) {
+        label += tr(" \u00B7 no deck loaded");
+    } else {
+        const auto key = decks.at(deckIndex).key;
+        const auto keys = andykey::matchingKeys(key, keyLever);
+        if (keys.isEmpty()) {
+            label += tr(" \u00B7 Deck %1 has no key").arg(deckIndex + 1);
+        } else {
+            label += QStringLiteral(" \u00B7 %1 (Deck %2)")
+                             .arg(KeyUtils::keyToString(key))
+                             .arg(deckIndex + 1);
+            query = andykey::searchQueryForKeys(keys);
+        }
+    }
+    qInfo() << "andy-custom CP133 key smart playlist" << label << query;
+
+    TreeItem* pItem = m_pSidebarModel->getItem(index);
+    if (pItem != nullptr) {
+        pItem->setLabel(label);
+        m_pSidebarModel->triggerRepaint(index);
+    }
+    m_activeKeyLever = lever;
+    setKeyReferenceDeck(deckIndex);
+    m_smartPlaylistTableModel.selectSmartPlaylist(query);
+}
+
+void SmartPlaylistFeature::slotLibraryShowTrackModel(QAbstractItemModel* pModel) {
+    if (pModel != &m_smartPlaylistTableModel || m_activeKeyLever < 0) {
+        m_activeKeyLever = -1;
+        setKeyReferenceDeck(-1);
+    }
+}
+
+void SmartPlaylistFeature::slotLibrarySwitchToView(const QString& view) {
+    // Every track model is followed by a switch to the track view; any other
+    // view (a feature's root page, the browse pane, ...) hides the list.
+    if (view != kTrackViewName) {
+        m_activeKeyLever = -1;
+        setKeyReferenceDeck(-1);
+    }
+}
+
 void SmartPlaylistFeature::activateChild(const QModelIndex& index) {
+    const int lever = keyLeverFromModelIndex(index);
+    if (lever >= 0) {
+        m_lastRightClickedIndex = QModelIndex();
+        emit saveModelState();
+        activateKeyLever(lever, index);
+        emit showTrackModel(&m_smartPlaylistTableModel);
+        emit enableCoverArtDisplay(true);
+        return;
+    }
     const int row = playlistIndexFromModelIndex(index);
     if (row < 0) {
         return;
     }
     m_lastRightClickedIndex = QModelIndex();
+    m_activeKeyLever = -1;
     emit saveModelState();
     // Re-evaluating here is what makes the playlist "smart": it is the single
     // refresh point, so the view never changes underneath a running set.

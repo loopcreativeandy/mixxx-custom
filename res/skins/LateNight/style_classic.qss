@@ -2891,3 +2891,10 @@ WSearchLineEdit::indicator:unchecked:selected {
 #KeyFineFrame {
   qproperty-frameHighlightColor: #FF9800;
 }
+
+/* Andy CP133: reference deck of the key smart playlists */
+WKey#KeyText[highlight="1"],
+WKey#KeyTextSmall[highlight="1"] {
+  border: 2px solid #F8D200;
+  border-radius: 3px;
+}
