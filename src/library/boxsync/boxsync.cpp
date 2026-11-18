@@ -2,8 +2,10 @@
 
 #include <QDialog>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -36,6 +38,15 @@ constexpr int kPageSize = 2000;
 constexpr int kApplyBatch = 40;           // songs per event-loop tick (keeps the UI alive)
 constexpr int kAutoCloseMs = 4000;        // dialog closes itself when nothing needs attention
 const QString kPartSuffix = QStringLiteral(".boxsync-part");
+// B6b: only these go up to the box (same list as tagdb.AUDIO_EXT on the box).
+const QStringList kUploadExtensions = {QStringLiteral("mp3"),
+        QStringLiteral("flac"),
+        QStringLiteral("m4a"),
+        QStringLiteral("wav"),
+        QStringLiteral("ogg"),
+        QStringLiteral("opus"),
+        QStringLiteral("aiff"),
+        QStringLiteral("aif")};
 
 QString configPath(const UserSettingsPointer& pConfig) {
     return QDir(pConfig->getSettingsPath()).filePath(QStringLiteral("boxsync.json"));
@@ -80,13 +91,25 @@ BoxSync::BoxSync(TrackCollectionManager* pTrackCollectionManager,
           m_downloaded(0),
           m_skippedExisting(0),
           m_failedDownloads(0),
-          m_declinedDownloads(0) {
+          m_declinedDownloads(0),
+          m_uploadIndex(0),
+          m_pUploadFile(nullptr),
+          m_uploaded(0),
+          m_uploadDuplicates(0),
+          m_uploadExisting(0),
+          m_failedUploads(0),
+          m_declinedUploads(0) {
 }
 
 BoxSync::~BoxSync() {
     if (m_pDownloadReply) {
         m_pDownloadReply->abort();
     }
+    if (m_pUploadReply) {
+        m_pUploadReply->abort();
+    }
+    delete m_pUploadFile; // closes it; the box drops a half-received upload
+    m_pUploadFile = nullptr;
     if (m_pDownloadFile) {
         // unfinished download: drop the part file, the target was never touched
         m_pDownloadFile->close();
@@ -167,7 +190,8 @@ QString BoxSync::localPathFor(const QString& relpath) const {
 void BoxSync::start() {
     if (m_state == State::Connecting || m_state == State::Fetching ||
             m_state == State::Applying || m_state == State::Downloading ||
-            m_state == State::AwaitingConsent) {
+            m_state == State::AwaitingConsent || m_state == State::CheckingUploads ||
+            m_state == State::AwaitingUploadConsent || m_state == State::Uploading) {
         showDialog();
         return;
     }
@@ -185,6 +209,13 @@ void BoxSync::start() {
     m_skippedExisting = 0;
     m_failedDownloads = 0;
     m_declinedDownloads = 0;
+    m_uploads.clear();
+    m_uploadIndex = 0;
+    m_uploaded = 0;
+    m_uploadDuplicates = 0;
+    m_uploadExisting = 0;
+    m_failedUploads = 0;
+    m_declinedUploads = 0;
     m_minFailedRev = std::numeric_limits<qint64>::max();
     m_urlIndex = 0;
     m_sawUnauthorized = false;
@@ -319,7 +350,7 @@ void BoxSync::applyBatch() {
         return;
     }
     if (m_downloads.isEmpty()) {
-        finish();
+        startUploadCheck();
         return;
     }
     // Andy 2026-11-18: tags always sync; downloads only after he says yes.
@@ -336,6 +367,11 @@ void BoxSync::applyBatch() {
 }
 
 void BoxSync::acceptDownloads() {
+    if (m_state == State::AwaitingUploadConsent) {
+        setState(State::Uploading, tr("Uploading new files to the box…"));
+        uploadNext();
+        return;
+    }
     if (m_state != State::AwaitingConsent) {
         return;
     }
@@ -351,6 +387,13 @@ void BoxSync::onSecondaryButton() {
             m_minFailedRev = std::min(m_minFailedRev, dl.songRev);
         }
         m_downloads.clear();
+        startUploadCheck();
+        return; // the dialog stays: the upload question may follow
+    }
+    if (m_state == State::AwaitingUploadConsent) {
+        // "Not now": nothing to remember — still missing on the box = offered next sync.
+        m_declinedUploads = static_cast<int>(m_uploads.size());
+        m_uploads.clear();
         finish();
     }
     if (m_pDialog) {
@@ -360,7 +403,7 @@ void BoxSync::onSecondaryButton() {
 
 void BoxSync::downloadNext() {
     if (m_downloadIndex >= m_downloads.size()) {
-        finish();
+        startUploadCheck();
         return;
     }
     const Download& dl = m_downloads.at(m_downloadIndex);
@@ -429,6 +472,155 @@ void BoxSync::downloadNext() {
     });
 }
 
+void BoxSync::startUploadCheck() {
+    // B6b (Andy 2026-11-18): only files inside library_root (myLibrary) go up.
+    setState(State::CheckingUploads, tr("Looking for new files on this computer…"));
+    QJsonArray files;
+    QHash<QString, qint64> sizes;
+    const QString rootPrefix = m_libraryRoot + QChar('/');
+    QDirIterator it(m_libraryRoot, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        const QFileInfo info = it.fileInfo();
+        if (info.isSymLink() || !kUploadExtensions.contains(info.suffix().toLower())) {
+            continue;
+        }
+        const QString path = QDir::fromNativeSeparators(info.absoluteFilePath());
+        if (!path.startsWith(rootPrefix, Qt::CaseInsensitive)) {
+            continue;
+        }
+        const QString relpath = path.mid(rootPrefix.size());
+        if (relpath.startsWith('.') || relpath.contains(QStringLiteral("/."))) {
+            continue; // hidden files/folders: the box refuses them anyway
+        }
+        QJsonObject f;
+        f.insert(QStringLiteral("relpath"), relpath);
+        f.insert(QStringLiteral("size"), info.size());
+        files.append(f);
+        sizes.insert(relpath, info.size());
+    }
+    kLogger.info() << files.size() << "audio files under library_root — asking the box which are new";
+    QJsonObject body;
+    body.insert(QStringLiteral("files"), files);
+    QNetworkRequest request(QUrl(m_baseUrl + QStringLiteral("/api/missing")));
+    request.setRawHeader("Authorization", "Bearer " + m_token);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    request.setTransferTimeout(kStallTimeoutMs);
+    QNetworkReply* pReply = m_pNetwork->post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
+    connect(pReply, &QNetworkReply::finished, this, [this, pReply, sizes] {
+        pReply->deleteLater();
+        const int status = pReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (pReply->error() != QNetworkReply::NoError || status != 200) {
+            // an older box server without /api/missing (404) or a hiccup: tags are done, just skip
+            kLogger.warning() << "upload check failed:" << status << pReply->errorString();
+            finish();
+            return;
+        }
+        const QJsonObject obj = QJsonDocument::fromJson(pReply->readAll()).object();
+        m_uploads.clear();
+        qint64 totalBytes = 0;
+        for (const auto& value : obj.value(QStringLiteral("missing")).toArray()) {
+            const QString relpath = value.toString();
+            if (!sizes.contains(relpath)) {
+                continue;
+            }
+            const qint64 size = sizes.value(relpath);
+            m_uploads.append(Upload{relpath, m_libraryRoot + QChar('/') + relpath, size});
+            totalBytes += size;
+        }
+        const int rejected = static_cast<int>(obj.value(QStringLiteral("rejected")).toArray().size());
+        if (rejected > 0) {
+            kLogger.info() << rejected << "files refused by the box (names it doesn't accept)";
+        }
+        if (m_uploads.isEmpty()) {
+            finish();
+            return;
+        }
+        kLogger.info() << m_uploads.size() << "files to upload," << totalBytes << "bytes — asking";
+        setState(State::AwaitingUploadConsent,
+                tr("%n new file(s) on this computer that the box doesn't have, %1 GB in total. "
+                   "Upload them to the box?",
+                        "",
+                        m_uploads.size())
+                                .arg(totalBytes / 1073741824.0, 0, 'f', 2));
+        if (m_pDetailLabel) {
+            QStringList names;
+            for (int i = 0; i < m_uploads.size() && i < 8; ++i) {
+                names << m_uploads.at(i).relpath;
+            }
+            if (m_uploads.size() > 8) {
+                names << tr("… and %n more", "", m_uploads.size() - 8);
+            }
+            m_pDetailLabel->setText(names.join(QChar('\n')));
+        }
+        showDialog();
+    });
+}
+
+void BoxSync::uploadNext() {
+    if (m_uploadIndex >= m_uploads.size()) {
+        finish();
+        return;
+    }
+    const Upload& up = m_uploads.at(m_uploadIndex);
+    m_pUploadFile = new QFile(up.localPath);
+    if (!m_pUploadFile->open(QIODevice::ReadOnly) || m_pUploadFile->size() != up.size) {
+        kLogger.warning() << "cannot read (or changed meanwhile):" << up.localPath;
+        delete m_pUploadFile;
+        m_pUploadFile = nullptr;
+        ++m_failedUploads;
+        ++m_uploadIndex;
+        QTimer::singleShot(0, this, &BoxSync::uploadNext);
+        return;
+    }
+    // Percent-encode everything (also '+', '&', '#') so the box gets the exact relpath back.
+    QUrl url(m_baseUrl + QStringLiteral("/api/upload"));
+    url.setQuery(QStringLiteral("relpath=") +
+                    QString::fromLatin1(QUrl::toPercentEncoding(up.relpath)) +
+                    QStringLiteral("&size=") + QString::number(up.size),
+            QUrl::StrictMode);
+    QNetworkRequest request(url);
+    request.setRawHeader("Authorization", "Bearer " + m_token);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/octet-stream"));
+    request.setHeader(QNetworkRequest::ContentLengthHeader, up.size);
+    request.setTransferTimeout(kStallTimeoutMs);
+    m_pUploadReply = m_pNetwork->put(request, m_pUploadFile);
+    QNetworkReply* pReply = m_pUploadReply;
+    connect(pReply, &QNetworkReply::uploadProgress, this, [this](qint64 sent, qint64 total) {
+        if (m_pDetailLabel && total > 0) {
+            m_pDetailLabel->setText(tr("File %1 of %2 — %3 of %4 MB")
+                            .arg(m_uploadIndex + 1)
+                            .arg(m_uploads.size())
+                            .arg(sent / 1048576.0, 0, 'f', 1)
+                            .arg(total / 1048576.0, 0, 'f', 1));
+        }
+    });
+    connect(pReply, &QNetworkReply::finished, this, [this, pReply] {
+        pReply->deleteLater();
+        const Upload up = m_uploads.at(m_uploadIndex);
+        const int status = pReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QString result = QJsonDocument::fromJson(pReply->readAll())
+                                       .object()
+                                       .value(QStringLiteral("status"))
+                                       .toString();
+        if (status == 200 && result == QStringLiteral("stored")) {
+            ++m_uploaded;
+        } else if (status == 200 && result == QStringLiteral("duplicate")) {
+            ++m_uploadDuplicates; // the box has this audio under another name
+        } else if (status == 409) {
+            ++m_uploadExisting;
+        } else {
+            ++m_failedUploads;
+            kLogger.warning() << "upload failed:" << up.relpath << status << pReply->errorString();
+        }
+        delete m_pUploadFile;
+        m_pUploadFile = nullptr;
+        ++m_uploadIndex;
+        updateUi();
+        uploadNext();
+    });
+}
+
 void BoxSync::finish() {
     // Failed downloads: resume just before the oldest affected song next time,
     // so it gets re-sent (re-applying tags is a no-op).
@@ -450,10 +642,27 @@ void BoxSync::finish() {
     if (m_declinedDownloads > 0) {
         parts << tr("%n new song(s) not downloaded, offered again next sync", "", m_declinedDownloads);
     }
+    if (m_uploaded > 0) {
+        parts << tr("%n file(s) uploaded to the box", "", m_uploaded);
+    }
+    if (m_uploadDuplicates > 0) {
+        parts << tr("%n upload(s) skipped: the box has the same audio under another name", "", m_uploadDuplicates);
+    }
+    if (m_uploadExisting > 0) {
+        parts << tr("%n upload(s) skipped: already on the box", "", m_uploadExisting);
+    }
+    if (m_failedUploads > 0) {
+        parts << tr("%n upload(s) failed, retried next sync", "", m_failedUploads);
+    }
+    if (m_declinedUploads > 0) {
+        parts << tr("%n new file(s) not uploaded, offered again next sync", "", m_declinedUploads);
+    }
     kLogger.info() << "sync done:" << parts.join(QStringLiteral(", "));
     setState(State::Done, tr("Synced with the box.") + QChar('\n') + parts.join(QStringLiteral(", ")));
     if (m_updatedTracks == 0 && m_downloaded == 0 && m_failedDownloads == 0 &&
-            m_skippedExisting == 0 && m_declinedDownloads == 0) {
+            m_skippedExisting == 0 && m_declinedDownloads == 0 && m_uploaded == 0 &&
+            m_uploadDuplicates == 0 && m_uploadExisting == 0 && m_failedUploads == 0 &&
+            m_declinedUploads == 0) {
         QTimer::singleShot(kAutoCloseMs, this, [this] {
             if (m_state == State::Done && m_pDialog) {
                 m_pDialog->hide();
@@ -505,18 +714,24 @@ void BoxSync::ensureDialog() {
 void BoxSync::showDialog() {
     ensureDialog();
     updateUi();
+    m_pDialog->adjustSize(); // the upload question lists file names → grow to fit
     m_pDialog->show();
     m_pDialog->raise();
 }
 
 void BoxSync::updateUi() {
     const bool busy = m_state == State::Connecting || m_state == State::Fetching ||
-            m_state == State::Applying || m_state == State::Downloading;
+            m_state == State::Applying || m_state == State::Downloading ||
+            m_state == State::CheckingUploads || m_state == State::Uploading;
+    const bool awaiting = m_state == State::AwaitingConsent ||
+            m_state == State::AwaitingUploadConsent;
     int percent = -1;
     if (m_state == State::Applying && !m_songs.isEmpty()) {
         percent = static_cast<int>(100LL * m_applyIndex / m_songs.size());
     } else if (m_state == State::Downloading && !m_downloads.isEmpty()) {
         percent = static_cast<int>(100LL * m_downloadIndex / m_downloads.size());
+    } else if (m_state == State::Uploading && !m_uploads.isEmpty()) {
+        percent = static_cast<int>(100LL * m_uploadIndex / m_uploads.size());
     }
     if (m_pDialog) {
         m_pStatusLabel->setText(m_message);
@@ -529,12 +744,13 @@ void BoxSync::updateUi() {
         m_pProgress->setVisible(busy || m_state == State::Done);
         if (m_state == State::Applying) {
             m_pDetailLabel->setText(tr("Song %1 of %2").arg(m_applyIndex).arg(m_songs.size()));
-        } else if (!busy) {
-            m_pDetailLabel->clear();
+        } else if (!busy && m_state != State::AwaitingUploadConsent) {
+            m_pDetailLabel->clear(); // (upload question: the label lists the files)
         }
         m_pRetryButton->setVisible(m_state == State::Unreachable || m_state == State::Failed);
-        m_pDownloadButton->setVisible(m_state == State::AwaitingConsent);
-        m_pBackgroundButton->setText(m_state == State::AwaitingConsent
+        m_pDownloadButton->setVisible(awaiting);
+        m_pDownloadButton->setText(m_state == State::AwaitingUploadConsent ? tr("Upload") : tr("Download"));
+        m_pBackgroundButton->setText(awaiting
                         ? tr("Not now")
                         : (busy ? tr("Run in background") : tr("Close")));
     }
@@ -548,12 +764,19 @@ void BoxSync::updateUi() {
         case State::Fetching:
             title = tr("Box: connecting…");
             break;
+        case State::CheckingUploads:
+            title = tr("Box: checking for new files…");
+            break;
         case State::Applying:
         case State::Downloading:
+        case State::Uploading:
             title = tr("Box: syncing %1%").arg(std::max(percent, 0));
             break;
         case State::AwaitingConsent:
             title = tr("Box: %n new song(s)", "", m_downloads.size());
+            break;
+        case State::AwaitingUploadConsent:
+            title = tr("Box: %n file(s) to upload", "", m_uploads.size());
             break;
         case State::Done:
             title = tr("Box: synced");

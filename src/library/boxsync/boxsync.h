@@ -36,7 +36,12 @@ class TrackCollectionManager;
 ///  - after asking ("N new songs, X GB — Download / Not now"; Not now = offered
 ///    again next sync) downloads files that don't exist locally into library_root (never
 ///    overwrites: written as *.boxsync-part, renamed only if the size matches
-///    and the target still doesn't exist).
+///    and the target still doesn't exist),
+///  - CP136 (B6b): scans library_root (audio files only, nothing outside it),
+///    asks the box which relpaths it lacks (POST /api/missing) and, after asking
+///    ("N new files on this computer, X GB — Upload / Not now"), uploads them
+///    (PUT /api/upload). The box never overwrites and drops files whose audio it
+///    already has elsewhere in myLibrary.
 /// A dialog shows progress ("Run in background" hides it); the "Box" menu
 /// shows the state and offers "Sync with box now" (= retry).
 /// Sync state: <settings>/boxsync_state.json ({"last_rev": N}).
@@ -65,6 +70,9 @@ class BoxSync : public QObject {
         Applying,
         AwaitingConsent, // tags done, new songs found — waiting for "Download"
         Downloading,
+        CheckingUploads,       // scanning library_root + asking the box what it lacks
+        AwaitingUploadConsent, // waiting for "Upload"
+        Uploading,
         Done,
         Unreachable,
         Failed,
@@ -76,6 +84,11 @@ class BoxSync : public QObject {
         QJsonObject song;
         qint64 songRev;
     };
+    struct Upload {
+        QString relpath;
+        QString localPath;
+        qint64 size;
+    };
 
     bool loadConfig();
     void loadState();
@@ -86,7 +99,9 @@ class BoxSync : public QObject {
     /// Returns true if the Mixxx row changed.
     bool applySongToLocalFile(const QJsonObject& song, const QString& localPath);
     void downloadNext();
-    void acceptDownloads();
+    void acceptDownloads(); // also "Upload" in AwaitingUploadConsent
+    void startUploadCheck();
+    void uploadNext();
     void onSecondaryButton(); // "Run in background" / "Close" / "Not now"
     void finish();
     void setState(State state, const QString& message);
@@ -124,6 +139,15 @@ class BoxSync : public QObject {
     int m_skippedExisting;
     int m_failedDownloads;
     int m_declinedDownloads;
+    QList<Upload> m_uploads;
+    int m_uploadIndex;
+    QPointer<QNetworkReply> m_pUploadReply;
+    QFile* m_pUploadFile;
+    int m_uploaded;
+    int m_uploadDuplicates;
+    int m_uploadExisting;
+    int m_failedUploads;
+    int m_declinedUploads;
 
     // ui
     QPointer<QDialog> m_pDialog;
