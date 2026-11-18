@@ -113,6 +113,7 @@ class FakeDeck : public BaseTrackPlayer {
 
     MOCK_METHOD1(slotCloneFromGroup, void(const QString& group));
     MOCK_METHOD0(slotCloneDeck, void());
+    MOCK_METHOD1(slotMoveFromGroup, void(const QString& group)); // andy-custom CP135
 
     TrackPointer loadedTrack;
     ControlObject trackSamples;
