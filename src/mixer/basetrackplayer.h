@@ -59,6 +59,10 @@ class BaseTrackPlayer : public BasePlayer {
 #endif
     virtual void slotCloneFromGroup(const QString& group) = 0;
     virtual void slotCloneDeck() = 0;
+    /// andy-custom (CP135): move the track of another deck here - clone it
+    /// (same position, playing on), take over its mixer/EQ/filter/stem/effect
+    /// settings and eject it from the source deck, without an audible jump.
+    virtual void slotMoveFromGroup(const QString& group) = 0;
     virtual void slotEjectTrack(double) = 0;
     virtual void slotSetAndConfirmTrackMenuControl(bool){};
     virtual void slotTrackRatingChangeRequest(int){};
@@ -130,6 +134,7 @@ class BaseTrackPlayerImpl : public BaseTrackPlayer {
     void slotEjectTrack(double) final;
     void slotCloneFromGroup(const QString& group) final;
     void slotCloneDeck() final;
+    void slotMoveFromGroup(const QString& group) final;
     void slotTrackLoaded(TrackPointer pNewTrack, TrackPointer pOldTrack);
     void slotLoadFailed(TrackPointer pTrack, const QString& reason);
     void slotSetReplayGain(mixxx::ReplayGain replayGain);
@@ -189,6 +194,13 @@ class BaseTrackPlayerImpl : public BaseTrackPlayer {
     /// is consumed by the next slotLoadTrack(), active lasts until it loaded.
     bool m_bLoadInPlaceRequested = false;
     bool m_bLoadInPlace = false;
+    /// andy-custom (CP135) deck move: requested is consumed by the next
+    /// slotLoadTrack(), the active source group lasts until that load is done.
+    QString m_moveRequestedFrom;
+    QString m_moveActiveFrom;
+    double m_moveSourceVolume = 1.0;
+    double m_moveOwnVolumeBefore = 1.0;
+    void finishMove(const QString& sourceGroup, bool loaded);
 
     PerformanceTimer m_ejectTimer;
 

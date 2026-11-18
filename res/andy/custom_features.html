@@ -147,6 +147,7 @@ page (Enter = next hit).</p>
 <ul>
 <li>Loading from the library (load button / controller / <i>load to next deck</i>) <b>alternates over the free decks</b>: 1, 2, 1, 2&hellip; A playing deck is skipped. <span class="dim">CP41, CP94</span></li>
 <li>If <b>every visible deck is playing</b>, the track replaces a <b>muted</b> one (fader down, EQs/stems all down, muted, or off the main mix) &mdash; never a deck that is merely quiet. No muted deck &rarr; nothing loads (it never spills into hidden decks 3/4). <span class="dim">CP94</span></li>
+<li><b>Drag a deck onto another deck = move</b>: the track continues in the new deck at the same spot, taking along volume fader, gain, EQs + kills, filter, stem volumes/mutes/filters, effect-unit routing, tempo/pitch/keylock, loop and sync &mdash; the old deck is stopped and ejected. The hand-over is a gain swap inside one audio buffer, so it should be inaudible (crossfader side is <i>not</i> copied). <b>Shift</b>+drag = copy (both decks play, stock Mixxx clone). <b>Shift+Ctrl</b>+drag = load the file fresh, stopped (the old Shift). <span class="dim">CP135</span></li>
 </ul>
 
 <!-- ============================================================ -->

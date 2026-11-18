@@ -2,6 +2,7 @@
 
 #include <QRegularExpression>
 #include <algorithm>
+#include <utility>
 
 #include "audio/types.h"
 #include "control/controlobject.h"
@@ -724,6 +725,10 @@ void PlayerManager::slotCloneDeck(const QString& source_group, const QString& ta
         return;
     }
 
+    if (std::exchange(s_nextCloneIsMove, false)) {
+        pPlayer->slotMoveFromGroup(source_group);
+        return;
+    }
     pPlayer->slotCloneFromGroup(source_group);
 }
 

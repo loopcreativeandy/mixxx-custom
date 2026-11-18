@@ -1,6 +1,7 @@
 #include "mixer/basetrackplayer.h"
 
 #include <QMessageBox>
+#include <QTimer>
 #include <QMetaMethod>
 #include <memory>
 #include <utility>
@@ -612,6 +613,11 @@ void BaseTrackPlayerImpl::slotLoadTrack(TrackPointer pNewTrack,
     // Request a new track from EngineBuffer
     EngineBuffer* pEngineBuffer = m_pChannel->getEngineBuffer();
     m_bLoadInPlace = std::exchange(m_bLoadInPlaceRequested, false);
+    if (!m_moveActiveFrom.isEmpty()) {
+        // a newer load overtook an unfinished move: give the fader back
+        finishMove(m_moveActiveFrom, false);
+    }
+    m_moveActiveFrom = std::exchange(m_moveRequestedFrom, QString());
     if (m_bLoadInPlace) {
         pEngineBuffer->setKeepTimePositionOnLoad(m_cloneTimeOffsetSeconds);
     } else {
@@ -647,6 +653,9 @@ void BaseTrackPlayerImpl::slotLoadFailed(TrackPointer pTrack, const QString& rea
     m_pChannelToCloneFrom = nullptr;
     m_bCloneInTimeDomain = false;
     m_bLoadInPlace = false;
+    if (!m_moveActiveFrom.isEmpty()) {
+        finishMove(std::exchange(m_moveActiveFrom, QString()), false);
+    }
 
     // Alert user.
     // The QMessageBox blocks the event loop (and the GUI since it's modal dialog),
@@ -815,6 +824,9 @@ void BaseTrackPlayerImpl::slotTrackLoaded(TrackPointer pNewTrack,
     m_pChannelToCloneFrom = nullptr;
     m_bCloneInTimeDomain = false;
     m_bLoadInPlace = false;
+    if (!m_moveActiveFrom.isEmpty() && pNewTrack && pNewTrack == m_pLoadedTrack) {
+        finishMove(std::exchange(m_moveActiveFrom, QString()), true);
+    }
 
     // Update the PlayerInfo class that is used in EngineBroadcast to replace
     // the metadata of a stream
@@ -839,6 +851,127 @@ void BaseTrackPlayerImpl::slotCloneFromGroup(const QString& group) {
     }
 
     slotCloneChannel(pChannel);
+}
+
+namespace {
+// andy-custom (CP135): copy one control between decks if it exists on both
+// (stem / effect controls differ per deck setup), returns the source value.
+void copyControl(const ConfigKey& from, const ConfigKey& to) {
+    ControlObject* pFrom = ControlObject::getControl(from, ControlFlag::NoWarnIfMissing);
+    ControlObject* pTo = ControlObject::getControl(to, ControlFlag::NoWarnIfMissing);
+    if (pFrom && pTo && pFrom->get() != pTo->get()) {
+        pTo->set(pFrom->get());
+    }
+}
+
+QString stemGroup(const QString& deckGroup, int stem) {
+    return deckGroup.chopped(1) + QStringLiteral("_Stem%1]").arg(stem);
+}
+} // namespace
+
+void BaseTrackPlayerImpl::slotMoveFromGroup(const QString& group) {
+    EngineChannel* pChannel = m_pEngineMixer->getChannel(group);
+    if (!pChannel || pChannel == m_pChannel ||
+            !PlayerManager::isDeckGroup(group, nullptr) ||
+            !PlayerManager::isDeckGroup(getGroup(), nullptr) ||
+            !pChannel->getEngineBuffer()->getLoadedTrack()) {
+        return;
+    }
+    const QString me = getGroup();
+    // This deck stays silent until the clone has landed on the exact position,
+    // then the faders swap (both ramped) - see finishMove().
+    m_moveSourceVolume = ControlObject::get(ConfigKey(group, "volume"));
+    m_moveOwnVolumeBefore = ControlObject::get(ConfigKey(me, "volume"));
+    ControlObject::set(ConfigKey(me, "volume"), 0.0);
+    // Tempo before the engine starts playing the clone, so both stay in phase
+    // until the hand-over (the clone itself copies them only after loading).
+    if (ControlObject::get(ConfigKey(me, "sync_mode")) !=
+            static_cast<double>(SyncMode::Follower)) {
+        copyControl(ConfigKey(group, "rate_ratio"), ConfigKey(me, "rate_ratio"));
+    }
+    copyControl(ConfigKey(group, "keylock"), ConfigKey(me, "keylock"));
+    copyControl(ConfigKey(group, "pitch_adjust"), ConfigKey(me, "pitch_adjust"));
+    m_moveRequestedFrom = group;
+    slotCloneChannel(pChannel);
+    if (!m_moveRequestedFrom.isEmpty()) {
+        // the clone did not start a load (e.g. no file access)
+        m_moveRequestedFrom.clear();
+        ControlObject::set(ConfigKey(me, "volume"), m_moveOwnVolumeBefore);
+    }
+}
+
+void BaseTrackPlayerImpl::finishMove(const QString& src, bool loaded) {
+    const QString me = getGroup();
+    if (!loaded) {
+        ControlObject::set(ConfigKey(me, "volume"), m_moveOwnVolumeBefore);
+        return;
+    }
+    // Everything the mixer does to the sound - but not the crossfader side.
+    for (const char* key : {"pregain", "keylock", "quantize", "pfl", "mute"}) {
+        copyControl(ConfigKey(src, key), ConfigKey(me, key));
+    }
+    const QString srcEq = QStringLiteral("[EqualizerRack1_%1_Effect1]").arg(src);
+    const QString myEq = QStringLiteral("[EqualizerRack1_%1_Effect1]").arg(me);
+    copyControl(ConfigKey(srcEq, "enabled"), ConfigKey(myEq, "enabled"));
+    for (int i = 1; i <= 3; ++i) {
+        copyControl(ConfigKey(srcEq, QStringLiteral("parameter%1").arg(i)),
+                ConfigKey(myEq, QStringLiteral("parameter%1").arg(i)));
+        copyControl(ConfigKey(srcEq, QStringLiteral("button_parameter%1").arg(i)),
+                ConfigKey(myEq, QStringLiteral("button_parameter%1").arg(i)));
+    }
+    auto copyQuickEffect = [](const QString& from, const QString& to) {
+        const QString qFrom = QStringLiteral("[QuickEffectRack1_%1]").arg(from);
+        const QString qTo = QStringLiteral("[QuickEffectRack1_%1]").arg(to);
+        copyControl(ConfigKey(qFrom, "loaded_chain_preset"),
+                ConfigKey(qTo, "loaded_chain_preset"));
+        copyControl(ConfigKey(qFrom, "super1"), ConfigKey(qTo, "super1"));
+        copyControl(ConfigKey(qFrom, "enabled"), ConfigKey(qTo, "enabled"));
+    };
+    copyQuickEffect(src, me);
+#ifdef __STEM__
+    for (int stem = 1; stem <= mixxx::kMaxSupportedStems; ++stem) {
+        const QString srcStem = stemGroup(src, stem);
+        const QString myStem = stemGroup(me, stem);
+        copyControl(ConfigKey(srcStem, "volume"), ConfigKey(myStem, "volume"));
+        copyControl(ConfigKey(srcStem, "mute"), ConfigKey(myStem, "mute"));
+        copyQuickEffect(srcStem, myStem);
+    }
+#endif
+    // Effect units the deck is routed to move along.
+    for (int unit = 1; unit <= 4; ++unit) {
+        const QString unitGroup = QStringLiteral("[EffectRack1_EffectUnit%1]").arg(unit);
+        const ConfigKey srcKey(unitGroup, QStringLiteral("group_%1_enable").arg(src));
+        const ConfigKey myKey(unitGroup, QStringLiteral("group_%1_enable").arg(me));
+        if (ControlObject::exists(srcKey) && ControlObject::exists(myKey)) {
+            const double v = ControlObject::get(srcKey);
+            ControlObject::set(myKey, v);
+        }
+    }
+    if (ControlObject::toBool(ConfigKey(src, "sync_enabled"))) {
+        ControlObject::set(ConfigKey(me, "sync_enabled"), 1.0);
+    }
+
+    // Hand-over: both channel gains ramp within the same audio buffer, so the
+    // level stays constant. Then stop + eject the source; its fader goes back
+    // up only after it is silent (stopping ramps the rate down for a moment).
+    const double volume = m_moveSourceVolume;
+    ControlObject::set(ConfigKey(me, "volume"), volume);
+    ControlObject::set(ConfigKey(src, "volume"), 0.0);
+    ControlObject::set(ConfigKey(src, "play"), 0.0);
+    for (int unit = 1; unit <= 4; ++unit) {
+        const ConfigKey srcKey(QStringLiteral("[EffectRack1_EffectUnit%1]").arg(unit),
+                QStringLiteral("group_%1_enable").arg(src));
+        if (ControlObject::exists(srcKey)) {
+            ControlObject::set(srcKey, 0.0);
+        }
+    }
+    QTimer::singleShot(150, this, [src, volume]() {
+        ControlObject::set(ConfigKey(src, "eject"), 1.0);
+        ControlObject::set(ConfigKey(src, "eject"), 0.0);
+        QTimer::singleShot(150, [src, volume]() {
+            ControlObject::set(ConfigKey(src, "volume"), volume);
+        });
+    });
 }
 
 void BaseTrackPlayerImpl::slotCloneFromDeck(double d) {

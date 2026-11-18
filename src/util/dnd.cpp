@@ -209,6 +209,16 @@ QList<mixxx::FileInfo> DragAndDropHelper::supportedTracksFromUrls(
     return fileInfos;
 }
 
+namespace {
+Qt::KeyboardModifiers dropModifiers(const QDropEvent& event) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return event.modifiers();
+#else
+    return event.keyboardModifiers();
+#endif
+}
+} // namespace
+
 //static
 bool DragAndDropHelper::allowDeckCloneAttempt(
         const QDropEvent& event,
@@ -218,13 +228,10 @@ bool DragAndDropHelper::allowDeckCloneAttempt(
         return false;
     }
 
-    // forbid clone if shift is pressed
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    const auto modifiers = event.modifiers();
-#else
-    const auto modifiers = event.keyboardModifiers();
-#endif
-    if (modifiers.testFlag(Qt::ShiftModifier)) {
+    // andy-custom (CP135): Shift+Ctrl = the old Shift (load the file fresh,
+    // no clone). Plain drag = move, Shift = clone - see handleTrackDropEvent.
+    const auto modifiers = dropModifiers(event);
+    if (modifiers.testFlag(Qt::ShiftModifier) && modifiers.testFlag(Qt::ControlModifier)) {
         return false;
     }
 
@@ -307,7 +314,12 @@ void DragAndDropHelper::handleTrackDropEvent(
     if (allowLoadToPlayer(group, pConfig)) {
         if (allowDeckCloneAttempt(*pEvent, group)) {
             pEvent->accept();
+            // andy-custom (CP135): a plain deck-to-deck drag moves the track
+            // (source deck is ejected), Shift copies it like stock Mixxx.
+            const bool move = !dropModifiers(*pEvent).testFlag(Qt::ShiftModifier);
+            PlayerManager::setNextCloneIsMove(move);
             target.emitCloneDeck(pEvent->mimeData()->text(), group);
+            PlayerManager::setNextCloneIsMove(false);
             return;
         } else {
             const QList<mixxx::FileInfo> files = dropEventFiles(

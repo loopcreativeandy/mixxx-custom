@@ -227,6 +227,13 @@ class PlayerManager : public PlayerManagerInterface {
         return QStringLiteral("[Auxiliary") + QString::number(i + 1) + QChar(']');
     }
 
+  public:
+    /// andy-custom (CP135): the next slotCloneDeck() (a deck-to-deck drop)
+    /// moves the track instead of copying it. Set around the drop emit only.
+    static void setNextCloneIsMove(bool move) {
+        s_nextCloneIsMove = move;
+    }
+
   public slots:
     // Slots for loading tracks into a Player, which is either a Sampler or a Deck
 #ifdef __STEM__
@@ -352,4 +359,5 @@ class PlayerManager : public PlayerManagerInterface {
     QList<Microphone*> m_microphones;
     QList<Auxiliary*> m_auxiliaries;
     QMap<ChannelHandle, BaseTrackPlayer*> m_players;
+    static inline bool s_nextCloneIsMove = false;
 };
