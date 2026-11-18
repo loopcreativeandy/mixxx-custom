@@ -33,7 +33,8 @@ class TrackCollectionManager;
 ///  - writes comment / grouping / composer of every changed song into the
 ///    Mixxx library rows of its files that exist locally (box wins; an empty
 ///    box value never clears a local one),
-///  - downloads files that don't exist locally into library_root (never
+///  - after asking ("N new songs, X GB — Download / Not now"; Not now = offered
+///    again next sync) downloads files that don't exist locally into library_root (never
 ///    overwrites: written as *.boxsync-part, renamed only if the size matches
 ///    and the target still doesn't exist).
 /// A dialog shows progress ("Run in background" hides it); the "Box" menu
@@ -62,6 +63,7 @@ class BoxSync : public QObject {
         Connecting,
         Fetching,
         Applying,
+        AwaitingConsent, // tags done, new songs found — waiting for "Download"
         Downloading,
         Done,
         Unreachable,
@@ -84,6 +86,8 @@ class BoxSync : public QObject {
     /// Returns true if the Mixxx row changed.
     bool applySongToLocalFile(const QJsonObject& song, const QString& localPath);
     void downloadNext();
+    void acceptDownloads();
+    void onSecondaryButton(); // "Run in background" / "Close" / "Not now"
     void finish();
     void setState(State state, const QString& message);
     void updateUi();
@@ -119,6 +123,7 @@ class BoxSync : public QObject {
     int m_downloaded;
     int m_skippedExisting;
     int m_failedDownloads;
+    int m_declinedDownloads;
 
     // ui
     QPointer<QDialog> m_pDialog;
@@ -127,6 +132,7 @@ class BoxSync : public QObject {
     QPointer<QProgressBar> m_pProgress;
     QPointer<QPushButton> m_pBackgroundButton;
     QPointer<QPushButton> m_pRetryButton;
+    QPointer<QPushButton> m_pDownloadButton;
     QPointer<QMenuBar> m_pMenuBar;
     QPointer<QMenu> m_pMenu;
 };

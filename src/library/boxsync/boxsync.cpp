@@ -79,7 +79,8 @@ BoxSync::BoxSync(TrackCollectionManager* pTrackCollectionManager,
           m_updatedTracks(0),
           m_downloaded(0),
           m_skippedExisting(0),
-          m_failedDownloads(0) {
+          m_failedDownloads(0),
+          m_declinedDownloads(0) {
 }
 
 BoxSync::~BoxSync() {
@@ -165,7 +166,8 @@ QString BoxSync::localPathFor(const QString& relpath) const {
 
 void BoxSync::start() {
     if (m_state == State::Connecting || m_state == State::Fetching ||
-            m_state == State::Applying || m_state == State::Downloading) {
+            m_state == State::Applying || m_state == State::Downloading ||
+            m_state == State::AwaitingConsent) {
         showDialog();
         return;
     }
@@ -182,6 +184,7 @@ void BoxSync::start() {
     m_downloaded = 0;
     m_skippedExisting = 0;
     m_failedDownloads = 0;
+    m_declinedDownloads = 0;
     m_minFailedRev = std::numeric_limits<qint64>::max();
     m_urlIndex = 0;
     m_sawUnauthorized = false;
@@ -319,8 +322,40 @@ void BoxSync::applyBatch() {
         finish();
         return;
     }
+    // Andy 2026-11-18: tags always sync; downloads only after he says yes.
+    qint64 totalBytes = 0;
+    for (const auto& dl : m_downloads) {
+        totalBytes += std::max<qint64>(dl.size, 0);
+    }
+    kLogger.info() << m_downloads.size() << "songs to download," << totalBytes << "bytes — asking";
+    setState(State::AwaitingConsent,
+            tr("Tags are synced (%n track(s) updated).", "", m_updatedTracks) + QChar('\n') +
+                    tr("%n new song(s) on the box, %1 GB in total. Download them now?", "", m_downloads.size())
+                            .arg(totalBytes / 1073741824.0, 0, 'f', 2));
+    showDialog();
+}
+
+void BoxSync::acceptDownloads() {
+    if (m_state != State::AwaitingConsent) {
+        return;
+    }
     setState(State::Downloading, tr("Downloading new songs…"));
     downloadNext();
+}
+
+void BoxSync::onSecondaryButton() {
+    if (m_state == State::AwaitingConsent) {
+        // "Not now": keep the tags, re-offer these songs on the next sync.
+        m_declinedDownloads = static_cast<int>(m_downloads.size());
+        for (const auto& dl : m_downloads) {
+            m_minFailedRev = std::min(m_minFailedRev, dl.songRev);
+        }
+        m_downloads.clear();
+        finish();
+    }
+    if (m_pDialog) {
+        m_pDialog->hide();
+    }
 }
 
 void BoxSync::downloadNext() {
@@ -397,7 +432,9 @@ void BoxSync::downloadNext() {
 void BoxSync::finish() {
     // Failed downloads: resume just before the oldest affected song next time,
     // so it gets re-sent (re-applying tags is a no-op).
-    const qint64 newRev = m_failedDownloads > 0 ? m_minFailedRev - 1 : m_serverRev;
+    const qint64 newRev = (m_failedDownloads > 0 || m_declinedDownloads > 0)
+            ? m_minFailedRev - 1
+            : m_serverRev;
     saveState(std::max(m_lastRev, newRev));
     QStringList parts;
     parts << tr("%n track(s) updated", "", m_updatedTracks);
@@ -410,9 +447,13 @@ void BoxSync::finish() {
     if (m_failedDownloads > 0) {
         parts << tr("%n download(s) failed, retried next sync", "", m_failedDownloads);
     }
+    if (m_declinedDownloads > 0) {
+        parts << tr("%n new song(s) not downloaded, offered again next sync", "", m_declinedDownloads);
+    }
     kLogger.info() << "sync done:" << parts.join(QStringLiteral(", "));
     setState(State::Done, tr("Synced with the box.") + QChar('\n') + parts.join(QStringLiteral(", ")));
-    if (m_updatedTracks == 0 && m_downloaded == 0 && m_failedDownloads == 0 && m_skippedExisting == 0) {
+    if (m_updatedTracks == 0 && m_downloaded == 0 && m_failedDownloads == 0 &&
+            m_skippedExisting == 0 && m_declinedDownloads == 0) {
         QTimer::singleShot(kAutoCloseMs, this, [this] {
             if (m_state == State::Done && m_pDialog) {
                 m_pDialog->hide();
@@ -443,11 +484,15 @@ void BoxSync::ensureDialog() {
     m_pProgress = new QProgressBar(pDialog);
     m_pBackgroundButton = new QPushButton(tr("Run in background"), pDialog);
     m_pRetryButton = new QPushButton(tr("Try to connect again"), pDialog);
-    connect(m_pBackgroundButton, &QPushButton::clicked, pDialog, &QDialog::hide);
+    m_pDownloadButton = new QPushButton(tr("Download"), pDialog);
+    m_pDownloadButton->setDefault(true);
+    connect(m_pBackgroundButton, &QPushButton::clicked, this, &BoxSync::onSecondaryButton);
+    connect(m_pDownloadButton, &QPushButton::clicked, this, &BoxSync::acceptDownloads);
     connect(m_pRetryButton, &QPushButton::clicked, this, &BoxSync::start);
     auto* pButtons = new QHBoxLayout;
     pButtons->addStretch();
     pButtons->addWidget(m_pRetryButton);
+    pButtons->addWidget(m_pDownloadButton);
     pButtons->addWidget(m_pBackgroundButton);
     auto* pLayout = new QVBoxLayout(pDialog);
     pLayout->addWidget(m_pStatusLabel);
@@ -488,7 +533,10 @@ void BoxSync::updateUi() {
             m_pDetailLabel->clear();
         }
         m_pRetryButton->setVisible(m_state == State::Unreachable || m_state == State::Failed);
-        m_pBackgroundButton->setText(busy ? tr("Run in background") : tr("Close"));
+        m_pDownloadButton->setVisible(m_state == State::AwaitingConsent);
+        m_pBackgroundButton->setText(m_state == State::AwaitingConsent
+                        ? tr("Not now")
+                        : (busy ? tr("Run in background") : tr("Close")));
     }
     if (m_pMenu) {
         QString title;
@@ -503,6 +551,9 @@ void BoxSync::updateUi() {
         case State::Applying:
         case State::Downloading:
             title = tr("Box: syncing %1%").arg(std::max(percent, 0));
+            break;
+        case State::AwaitingConsent:
+            title = tr("Box: %n new song(s)", "", m_downloads.size());
             break;
         case State::Done:
             title = tr("Box: synced");
