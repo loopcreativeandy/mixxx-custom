@@ -1418,6 +1418,7 @@ add_library(
   src/library/starrating.cpp
   src/library/relatedtracks.cpp
   src/library/settracklist.cpp
+  src/library/boxsync/boxsync.cpp
   src/library/settracklistwatcher.cpp
   src/library/stemaudioalign.cpp
   src/library/stemoriginal.cpp

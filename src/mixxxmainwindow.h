@@ -12,6 +12,7 @@
 class ControlObject;
 class CrowdRatingSession;
 class LoopUndo;
+class BoxSync;
 class SetTracklistWatcher;
 class DlgDeveloperTools;
 class DlgPreferences;
@@ -158,6 +159,7 @@ class MixxxMainWindow : public QMainWindow {
     std::unique_ptr<CrowdRatingSession> m_pCrowdRatingSession;
     std::unique_ptr<LoopUndo> m_pLoopUndo;
     std::unique_ptr<SetTracklistWatcher> m_pSetTracklistWatcher;
+    std::unique_ptr<BoxSync> m_pBoxSync;
 
 #ifdef __ENGINEPRIME__
     // Library exporter

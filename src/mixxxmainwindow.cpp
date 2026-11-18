@@ -38,6 +38,7 @@
 #endif
 #include "control/controlindicatortimer.h"
 #include "library/crowdrating/crowdratingsession.h"
+#include "library/boxsync/boxsync.h"
 #include "library/settracklistwatcher.h"
 #include "mixer/loopundo.h"
 #include "library/library.h"
@@ -393,6 +394,16 @@ void MixxxMainWindow::initialize() {
         m_pSetTracklistWatcher->setTrack(group, PlayerInfo::instance().getTrackInfo(group));
     }
 
+    // andy-custom CP134 (IDEA-21): pull tags + new songs from the box at
+    // startup. Inactive unless <settings>/boxsync.json exists.
+    m_pBoxSync = std::make_unique<BoxSync>(
+            m_pCoreServices->getTrackCollectionManager().get(),
+            m_pCoreServices->getSettings(),
+            this);
+    if (m_pBoxSync->isConfigured()) {
+        QTimer::singleShot(1500, m_pBoxSync.get(), &BoxSync::start);
+    }
+
     // Connect signals to the menubar. Should be done before emit skinLoaded.
     connectMenuBar();
 
@@ -601,6 +612,7 @@ MixxxMainWindow::~MixxxMainWindow() {
     m_pCrowdRatingSession.reset();
     m_pLoopUndo.reset();
     m_pSetTracklistWatcher.reset();
+    m_pBoxSync.reset();
 
     // TODO() Verify if this comment still applies:
     // WMainMenuBar holds references to controls so we need to delete it
@@ -916,6 +928,9 @@ void MixxxMainWindow::connectMenuBar() {
     // so all connections must be unique!
 
     ScopedTimer t(QStringLiteral("MixxxMainWindow::connectMenuBar"));
+    if (m_pBoxSync && m_pBoxSync->isConfigured()) {
+        m_pBoxSync->attachToMenuBar(m_pMenuBar); // idempotent per menu bar
+    }
     connect(this,
             &MixxxMainWindow::skinLoaded,
             m_pMenuBar,
