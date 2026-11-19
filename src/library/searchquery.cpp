@@ -1064,3 +1064,77 @@ QString CueRuleFilterNode::toSql() const {
     }
     return QStringLiteral("0");
 }
+
+// andy-custom (CP138, IDEA-20)
+std::unique_ptr<EnergyFilterNode> EnergyFilterNode::parse(const QString& token) {
+    static const QRegularExpression kRange(
+            QStringLiteral("^(\\d)(?:(\\+)|-(\\d)?)(!?)$"));
+    const QRegularExpressionMatch m = kRange.match(token);
+    if (!m.hasMatch()) {
+        return nullptr;
+    }
+    int low = m.captured(1).toInt();
+    int high = low;
+    if (!m.captured(2).isEmpty()) {
+        high = 9;
+    } else if (!m.captured(3).isEmpty()) {
+        high = m.captured(3).toInt();
+    } else {
+        // "4-" = 4 and below
+        high = low;
+        low = 0;
+    }
+    if (low > high) {
+        std::swap(low, high);
+    }
+    return std::make_unique<EnergyFilterNode>(low, high, !m.captured(4).isEmpty());
+}
+
+void EnergyFilterNode::extract(
+        const QString& grouping, QList<int>* pHand, QList<int>* pInferred) {
+    static const QRegularExpression kHand(QStringLiteral("(\\d)\\1{4}"));
+    static const QRegularExpression kInferred(
+            QStringLiteral("(\\d)\\1\\1\\x{1F99E}energy"));
+    auto it = kHand.globalMatch(grouping);
+    while (it.hasNext()) {
+        pHand->append(it.next().captured(1).toInt());
+    }
+    it = kInferred.globalMatch(grouping);
+    while (it.hasNext()) {
+        pInferred->append(it.next().captured(1).toInt());
+    }
+}
+
+bool EnergyFilterNode::match(const TrackPointer& pTrack) const {
+    QList<int> hand;
+    QList<int> inferred;
+    extract(pTrack->getGrouping(), &hand, &inferred);
+    const QList<int>& values = (!hand.isEmpty() || m_handOnly) ? hand : inferred;
+    for (int v : values) {
+        if (v >= m_low && v <= m_high) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QString EnergyFilterNode::toSql() const {
+    // Patterns are digits + the lobster only - nothing to escape.
+    auto anyOf = [](int low, int high, const QString& suffix, int repeat) {
+        QStringList clauses;
+        for (int d = low; d <= high; ++d) {
+            clauses << QStringLiteral("grouping LIKE '%%1%2%'")
+                               .arg(QString(repeat, QChar('0' + d)), suffix);
+        }
+        return QStringLiteral("(%1)").arg(clauses.join(QStringLiteral(" OR ")));
+    };
+    const QString hand = anyOf(m_low, m_high, QString(), 5);
+    QString sql = hand;
+    if (!m_handOnly) {
+        const QString inferred = anyOf(
+                m_low, m_high, QString::fromUcs4(U"\U0001F99Eenergy"), 3);
+        sql = QStringLiteral("(%1 OR (%2 AND NOT %3))")
+                      .arg(hand, inferred, anyOf(0, 9, QString(), 5));
+    }
+    return QStringLiteral("(grouping IS NOT NULL AND %1)").arg(sql);
+}

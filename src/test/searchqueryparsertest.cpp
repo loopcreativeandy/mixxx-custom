@@ -1492,3 +1492,53 @@ TEST_F(SearchQueryParserTest, CueRuleMatch) {
     EXPECT_FALSE(proper->match(pNoGreen));
     EXPECT_FALSE(longLoop->match(pNoGreen));
 }
+
+// andy-custom CP138 (IDEA-20): energy range search
+TEST_F(SearchQueryParserTest, EnergyRange) {
+    EXPECT_EQ(nullptr, EnergyFilterNode::parse("7"));
+    EXPECT_EQ(nullptr, EnergyFilterNode::parse("77+"));
+    EXPECT_EQ(nullptr, EnergyFilterNode::parse("+7"));
+    EXPECT_NE(nullptr, EnergyFilterNode::parse("7+"));
+    EXPECT_NE(nullptr, EnergyFilterNode::parse("4-"));
+    EXPECT_NE(nullptr, EnergyFilterNode::parse("5-7!"));
+
+    auto newTrack = [](const QString& grouping) {
+        TrackPointer pTrack(Track::newDummy(QStringLiteral("e.mp3"), TrackId()));
+        pTrack->setGrouping(grouping);
+        return pTrack;
+    };
+    const auto lobster = QString::fromUcs4(U"\U0001F99E");
+    TrackPointer pHand8 = newTrack(QStringLiteral("88888 high energy"));
+    TrackPointer pInferred7 = newTrack(QStringLiteral("777") + lobster + QStringLiteral("energy"));
+    TrackPointer pBoth = newTrack(QStringLiteral("888") + lobster +
+            QStringLiteral("energy, 44444 low energy"));
+    TrackPointer pNone = newTrack(QStringLiteral("party"));
+
+    auto up7 = m_parser.parseQuery("7+", QString());
+    EXPECT_TRUE(up7->match(pHand8));
+    EXPECT_TRUE(up7->match(pInferred7));
+    EXPECT_FALSE(up7->match(pBoth)); // hand rating 4 wins over inferred 8
+    EXPECT_FALSE(up7->match(pNone));
+
+    auto up7Hand = m_parser.parseQuery("7+!", QString());
+    EXPECT_TRUE(up7Hand->match(pHand8));
+    EXPECT_FALSE(up7Hand->match(pInferred7));
+
+    auto down4 = m_parser.parseQuery("4-", QString());
+    EXPECT_TRUE(down4->match(pBoth));
+    EXPECT_FALSE(down4->match(pHand8));
+
+    auto range = m_parser.parseQuery("6-7", QString());
+    EXPECT_TRUE(range->match(pInferred7));
+    EXPECT_FALSE(range->match(pHand8));
+
+    auto negated = m_parser.parseQuery("-7+", QString());
+    EXPECT_FALSE(negated->match(pHand8));
+    EXPECT_TRUE(negated->match(pBoth));
+
+    const QString sql = m_parser.parseQuery("7+", QString())->toSql();
+    EXPECT_TRUE(sql.contains("grouping LIKE '%77777%'")) << qPrintable(sql);
+    EXPECT_TRUE(sql.contains(QStringLiteral("grouping LIKE '%999") + lobster + "energy%'"))
+            << qPrintable(sql);
+    qInfo().noquote() << "ENERGY_SQL" << sql;
+}

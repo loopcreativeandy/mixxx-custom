@@ -221,7 +221,12 @@ void SearchQueryParser::parseTokens(QStringList tokens,
         const QRegularExpressionMatch specialFilterMatch = m_specialFilterMatcher.match(token);
         const QRegularExpressionMatch cueFilterMatch = m_cueFilterMatcher.match(token);
         CueRuleFilterNode::Rule cueRule;
-        if (cueFilterMatch.hasMatch() &&
+        // andy-custom CP138: energy range `7+` / `4-` / `5-7`, `!` = hand only
+        std::unique_ptr<EnergyFilterNode> pEnergy =
+                EnergyFilterNode::parse(negate ? token.mid(1) : token);
+        if (pEnergy) {
+            pNode = std::move(pEnergy);
+        } else if (cueFilterMatch.hasMatch() &&
                 CueRuleFilterNode::parseRule(cueFilterMatch.captured(2), &cueRule)) {
             pNode = std::make_unique<CueRuleFilterNode>(cueRule);
         } else if (textFilterMatch.hasMatch()) {

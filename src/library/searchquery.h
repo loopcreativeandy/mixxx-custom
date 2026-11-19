@@ -332,4 +332,31 @@ class CueRuleFilterNode : public QueryNode {
     Rule m_rule;
 };
 
+
+/// andy-custom (CP138, IDEA-20): energy range search on Andy's GROUPING
+/// convention - hand rating = five repeated digits ("77777 high energy"),
+/// inferred = three digits + "🦞energy" ("777🦞energy"). Search syntax:
+/// `7+` (7 and up), `4-` (4 and down), `5-7` (range); a trailing `!` = hand
+/// ratings only. A hand rating, if present, wins over an inferred value.
+class EnergyFilterNode : public QueryNode {
+  public:
+    /// Returns nullptr unless token (without a negation prefix) is such a range.
+    static std::unique_ptr<EnergyFilterNode> parse(const QString& token);
+
+    EnergyFilterNode(int low, int high, bool handOnly)
+            : m_low(low), m_high(high), m_handOnly(handOnly) {
+    }
+
+    bool match(const TrackPointer& pTrack) const override;
+    QString toSql() const override;
+
+    /// Hand ratings and inferred values found in a grouping string.
+    static void extract(const QString& grouping, QList<int>* pHand, QList<int>* pInferred);
+
+  private:
+    int m_low;
+    int m_high;
+    bool m_handOnly;
+};
+
 #endif /* SEARCHQUERY_H */
