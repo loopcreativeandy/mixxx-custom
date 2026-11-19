@@ -863,7 +863,12 @@ void copyControl(const ConfigKey& from, const ConfigKey& to) {
     ControlObject* pFrom = ControlObject::getControl(from, ControlFlag::NoWarnIfMissing);
     ControlObject* pTo = ControlObject::getControl(to, ControlFlag::NoWarnIfMissing);
     if (pFrom && pTo && pFrom->get() != pTo->get()) {
-        pTo->set(pFrom->get());
+        // CP140: NOT pTo->set() - a ControlObject setting itself does not emit
+        // valueChanged to its owner, so RateControl never moved the tempo fader
+        // (rate_ratio set, "rate" slider stale) and KeyControl never recomputed
+        // the key from "pitch" (wrong key display / shift). The static setter
+        // goes through the normal path like a controller would.
+        ControlObject::set(to, pFrom->get());
     }
 }
 
