@@ -401,7 +401,7 @@ void MixxxMainWindow::initialize() {
             m_pCoreServices->getSettings(),
             this);
     if (m_pBoxSync->isConfigured()) {
-        QTimer::singleShot(1500, m_pBoxSync.get(), &BoxSync::start);
+        QTimer::singleShot(1500, m_pBoxSync.get(), &BoxSync::startAutomatic);
     }
 
     // Connect signals to the menubar. Should be done before emit skinLoaded.

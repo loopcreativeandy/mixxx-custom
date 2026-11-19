@@ -60,6 +60,9 @@ class BoxSync : public QObject {
   public slots:
     /// Starts a sync (or just shows the dialog if one is running).
     void start();
+    /// Startup sync: the dialog only appears when something needs Andy
+    /// (a question, an error, or actual changes) — a zero-change sync stays invisible.
+    void startAutomatic();
     void showDialog();
 
   private:
@@ -124,6 +127,7 @@ class BoxSync : public QObject {
     QString m_message;
     int m_urlIndex;
     bool m_sawUnauthorized;
+    bool m_quiet = false; // automatic sync: dialog hidden until there is something to show
     QString m_baseUrl;
     qint64 m_lastRev;
     qint64 m_serverRev;

@@ -187,7 +187,18 @@ QString BoxSync::localPathFor(const QString& relpath) const {
     return QDir::cleanPath(m_libraryRoot + QChar('/') + relpath);
 }
 
+void BoxSync::startAutomatic() {
+    if (m_state == State::Idle || m_state == State::Done || m_state == State::Unreachable ||
+            m_state == State::Failed) {
+        m_quiet = true;
+    }
+    start();
+}
+
 void BoxSync::start() {
+    // A manual "Sync with box now" (or retry) always shows the dialog.
+    const bool quiet = m_quiet;
+    m_quiet = false;
     if (m_state == State::Connecting || m_state == State::Fetching ||
             m_state == State::Applying || m_state == State::Downloading ||
             m_state == State::AwaitingConsent || m_state == State::CheckingUploads ||
@@ -220,7 +231,10 @@ void BoxSync::start() {
     m_urlIndex = 0;
     m_sawUnauthorized = false;
     m_baseUrl.clear();
-    showDialog();
+    m_quiet = quiet;
+    if (!m_quiet) {
+        showDialog();
+    }
     tryNextUrl();
 }
 
@@ -232,6 +246,9 @@ void BoxSync::tryNextUrl() {
         }
         // Andy: try once, then wait for the "Sync with box now" button.
         setState(State::Unreachable, tr("Box not reachable."));
+        if (m_quiet) {
+            showDialog(); // unchanged behaviour: shown, closes itself after a few seconds
+        }
         QTimer::singleShot(kAutoCloseMs, this, [this] {
             if (m_state == State::Unreachable && m_pDialog) {
                 m_pDialog->hide();
@@ -659,10 +676,23 @@ void BoxSync::finish() {
     }
     kLogger.info() << "sync done:" << parts.join(QStringLiteral(", "));
     setState(State::Done, tr("Synced with the box.") + QChar('\n') + parts.join(QStringLiteral(", ")));
-    if (m_updatedTracks == 0 && m_downloaded == 0 && m_failedDownloads == 0 &&
-            m_skippedExisting == 0 && m_declinedDownloads == 0 && m_uploaded == 0 &&
-            m_uploadDuplicates == 0 && m_uploadExisting == 0 && m_failedUploads == 0 &&
-            m_declinedUploads == 0) {
+    const bool nothingChanged = m_updatedTracks == 0 && m_downloaded == 0 &&
+            m_failedDownloads == 0 && m_skippedExisting == 0 && m_declinedDownloads == 0 &&
+            m_uploaded == 0 && m_uploadDuplicates == 0 && m_uploadExisting == 0 &&
+            m_failedUploads == 0 && m_declinedUploads == 0;
+    const bool quiet = m_quiet;
+    m_quiet = false;
+    if (nothingChanged && quiet) {
+        // Andy: after the automatic sync, zero changes → don't show anything.
+        if (m_pDialog) {
+            m_pDialog->hide();
+        }
+        return;
+    }
+    if (quiet && (!m_pDialog || !m_pDialog->isVisible())) {
+        showDialog(); // automatic sync with real changes → show the summary
+    }
+    if (nothingChanged) {
         QTimer::singleShot(kAutoCloseMs, this, [this] {
             if (m_state == State::Done && m_pDialog) {
                 m_pDialog->hide();
@@ -678,6 +708,10 @@ void BoxSync::setState(State state, const QString& message) {
         kLogger.warning() << message;
     }
     updateUi();
+    if (state == State::Failed && m_quiet) {
+        m_quiet = false;
+        showDialog(); // errors always surface, also during the automatic sync
+    }
 }
 
 void BoxSync::ensureDialog() {
