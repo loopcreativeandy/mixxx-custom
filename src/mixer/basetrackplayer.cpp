@@ -856,6 +856,9 @@ void BaseTrackPlayerImpl::slotCloneFromGroup(const QString& group) {
 namespace {
 // andy-custom (CP135): copy one control between decks if it exists on both
 // (stem / effect controls differ per deck setup), returns the source value.
+// CP137: settings -> engine settle time before the fader swap (~3-6 buffers)
+constexpr int kMoveSettleMs = 80;
+
 void copyControl(const ConfigKey& from, const ConfigKey& to) {
     ControlObject* pFrom = ControlObject::getControl(from, ControlFlag::NoWarnIfMissing);
     ControlObject* pTo = ControlObject::getControl(to, ControlFlag::NoWarnIfMissing);
@@ -923,7 +926,7 @@ void BaseTrackPlayerImpl::finishMove(const QString& src, bool loaded) {
     // CP137: tempo/key again - the source may have been touched while loading.
     copyTempoAndKey(src, me);
     // Everything the mixer does to the sound - but not the crossfader side.
-    for (const char* key : {"pregain", "keylock", "quantize", "pfl", "mute"}) {
+    for (const char* key : {"pregain", "keylock", "quantize", "mute"}) {
         copyControl(ConfigKey(src, key), ConfigKey(me, key));
     }
     const QString srcEq = QStringLiteral("[EqualizerRack1_%1_Effect1]").arg(src);
@@ -967,6 +970,28 @@ void BaseTrackPlayerImpl::finishMove(const QString& src, bool loaded) {
         ControlObject::set(ConfigKey(me, "sync_enabled"), 1.0);
     }
 
+    // CP137: EQ / filter / stem / effect changes reach the engine through the
+    // effects message queue (a QuickEffect preset even loads asynchronously),
+    // i.e. a few audio buffers AFTER a fader change. Swapping the faders in the
+    // same call made the target audible with flat EQ / no filter for a moment
+    // -> the "jumpy" hand-over. So wait until the settings have landed.
+    TrackPointer pMovedTrack = m_pLoadedTrack;
+    QTimer::singleShot(kMoveSettleMs, this, [this, src, pMovedTrack]() {
+        if (!m_moveActiveFrom.isEmpty() || !m_moveRequestedFrom.isEmpty()) {
+            return; // a newer move owns the fader now
+        }
+        if (!pMovedTrack || m_pLoadedTrack != pMovedTrack) {
+            // overtaken by another load meanwhile
+            ControlObject::set(ConfigKey(getGroup(), "volume"), m_moveOwnVolumeBefore);
+            return;
+        }
+        swapMove(src);
+    });
+}
+
+void BaseTrackPlayerImpl::swapMove(const QString& src) {
+    const QString me = getGroup();
+    copyTempoAndKey(src, me);
     // Hand-over: both channel gains ramp within the same audio buffer, so the
     // level stays constant. Then stop + eject the source; its fader goes back
     // up only after it is silent (stopping ramps the rate down for a moment).
@@ -974,6 +999,8 @@ void BaseTrackPlayerImpl::finishMove(const QString& src, bool loaded) {
     // a fader that is down stays down, and it is put back afterwards.
     const double volume = ControlObject::get(ConfigKey(src, "volume"));
     m_moveSourceVolume = volume;
+    // headphone cue moves with the swap (not earlier - would double up)
+    copyControl(ConfigKey(src, "pfl"), ConfigKey(me, "pfl"));
     ControlObject::set(ConfigKey(me, "volume"), volume);
     ControlObject::set(ConfigKey(src, "volume"), 0.0);
     ControlObject::set(ConfigKey(src, "play"), 0.0);
