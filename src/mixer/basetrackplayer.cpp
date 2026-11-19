@@ -883,14 +883,11 @@ void BaseTrackPlayerImpl::slotMoveFromGroup(const QString& group) {
     m_moveSourceVolume = ControlObject::get(ConfigKey(group, "volume"));
     m_moveOwnVolumeBefore = ControlObject::get(ConfigKey(me, "volume"));
     ControlObject::set(ConfigKey(me, "volume"), 0.0);
-    // Tempo before the engine starts playing the clone, so both stay in phase
-    // until the hand-over (the clone itself copies them only after loading).
-    if (ControlObject::get(ConfigKey(me, "sync_mode")) !=
-            static_cast<double>(SyncMode::Follower)) {
-        copyControl(ConfigKey(group, "rate_ratio"), ConfigKey(me, "rate_ratio"));
-    }
-    copyControl(ConfigKey(group, "keylock"), ConfigKey(me, "keylock"));
-    copyControl(ConfigKey(group, "pitch_adjust"), ConfigKey(me, "pitch_adjust"));
+    // Tempo + key before the engine starts playing the clone, so both stay in
+    // phase until the hand-over (the clone itself copies them only after
+    // loading). CP137: a synced target would follow the leader instead of the
+    // source tempo -> unsync it first if the source is not synced.
+    copyTempoAndKey(group, me);
     m_moveRequestedFrom = group;
     slotCloneChannel(pChannel);
     if (!m_moveRequestedFrom.isEmpty()) {
@@ -900,12 +897,31 @@ void BaseTrackPlayerImpl::slotMoveFromGroup(const QString& group) {
     }
 }
 
+void BaseTrackPlayerImpl::copyTempoAndKey(const QString& src, const QString& me) {
+    // andy-custom CP137: order matters - sync, then keylock, then tempo, then
+    // the key. "pitch" is the real key shift (semitones) the listener hears;
+    // pitch_adjust alone differs in "lock current key" mode.
+    const bool srcSync = ControlObject::toBool(ConfigKey(src, "sync_enabled"));
+    if (!srcSync && ControlObject::toBool(ConfigKey(me, "sync_enabled"))) {
+        ControlObject::set(ConfigKey(me, "sync_enabled"), 0.0);
+    }
+    copyControl(ConfigKey(src, "keylock"), ConfigKey(me, "keylock"));
+    if (ControlObject::get(ConfigKey(me, "sync_mode")) !=
+            static_cast<double>(SyncMode::Follower)) {
+        copyControl(ConfigKey(src, "rate_ratio"), ConfigKey(me, "rate_ratio"));
+    }
+    copyControl(ConfigKey(src, "pitch_adjust"), ConfigKey(me, "pitch_adjust"));
+    copyControl(ConfigKey(src, "pitch"), ConfigKey(me, "pitch"));
+}
+
 void BaseTrackPlayerImpl::finishMove(const QString& src, bool loaded) {
     const QString me = getGroup();
     if (!loaded) {
         ControlObject::set(ConfigKey(me, "volume"), m_moveOwnVolumeBefore);
         return;
     }
+    // CP137: tempo/key again - the source may have been touched while loading.
+    copyTempoAndKey(src, me);
     // Everything the mixer does to the sound - but not the crossfader side.
     for (const char* key : {"pregain", "keylock", "quantize", "pfl", "mute"}) {
         copyControl(ConfigKey(src, key), ConfigKey(me, key));
@@ -954,7 +970,10 @@ void BaseTrackPlayerImpl::finishMove(const QString& src, bool loaded) {
     // Hand-over: both channel gains ramp within the same audio buffer, so the
     // level stays constant. Then stop + eject the source; its fader goes back
     // up only after it is silent (stopping ramps the rate down for a moment).
-    const double volume = m_moveSourceVolume;
+    // CP137: the source fader as it is NOW (it may have moved while loading);
+    // a fader that is down stays down, and it is put back afterwards.
+    const double volume = ControlObject::get(ConfigKey(src, "volume"));
+    m_moveSourceVolume = volume;
     ControlObject::set(ConfigKey(me, "volume"), volume);
     ControlObject::set(ConfigKey(src, "volume"), 0.0);
     ControlObject::set(ConfigKey(src, "play"), 0.0);
@@ -965,6 +984,11 @@ void BaseTrackPlayerImpl::finishMove(const QString& src, bool loaded) {
             ControlObject::set(srcKey, 0.0);
         }
     }
+    // The key shift is applied by the engine against the tempo it last saw;
+    // re-check once after a buffer or two.
+    QTimer::singleShot(30, this, [src, me]() {
+        copyControl(ConfigKey(src, "pitch"), ConfigKey(me, "pitch"));
+    });
     QTimer::singleShot(150, this, [src, volume]() {
         ControlObject::set(ConfigKey(src, "eject"), 1.0);
         ControlObject::set(ConfigKey(src, "eject"), 0.0);

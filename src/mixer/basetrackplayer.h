@@ -201,6 +201,7 @@ class BaseTrackPlayerImpl : public BaseTrackPlayer {
     double m_moveSourceVolume = 1.0;
     double m_moveOwnVolumeBefore = 1.0;
     void finishMove(const QString& sourceGroup, bool loaded);
+    void copyTempoAndKey(const QString& sourceGroup, const QString& targetGroup);
 
     PerformanceTimer m_ejectTimer;
 
