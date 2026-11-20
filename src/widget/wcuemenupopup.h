@@ -75,6 +75,8 @@ class WCueMenuPopup : public QWidget {
     /// position as loop end
     void slotSavedLoopCueManual();
     void slotChangeCueColor(mixxx::RgbColor::optional_t color);
+    /// andy-custom CP142: toggle a saved loop between loop and anti-loop.
+    void slotAntiLoopToggled();
 
   private:
     ColorPaletteSettings m_colorPaletteSettings;
@@ -91,6 +93,7 @@ class WCueMenuPopup : public QWidget {
     std::unique_ptr<WColorPicker> m_pColorPicker;
     std::unique_ptr<QPushButton> m_pDeleteCue;
     std::unique_ptr<CueTypePushButton> m_pSavedLoopCue;
+    std::unique_ptr<QPushButton> m_pAntiLoopCue; // andy-custom CP142
 
   protected:
     void closeEvent(QCloseEvent* event) override;

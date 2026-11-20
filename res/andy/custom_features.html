@@ -140,6 +140,7 @@ page (Enter = next hit).</p>
 <li><b>Crowd rating tint:</b> during a live session a deck is tinted green/red/yellow with the latest rating of its track. <span class="dim">CP113</span></li>
 <li><b>Undo loop / cue change:</b> <code>Ctrl+Z</code> or Options &rarr; Undo Loop / Cue Change (controller: <code>[LoopUndo],undo</code>). Covers the loop, the loaded track's hotcues and saved loops (set, moved, deleted, label/colour) and its intro/outro start/end markers &ndash; not the main cue. Changes on one deck within 300&nbsp;ms = one step. A toast shows what was undone (e.g. &ldquo;Deck 2: outro marker change undone&rdquo;). Loading a track drops that deck's history. <span class="dim">CP115, CP129</span></li>
 <li class="dim">The asymmetric (&minus;32/+8&nbsp;%) and exponential pitch faders were tried and removed again (CP28&ndash;CP30).</li>
+<li><b>Anti-loops (skip a section)</b>: set a saved loop as usual, right-click its hotcue &rarr; <b>&#x23ED;</b> button = anti-loop (turns red, label gets &#x23ED;). <b>Press the hotcue to arm it</b> (pad lit), press again to disarm; while armed, playback jumps seamlessly from its start to its end (like a loop wrap). Off after loading the track; already inside the section when you arm it &rarr; it plays on. Stored as a normal saved loop, so official Mixxx just shows a loop named &#x23ED;&hellip;. <span class="dim">CP142</span></li>
 </ul>
 
 <!-- ============================================================ -->

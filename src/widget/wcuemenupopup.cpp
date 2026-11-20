@@ -5,6 +5,7 @@
 
 #include "control/controlobject.h"
 #include "moc_wcuemenupopup.cpp"
+#include "track/antiloop.h"
 #include "track/track.h"
 
 void CueTypePushButton::mousePressEvent(QMouseEvent* e) {
@@ -77,6 +78,20 @@ WCueMenuPopup::WCueMenuPopup(UserSettingsPointer pConfig, QWidget* parent)
             this,
             &WCueMenuPopup::slotSavedLoopCueManual);
 
+    // andy-custom CP142: anti-loop toggle (only for saved loops)
+    m_pAntiLoopCue = std::make_unique<QPushButton>(andyantiloop::kMarker, this);
+    m_pAntiLoopCue->setToolTip(
+            tr("Anti-loop: skip this section") + "\n\n" +
+            tr("Turns this saved loop into an anti-loop (red). Press its hotcue "
+               "to arm it; while armed, playback jumps from its start to its "
+               "end. Press again to disarm. Off after loading the track."));
+    m_pAntiLoopCue->setObjectName("CueAntiLoopButton");
+    m_pAntiLoopCue->setCheckable(true);
+    connect(m_pAntiLoopCue.get(),
+            &QPushButton::clicked,
+            this,
+            &WCueMenuPopup::slotAntiLoopToggled);
+
     QHBoxLayout* pLabelLayout = new QHBoxLayout();
     pLabelLayout->addWidget(m_pCueNumber.get());
     pLabelLayout->addStretch(1);
@@ -90,6 +105,7 @@ WCueMenuPopup::WCueMenuPopup(UserSettingsPointer pConfig, QWidget* parent)
     QVBoxLayout* pRightLayout = new QVBoxLayout();
     pRightLayout->addWidget(m_pDeleteCue.get());
     pRightLayout->addStretch(1);
+    pRightLayout->addWidget(m_pAntiLoopCue.get());
     pRightLayout->addWidget(m_pSavedLoopCue.get());
 
     QHBoxLayout* pMainLayout = new QHBoxLayout();
@@ -155,9 +171,13 @@ void WCueMenuPopup::slotUpdate() {
         }
         m_pCuePosition->setText(positionText);
 
-        m_pEditLabel->setText(m_pCue->getLabel());
+        // andy-custom CP142: the anti-loop marker is not part of the
+        // editable label; the toggle button shows it instead.
+        m_pEditLabel->setText(andyantiloop::plainLabel(m_pCue->getLabel()));
         m_pColorPicker->setSelectedColor(m_pCue->getColor());
         m_pSavedLoopCue->setChecked(m_pCue->getType() == mixxx::CueType::Loop);
+        m_pAntiLoopCue->setEnabled(m_pCue->getType() == mixxx::CueType::Loop);
+        m_pAntiLoopCue->setChecked(andyantiloop::isAntiLoop(*m_pCue));
     } else {
         m_pTrack.reset();
         m_pCue.reset();
@@ -172,7 +192,23 @@ void WCueMenuPopup::slotEditLabel() {
     VERIFY_OR_DEBUG_ASSERT(m_pCue != nullptr) {
         return;
     }
-    m_pCue->setLabel(m_pEditLabel->text());
+    if (andyantiloop::isAntiLoop(*m_pCue)) {
+        m_pCue->setLabel(andyantiloop::markedLabel(m_pEditLabel->text().trimmed()));
+    } else {
+        m_pCue->setLabel(m_pEditLabel->text());
+    }
+}
+
+void WCueMenuPopup::slotAntiLoopToggled() {
+    VERIFY_OR_DEBUG_ASSERT(m_pCue != nullptr) {
+        return;
+    }
+    if (m_pCue->getType() != mixxx::CueType::Loop) {
+        slotUpdate();
+        return;
+    }
+    andyantiloop::setAntiLoop(m_pCue.get(), !andyantiloop::isAntiLoop(*m_pCue));
+    slotUpdate();
 }
 
 void WCueMenuPopup::slotChangeCueColor(mixxx::RgbColor::optional_t color) {
@@ -209,6 +245,9 @@ void WCueMenuPopup::slotSavedLoopCueAuto() {
         return;
     }
     if (m_pCue->getType() == mixxx::CueType::Loop) {
+        if (andyantiloop::isAntiLoop(*m_pCue)) {
+            andyantiloop::setAntiLoop(m_pCue.get(), false); // andy-custom CP142
+        }
         m_pCue->setType(mixxx::CueType::HotCue);
     } else {
         auto cueStartEnd = m_pCue->getStartAndEndPosition();

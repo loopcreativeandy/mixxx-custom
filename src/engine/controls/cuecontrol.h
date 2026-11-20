@@ -5,6 +5,7 @@
 #include <QAtomicInt>
 #include <QAtomicPointer>
 #include <QList>
+#include <QSet>
 
 #include "engine/controls/enginecontrol.h"
 #include "preferences/colorpalettesettings.h"
@@ -18,6 +19,7 @@ class ControlObject;
 class ControlPushButton;
 class ControlIndicator;
 class ControlProxy;
+class LoopingControl;
 
 enum class CueMode {
     Mixxx,
@@ -205,6 +207,10 @@ class CueControl : public EngineControl {
     SeekOnLoadMode getSeekOnLoadPreference();
     void trackLoaded(TrackPointer pNewTrack) override;
     void trackBeatsUpdated(mixxx::BeatsPointer pBeats) override;
+    /// andy-custom CP142: target for armed anti-loop ranges.
+    void setLoopingControl(LoopingControl* pLoopingControl) {
+        m_pLoopingControl = pLoopingControl;
+    }
 
   signals:
     void loopRemove();
@@ -286,6 +292,12 @@ class CueControl : public EngineControl {
     void detachCue(HotcueControl* pControl);
     void setCurrentSavedLoopControlAndActivate(HotcueControl* pControl);
     void loadCuesFromTrack();
+    // andy-custom CP142: anti-loops
+    bool isAntiLoopControl(HotcueControl* pControl) const;
+    void toggleAntiLoop(HotcueControl* pControl);
+    /// Syncs hotcue status (armed = Active) and pushes armed ranges to
+    /// LoopingControl. Caller holds m_trackMutex.
+    void updateAntiLoops();
     mixxx::audio::FramePos quantizeCuePoint(mixxx::audio::FramePos position);
     mixxx::audio::FramePos getQuantizedCurrentPosition();
     TrackAt getTrackAt() const;
@@ -374,6 +386,11 @@ class CueControl : public EngineControl {
     // Must be locked when using the m_pLoadedTrack and it's properties
     QT_RECURSIVE_MUTEX m_trackMutex;
     TrackPointer m_pLoadedTrack; // is written from an engine worker thread
+
+    // andy-custom CP142: armed anti-loop cues of the loaded track (runtime
+    // only, guarded by m_trackMutex; cleared on track load).
+    QSet<const Cue*> m_armedAntiLoops;
+    LoopingControl* m_pLoopingControl = nullptr;
 
     friend class HotcueControlTest;
 };

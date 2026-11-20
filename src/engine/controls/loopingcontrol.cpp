@@ -529,6 +529,38 @@ mixxx::audio::FramePos LoopingControl::nextTrigger(bool reverse,
         }
     }
 
+    // andy-custom CP142: armed anti-loops. The nearest one ahead in the play
+    // direction becomes the trigger and playback continues at its other end
+    // (same seamless crossfaded jump as a loop wrap). Being inside an
+    // anti-loop (armed while inside, or seeked into it) plays on normally.
+    {
+        const AntiLoopRanges antiLoops = m_antiLoops.getValue();
+        mixxx::audio::FramePos trigger;
+        mixxx::audio::FramePos target;
+        for (int i = 0; i < antiLoops.count; ++i) {
+            const auto start = antiLoops.start[i];
+            const auto end = antiLoops.end[i];
+            if (!start.isValid() || !end.isValid() || end <= start) {
+                continue;
+            }
+            if (!reverse) {
+                if (start >= currentPosition && (!trigger.isValid() || start < trigger)) {
+                    trigger = start;
+                    target = end;
+                }
+            } else {
+                if (end <= currentPosition && (!trigger.isValid() || end > trigger)) {
+                    trigger = end;
+                    target = start;
+                }
+            }
+        }
+        if (trigger.isValid()) {
+            *pTargetPosition = target;
+            return trigger;
+        }
+    }
+
     // Return trigger if repeat is enabled
     if (m_pRepeatButton->toBool()) {
         const FrameInfo info = frameInfo();
@@ -552,6 +584,20 @@ mixxx::audio::FramePos LoopingControl::getTrackFrame() const {
 void LoopingControl::hintReader(gsl::not_null<HintVector*> pHintList) {
     LoopInfo loopInfo = m_loopInfo.getValue();
     Hint loop_hint;
+    // andy-custom CP142: keep the landing points of armed anti-loops cached.
+    {
+        const AntiLoopRanges antiLoops = m_antiLoops.getValue();
+        for (int i = 0; i < antiLoops.count; ++i) {
+            if (antiLoops.end[i].isValid()) {
+                // landing point: high priority like an enabled loop start
+                loop_hint.type = Hint::Type::LoopStartEnabled;
+                loop_hint.frame = static_cast<SINT>(
+                        antiLoops.end[i].toLowerFrameBoundary().value());
+                loop_hint.frameCount = Hint::kFrameCountForward;
+                pHintList->append(loop_hint);
+            }
+        }
+    }
     // If the loop is enabled, then this is high priority because we will loop
     // sometime potentially very soon! The current audio itself is priority 1,
     // but we will issue ourselves at priority 2.

@@ -278,6 +278,7 @@ EngineBuffer::EngineBuffer(const QString& group,
     // Create the cue controller
     m_pCueControl = new CueControl(group, pConfig);
     addControl(m_pCueControl);
+    m_pCueControl->setLoopingControl(m_pLoopingControl); // andy-custom CP142
 
     connect(m_pLoopingControl,
             &LoopingControl::loopReset,

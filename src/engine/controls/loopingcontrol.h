@@ -2,12 +2,14 @@
 
 #include <QObject>
 #include <QStack>
+#include <array>
 
 #include "control/controlvalue.h"
 #include "engine/controls/enginecontrol.h"
 #include "preferences/usersettings.h"
 #include "track/beats.h"
 #include "track/track_decl.h"
+#include "util/defs.h"
 
 class ControlPushButton;
 class ControlObject;
@@ -71,6 +73,17 @@ class LoopingControl : public EngineControl {
                // will move the end point
         None,  // Used to indicate the end of the enum type and the null type
     };
+
+    /// andy-custom CP142: armed anti-loops (skip start -> end), published by
+    /// CueControl, read in the engine thread by nextTrigger().
+    struct AntiLoopRanges {
+        int count = 0;
+        std::array<mixxx::audio::FramePos, kMaxNumberOfHotcues> start;
+        std::array<mixxx::audio::FramePos, kMaxNumberOfHotcues> end;
+    };
+    void setAntiLoops(const AntiLoopRanges& ranges) {
+        m_antiLoops.setValue(ranges);
+    }
 
     struct LoopInfo {
         mixxx::audio::FramePos startPosition = mixxx::audio::kInvalidFramePos;
@@ -235,6 +248,7 @@ class LoopingControl : public EngineControl {
     bool m_bLoopOutPressedWhileLoopDisabled;
     QStack<double> m_activeLoopRolls;
     ControlValueAtomic<LoopInfo> m_loopInfo;
+    ControlValueAtomic<AntiLoopRanges> m_antiLoops; // andy-custom CP142
     ControlValueAtomic<LoopInfo> m_prevLoopInfo;
     double m_prevLoopSize;
     LoopInfo m_oldLoopInfo;

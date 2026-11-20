@@ -5,7 +5,9 @@
 #include "control/controlpushbutton.h"
 #include "engine/enginebuffer.h"
 #include "mixer/playermanager.h"
+#include "engine/controls/loopingcontrol.h"
 #include "moc_cuecontrol.cpp"
+#include "track/antiloop.h"
 #include "preferences/colorpalettesettings.h"
 #include "track/track.h"
 #include "util/color/predefinedcolorpalettes.h"
@@ -517,6 +519,8 @@ void CueControl::trackLoaded(TrackPointer pNewTrack) {
         setHotcueFocusIndex(Cue::kNoHotCue);
         m_pLoadedTrack.reset();
         m_usedSeekOnLoadPosition.setValue(mixxx::audio::kStartFramePos);
+        m_armedAntiLoops.clear();
+        updateAntiLoops();
     }
 
     if (!pNewTrack) {
@@ -711,6 +715,8 @@ void CueControl::loadCuesFromTrack() {
             detachCue(pControl);
         }
     }
+
+    updateAntiLoops(); // andy-custom CP142
 
     if (pIntroCue) {
         const auto startPosition = quantizeCuePoint(pIntroCue->getPosition());
@@ -1131,6 +1137,16 @@ void CueControl::hotcueCueLoop(HotcueControl* pControl, double value) {
 
 void CueControl::hotcueActivate(HotcueControl* pControl, double value, HotcueSetMode mode) {
     // qDebug() << "CueControl::hotcueActivate" << value;
+
+    // andy-custom CP142: an anti-loop hotcue only arms/disarms the skip
+    // (press toggles, release does nothing), playing or paused.
+    if (isAntiLoopControl(pControl)) {
+        if (value > 0) {
+            toggleAntiLoop(pControl);
+        }
+        setHotcueFocusIndex(pControl->getHotcueIndex());
+        return;
+    }
 
     CuePointer pCue = pControl->getCue();
     if (value > 0) {
@@ -2407,6 +2423,12 @@ void CueControl::hotcueFocusColorNext(double value) {
 }
 
 void CueControl::setCurrentSavedLoopControlAndActivate(HotcueControl* pControl) {
+    // andy-custom CP142: an anti-loop is never enabled as a real loop (e.g.
+    // via hotcue_X_gotoandloop / cueloop from a controller); toggle instead.
+    if (pControl && isAntiLoopControl(pControl)) {
+        toggleAntiLoop(pControl);
+        return;
+    }
     HotcueControl* pOldSavedLoopControl = m_pCurrentSavedLoopControl.fetchAndStoreAcquire(nullptr);
     if (pOldSavedLoopControl && pOldSavedLoopControl != pControl) {
         // Disable previous saved loop
@@ -2826,4 +2848,68 @@ HotcueControl::Status HotcueControl::getStatus() const {
     // Cast to int before casting to the int-based enum class because MSVC will
     // throw a hissy fit otherwise.
     return static_cast<Status>(static_cast<int>(m_pHotcueStatus->get()));
+}
+
+// andy-custom CP142: anti-loops ------------------------------------------------
+
+bool CueControl::isAntiLoopControl(HotcueControl* pControl) const {
+    if (!pControl) {
+        return false;
+    }
+    CuePointer pCue = pControl->getCue();
+    return pCue && andyantiloop::isAntiLoop(*pCue);
+}
+
+void CueControl::toggleAntiLoop(HotcueControl* pControl) {
+    auto lock = lockMutex(&m_trackMutex);
+    CuePointer pCue = pControl->getCue();
+    if (!m_pLoadedTrack || !pCue) {
+        return;
+    }
+    const Cue* pKey = pCue.get();
+    if (m_armedAntiLoops.contains(pKey)) {
+        m_armedAntiLoops.remove(pKey);
+    } else {
+        m_armedAntiLoops.insert(pKey);
+    }
+    updateAntiLoops();
+}
+
+void CueControl::updateAntiLoops() {
+    auto lock = lockMutex(&m_trackMutex);
+    LoopingControl::AntiLoopRanges ranges;
+    QSet<const Cue*> stillArmed;
+    for (HotcueControl* pControl : std::as_const(m_hotcueControls)) {
+        CuePointer pCue = pControl->getCue();
+        if (!pCue || !andyantiloop::isAntiLoop(*pCue)) {
+            continue;
+        }
+        const bool armed = m_armedAntiLoops.contains(pCue.get());
+        const Cue::StartAndEndPositions pos = pCue->getStartAndEndPosition();
+        if (armed && pos.startPosition.isValid() && pos.endPosition.isValid() &&
+                pos.startPosition < pos.endPosition &&
+                ranges.count < kMaxNumberOfHotcues) {
+            ranges.start[ranges.count] = pos.startPosition;
+            ranges.end[ranges.count] = pos.endPosition;
+            ++ranges.count;
+            stillArmed.insert(pCue.get());
+        }
+        pControl->setStatus(armed ? HotcueControl::Status::Active
+                                  : HotcueControl::Status::Set);
+    }
+    // Cues that stopped being anti-loops (menu toggle, deleted) are dropped
+    // and their hotcue status was reset by attach/detach or stays as is.
+    for (HotcueControl* pControl : std::as_const(m_hotcueControls)) {
+        CuePointer pCue = pControl->getCue();
+        if (pCue && m_armedAntiLoops.contains(pCue.get()) &&
+                !stillArmed.contains(pCue.get()) &&
+                pControl->getStatus() == HotcueControl::Status::Active &&
+                pControl != m_pCurrentSavedLoopControl.loadAcquire()) {
+            pControl->setStatus(HotcueControl::Status::Set);
+        }
+    }
+    m_armedAntiLoops = stillArmed;
+    if (m_pLoopingControl) {
+        m_pLoopingControl->setAntiLoops(ranges);
+    }
 }

@@ -1,5 +1,6 @@
 #include "engine/controls/cuecontrol.h"
 #include "test/signalpathtest.h"
+#include "track/antiloop.h"
 
 namespace {
 mixxx::audio::FrameDiff_t getBeatLengthFrames(TrackPointer pTrack) {
@@ -1527,4 +1528,84 @@ TEST_F(HotcueControlTest, SavedLoopUseLoopInOutWhileActive) {
     EXPECT_DOUBLE_EQ(static_cast<double>(HotcueControl::Status::Active), m_pHotcue1Status->get());
     EXPECT_FRAMEPOS_EQ_CONTROL(mixxx::audio::kStartFramePos, m_pHotcue1Position);
     EXPECT_FRAMEPOS_EQ_CONTROL(loopEndPosition, m_pHotcue1EndPosition);
+}
+
+// andy-custom CP142: anti-loop = saved loop with the ⏭ label marker; pressing
+// its hotcue arms/disarms it, armed => playback skips start -> end.
+TEST_F(HotcueControlTest, AntiLoopSkipsWhenArmed) {
+    TrackPointer pTrack = loadTestTrackWithBpm(120.0);
+    m_pQuantizeEnabled->set(0); // seeks while playing would keep beat phase
+    constexpr auto kStart = mixxx::audio::FramePos(20000);
+    constexpr auto kEnd = mixxx::audio::FramePos(200000);
+    CuePointer pCue = pTrack->createAndAddCue(mixxx::CueType::Loop, 0, kStart, kEnd);
+    andyantiloop::setAntiLoop(pCue.get(), true);
+    ProcessBuffer();
+    EXPECT_TRUE(andyantiloop::isAntiLoop(*pCue));
+    EXPECT_EQ(andyantiloop::kColor, pCue->getColor());
+    EXPECT_DOUBLE_EQ(static_cast<double>(HotcueControl::Status::Set), m_pHotcue1Status->get());
+
+    // Not armed: plays through the section.
+    setCurrentFramePosition(mixxx::audio::FramePos(19000));
+    m_pPlay->set(1);
+    for (int i = 0; i < 10; ++i) {
+        ProcessBuffer();
+    }
+    EXPECT_GT(currentFramePosition(), kStart);
+    EXPECT_LT(currentFramePosition(), kEnd);
+
+    // Arm: status active, no real loop enabled, playback jumps over it.
+    m_pHotcue1Activate->set(1);
+    m_pHotcue1Activate->set(0);
+    EXPECT_DOUBLE_EQ(static_cast<double>(HotcueControl::Status::Active),
+            m_pHotcue1Status->get());
+    EXPECT_DOUBLE_EQ(0.0, m_pLoopEnabled->get());
+    setCurrentFramePosition(mixxx::audio::FramePos(19000));
+    for (int i = 0; i < 10; ++i) {
+        ProcessBuffer();
+    }
+    EXPECT_GT(currentFramePosition(), kEnd);
+    EXPECT_LT(currentFramePosition(), kEnd + 20000);
+    EXPECT_DOUBLE_EQ(0.0, m_pLoopEnabled->get());
+
+    // Armed but already inside: plays on.
+    setCurrentFramePosition(mixxx::audio::FramePos(50000));
+    for (int i = 0; i < 10; ++i) {
+        ProcessBuffer();
+    }
+    EXPECT_GT(currentFramePosition(), mixxx::audio::FramePos(50000));
+    EXPECT_LT(currentFramePosition(), kEnd);
+
+    // gotoandloop from a controller must not turn it into a real loop.
+    m_pHotcue1GotoAndLoop->set(1);
+    m_pHotcue1GotoAndLoop->set(0);
+    EXPECT_DOUBLE_EQ(0.0, m_pLoopEnabled->get());
+    EXPECT_DOUBLE_EQ(static_cast<double>(HotcueControl::Status::Set), m_pHotcue1Status->get());
+
+    // Disarmed: plays through again.
+    setCurrentFramePosition(mixxx::audio::FramePos(19000));
+    for (int i = 0; i < 10; ++i) {
+        ProcessBuffer();
+    }
+    EXPECT_GT(currentFramePosition(), kStart);
+    EXPECT_LT(currentFramePosition(), kEnd);
+
+    // Menu toggle back to a normal loop: hotcue press is a normal saved loop.
+    m_pHotcue1Activate->set(1);
+    m_pHotcue1Activate->set(0);
+    andyantiloop::setAntiLoop(pCue.get(), false);
+    ProcessBuffer();
+    EXPECT_FALSE(andyantiloop::isAntiLoop(*pCue));
+    EXPECT_DOUBLE_EQ(static_cast<double>(HotcueControl::Status::Set), m_pHotcue1Status->get());
+    setCurrentFramePosition(mixxx::audio::FramePos(19000));
+    for (int i = 0; i < 10; ++i) {
+        ProcessBuffer();
+    }
+    EXPECT_LT(currentFramePosition(), kEnd);
+}
+
+TEST(AntiLoopLabelTest, MarkerRoundTrip) {
+    EXPECT_EQ(QStringLiteral("Intro"), andyantiloop::plainLabel(andyantiloop::markedLabel("Intro")));
+    EXPECT_TRUE(andyantiloop::labelHasMarker(andyantiloop::markedLabel(QString())));
+    EXPECT_EQ(QString(), andyantiloop::plainLabel(andyantiloop::markedLabel(QString())));
+    EXPECT_FALSE(andyantiloop::labelHasMarker(QStringLiteral("Intro")));
 }
