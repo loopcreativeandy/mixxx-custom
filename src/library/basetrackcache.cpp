@@ -482,13 +482,23 @@ void BaseTrackCache::filterAndSort(const QSet<TrackId>& trackIds,
     // is a SQL string and creates a SqlNode from it, and the issue with that is
     // that SqlNode::match(TrackPointer) always returns true -- which leads to
     // false positive matches when we iterate over the dirty tracks below.
-    QString searchPlusExtraFilter = searchQuery;
-    if (!extraFilter.isEmpty()) {
-        searchPlusExtraFilter += ' ';
-        searchPlusExtraFilter += extraFilter;
+    // andy-custom CP141: search and extraFilter are parsed separately and
+    // AND-ed. Plain string concatenation ("<search> key:1m | key:2m") broke on
+    // any extraFilter containing "|": the OR split the whole string, so the
+    // typed search only narrowed the first branch and every other branch
+    // ignored it (smart playlists "Key: ±1"/"transpose", any user smart
+    // playlist with "|"). Both halves still go through the parser (no
+    // SqlNode), so match() on dirty tracks keeps working.
+    std::unique_ptr<QueryNode> pQuery;
+    if (!extraFilter.isEmpty() && !searchQuery.trimmed().isEmpty()) {
+        auto pAnd = std::make_unique<AndNode>();
+        pAnd->addNode(m_pQueryParser->parseQuery(searchQuery, QString()));
+        pAnd->addNode(m_pQueryParser->parseQuery(extraFilter, QString()));
+        pQuery = std::move(pAnd);
+    } else {
+        pQuery = m_pQueryParser->parseQuery(
+                extraFilter.isEmpty() ? searchQuery : extraFilter, QString());
     }
-    std::unique_ptr<QueryNode> pQuery =
-            m_pQueryParser->parseQuery(searchPlusExtraFilter, QString());
 
     // andy-custom: [Library],stem_search_mode narrows a typed search to stem
     // files (1) or hides them (2), so a track with a stem version doesn't
@@ -579,7 +589,7 @@ void BaseTrackCache::filterAndSort(const QSet<TrackId>& trackIds,
         // the search and extra filter are empty
         // or
         // the track matches the search and ids (if not empty) contains its id
-        bool shouldBeInResultSet = searchPlusExtraFilter.isEmpty() ||
+        bool shouldBeInResultSet = (searchQuery.isEmpty() && extraFilter.isEmpty()) ||
                 ((ids.isEmpty() || ids.contains(trackId)) && pQuery->match(pTrack));
 
         // If the track is in this result set.
